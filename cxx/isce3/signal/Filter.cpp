@@ -24,7 +24,7 @@ initiateRangeFilter(std::valarray<std::complex<T>> &signal,
                     size_t nrows)
 {
     _signal.forwardRangeFFT(signal, spectrum, ncols, nrows);
-    _signal.inverseRangeFFT(spectrum, signal, ncols, nrows);   
+    _signal.inverseRangeFFT(spectrum, signal, ncols, nrows);
 }
 
 /**
@@ -77,7 +77,7 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
 
     _signal.forwardRangeFFT(signal, spectrum, ncols, nrows);
     _signal.inverseRangeFFT(spectrum, signal, ncols, nrows);
-   
+
 }
 
 template <class T>
@@ -138,7 +138,7 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
  * @param[in] subBandBandwidths a vector of bandwidths for each band
  * @param[in] dt samplig rate of the signal
  * @param[in] fft_size length of the spectrum
- * @param[out] _filter1D one dimensional boxcar bandpass filter in frequency domain 
+ * @param[out] _filter1D one dimensional boxcar bandpass filter in frequency domain
  */
 template <class T>
 void
@@ -149,8 +149,8 @@ constructRangeBandpassBoxcar(std::valarray<double> subBandCenterFrequencies,
                              int fft_size,
                              std::valarray<std::complex<T>>& _filter1D)
 {
-    // construct a boxcar bandpass filter in frequency domian 
-    // which may have several bands defined by centerferquencies and 
+    // construct a boxcar bandpass filter in frequency domian
+    // which may have several bands defined by centerferquencies and
     // subBandBandwidths
     for (size_t i = 0; i<subBandCenterFrequencies.size(); ++i){
         std::cout << "i: " << i << std::endl;
@@ -161,8 +161,8 @@ constructRangeBandpassBoxcar(std::valarray<double> subBandCenterFrequencies,
         double fH = subBandCenterFrequencies[i] + subBandBandwidths[i]/2;
 
         //index of frequencies for fL and fH
-        int indL; 
-        indexOfFrequency(dt, fft_size, fL, indL); 
+        int indL;
+        indexOfFrequency(dt, fft_size, fL, indL);
         int indH;
         indexOfFrequency(dt, fft_size, fH, indH);
         std::cout << "fL: "<< fL << " , fH: " << fH << " indL: " << indL << " , indH: " << indH << std::endl;
@@ -202,8 +202,8 @@ constructRangeBandpassCosine(std::valarray<double> subBandCenterFrequencies,
                              std::valarray<std::complex<T>>& _filter1D)
 {
 
-    const double norm = 1.0;    
-    
+    const double norm = 1.0;
+
     for (size_t i = 0; i<subBandCenterFrequencies.size(); ++i){
         double fmid = subBandCenterFrequencies[i];
         double bandwidth = subBandBandwidths[i];
@@ -286,8 +286,8 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
 
             // Transition region
             } else if (freq > (0.5 * bandwidth - df) && freq <= (0.5 * bandwidth + df)) {
-                _filter[i*ncols+j] = std::complex<T>(norm * 0.5 * 
-                                    (1.0 + std::cos(M_PI / (bandwidth*beta) * 
+                _filter[i*ncols+j] = std::complex<T>(norm * 0.5 *
+                                    (1.0 + std::cos(M_PI / (bandwidth*beta) *
                                     (freq - 0.5 * (1.0 - beta) * bandwidth))), 0.0);
 
             // Stop band
@@ -311,7 +311,7 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
 
 /**
 * @param[in] signal a block of data to filter.
-* @param[in] spectrum of the block of the data 
+* @param[in] spectrum of the block of the data
 */
 template <class T>
 void
@@ -321,13 +321,13 @@ filter(std::valarray<std::complex<T>> &signal,
 {
     _signal.forward(signal, spectrum);
     spectrum = spectrum*_filter;
-    _signal.inverse(spectrum, signal);   
+    _signal.inverse(spectrum, signal);
 }
 
 /**
  * @param[in] N length of the signal
  * @param[in] dt sampling interval of the signal
- * @param[out] freq output vector of the frequencies 
+ * @param[out] freq output vector of the frequencies
  */
 void
 isce3::signal::
@@ -362,7 +362,7 @@ void
 isce3::signal::Filter<T>::
 indexOfFrequency(double dt, int N, double f, int &n)
 // deterrmine the index (n) of a given frequency f
-// dt: sampling rate, 
+// dt: sampling rate,
 // N: length of a signal
 // f: frequency of interest
 // Assumption: for indices 0 to (N-1)/2, frequency is positive

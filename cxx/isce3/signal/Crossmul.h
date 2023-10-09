@@ -31,7 +31,7 @@ class isce3::signal::Crossmul {
                     isce3::io::Raster& secSlcRaster,
                     isce3::io::Raster& ifgRaster,
                     isce3::io::Raster& coherence,
-                    isce3::io::Raster* rngOffsetRaster = nullptr) const;
+                    isce3::io::Raster* rngOffsetRaster = nullptr);
 
         /** Set doppler LUTs for reference and secondary SLCs*/
         inline void doppler(isce3::core::LUT1d<double>,
@@ -73,6 +73,54 @@ class isce3::signal::Crossmul {
         /** Get number of azimuth looks */
         inline int azimuthLooks() const { return _azimuthLooks; }
 
+        /** Set common azimuth band filtering flag */
+        inline void doCommonAzimuthBandFilter(bool doAzBandFilter) {
+            _doCommonAzimuthBandFilter = doAzBandFilter; }
+
+        /** Get common azimuth band filtering flag */
+        inline bool doCommonAzimuthBandFilter() const {
+            return _doCommonAzimuthBandFilter; }
+
+        /** Set azimuth common bandwidth */
+        inline void commonAzimuthBandwidth(double azBandwidth) {
+            _commonAzimuthBandwidth = azBandwidth; }
+
+        /** Get azimuth common bandwidth */
+        inline double commonAzimuthBandwidth() const {
+            return _commonAzimuthBandwidth; }
+
+        /** Set beta parameter for the azimuth common band filter */
+        inline void beta(double beta) { _beta = beta; }
+
+        /** Get beta parameter for the azimuth common band filter */
+        inline double beta() const { return _beta; }
+
+        /** Set common range band filtering flag */
+        inline void doCommonRangeBandFilter(bool doRgBandFilter) {
+            _doCommonRangeBandFilter = doRgBandFilter; }
+
+        /** Get common range band filtering flag */
+        inline bool doCommonRangeBandFilter() const {
+            return _doCommonRangeBandFilter; }
+
+        /** Set pulse repetition frequency (PRF) */
+        inline void prf(double prf) { _prf = prf; }
+
+        /** Get pulse repetition frequency (PRF) */
+        inline double prf() const { return _prf; }
+
+        /** Set range sampling frequency  */
+        inline void rangeSamplingFrequency(double rgSamplingFreq) { _rangeSamplingFrequency = rgSamplingFreq; }
+
+        /** Get range sampling frequency  */
+        inline double rangeSamplingFrequency() const { return _rangeSamplingFrequency; }
+
+        /** Set the range bandwidth */
+        inline void rangeBandwidth(double rngBandwidth) { _rangeBandwidth = rngBandwidth; }
+
+        /** Get the range bandwidth */
+        inline double rangeBandwidth() const {return _rangeBandwidth; }
+
         /** Set oversample factor */
         inline void oversampleFactor(size_t oversamp) { _oversampleFactor = oversamp; }
 
@@ -100,6 +148,18 @@ class isce3::signal::Crossmul {
         inline void getPeakIndex(std::valarray<float> data,
                                 size_t &peakIndex);
 
+        /** Range common band filtering*/
+        void rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
+                        std::valarray<std::complex<float>> &secSlc,
+                        std::valarray<std::complex<float>> geometryIfgram,
+                        std::valarray<std::complex<float>> geometryIfgramConj,
+                        std::valarray<std::complex<float>> &refSpectrum,
+                        std::valarray<std::complex<float>> &secSpectrum,
+                        std::valarray<double> &rangeFrequencies,
+                        isce3::signal::Filter<float> &rngFilter,
+                        size_t blockRows,
+                        size_t ncols);
+
     private:
         //Doppler LUT for the refernce SLC
         isce3::core::LUT1d<double> _refDoppler;
@@ -120,6 +180,28 @@ class isce3::signal::Crossmul {
         int _azimuthLooks = 1;
 
         bool _multiLookEnabled = false;
+
+        // Flag for common azimuth band filtering
+        bool _doCommonAzimuthBandFilter = false;
+
+        // Azimuth common bandwidth
+        // TODO make a part of constructor?
+        double _commonAzimuthBandwidth;
+
+        // Beta parameter for constructing common azimuth band filter
+        double _beta;
+
+        // Flag for common range band filtering
+        bool _doCommonRangeBandFilter = false;
+
+        //pulse repetition frequency
+        double _prf;
+
+        // range samping frequency
+        double _rangeSamplingFrequency;
+
+        // range signal bandwidth
+        double _rangeBandwidth;
 
         // number of lines per block
         size_t _linesPerBlock = 1024;

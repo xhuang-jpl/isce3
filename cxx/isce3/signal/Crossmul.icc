@@ -85,6 +85,7 @@ rangeFrequencyShift(std::valarray<std::complex<float>> &refSpectrum,
     std::valarray<float> secAvgSpectrum(fft_size);
     secAvgSpectrum = 0.0;
 
+    #pragma omp parallel for
     for (size_t line = 0; line < linesPerBlock; ++line){
         for (size_t col = 0; col < fft_size; ++col){
             refAvgSpectrum[col] += std::abs(refSpectrum[line*fft_size + col]);
