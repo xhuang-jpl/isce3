@@ -112,7 +112,8 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
             if not use_gpu:
                 crossmul.range_sampling_frequency = \
                     1.0 / (crossmul.range_pixel_spacing*2.0/isce3.core.speed_of_light)
-                crossmul.range_bandwidth = ref_slc.getSwathMetadata(freq).processed_range_bandwidth
+                crossmul.range_bandwidth = \
+                    ref_slc.getSwathMetadata(freq).processed_range_bandwidth
 
             # enable/disable flatten accordingly
             if flatten or do_common_range_band_filter:
