@@ -99,6 +99,9 @@ rangeFrequencyShift(std::valarray<std::complex<float>> &refSpectrum,
     // index of the max of secAvgSpectrum
     size_t idx2;
 
+    // the index for the frequency shift
+    size_t idx;
+
     // get the index of the max of refAvgSpectrum
     getPeakIndex(refAvgSpectrum, idx1);
 
@@ -107,9 +110,11 @@ rangeFrequencyShift(std::valarray<std::complex<float>> &refSpectrum,
 
     std::cout << "idx1, idx2: "<< idx1 << " , " << idx2 <<  std::endl;
 
-    // frequency shift is the difference of the two peaks
-    frequencyShift = rangeFrequencies[idx1] - rangeFrequencies[idx2];
+    // use the smallest idx to determine the frequency shift
+    idx = std::min(idx1, idx2);
 
+    // frequency shift is the difference of the two peaks
+    frequencyShift = 2.0 * rangeFrequencies[idx];
 }
 
 /**@param[in] data a vector to be evaluated for the index of its maximum

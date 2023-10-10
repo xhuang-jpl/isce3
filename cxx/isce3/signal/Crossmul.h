@@ -103,6 +103,14 @@ class isce3::signal::Crossmul {
         inline bool doCommonRangeBandFilter() const {
             return _doCommonRangeBandFilter; }
 
+        /** Set flatten flag */
+        inline void doFlatten(bool doFlatten) {
+            _doFlatten = doFlatten; }
+
+        /** Get flatten flag */
+        inline bool doFlatten() const {
+            return _doFlatten; }
+
         /** Set pulse repetition frequency (PRF) */
         inline void prf(double prf) { _prf = prf; }
 
@@ -181,6 +189,9 @@ class isce3::signal::Crossmul {
 
         bool _multiLookEnabled = false;
 
+        // Flag for topo phase removal
+        bool _doFlatten = false;
+
         // Flag for common azimuth band filtering
         bool _doCommonAzimuthBandFilter = false;
 
@@ -208,8 +219,6 @@ class isce3::signal::Crossmul {
 
         // upsampling factor
         size_t _oversampleFactor = 1;
-
-
 };
 
 // Get inline implementations for Crossmul

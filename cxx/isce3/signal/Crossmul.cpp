@@ -128,26 +128,34 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     rngFilter.constructRangeBandpassFilter(_rangeSamplingFrequency,
                                     filterCenterFrequency,
                                     filterBandwidth,
+                                    refSlc,
+                                    refSpectrum,
                                     ncols,
                                     blockLength,
                                     filterType);
-
-    // low pass filter the ref and sec slc
+    // low pass filter the ref  slc
     rngFilter.filter(refSlc, refSpectrum);
+
+    // low band pass the sec slc
+    rngFilter.constructRangeBandpassFilter(_rangeSamplingFrequency,
+                                    filterCenterFrequency,
+                                    filterBandwidth,
+                                    secSlc,
+                                    secSpectrum,
+                                    ncols,
+                                    blockLength,
+                                    filterType);
     rngFilter.filter(secSlc, secSpectrum);
 
-    // add/remove half geometrical phase to/from reference and secondary SLCs
+    // restore the original phase without the geometry phase
+    // in case other steps will use the original phase
     #pragma omp parallel for
     for (size_t i = 0; i < vectorLength; ++i) {
-
-        // Half phase due to baseline separation obtained from range difference
-        // from reference and secondary antennas to the target (i.e., range
-        // offset derived from geometrical coregistration)
-        double halfPhase = std::arg(geometryIfgram[i]) / 2.0;
+        double phase = std::arg(geometryIfgram[i]);
         refSlc[i] *=
-                std::complex<float>(std::cos(halfPhase), std::sin(halfPhase));
-        secSlc[i] *= std::complex<float>(std::cos(halfPhase),
-                                         -1 * std::sin(halfPhase));
+                std::complex<float>(std::cos(phase), std::sin(phase));
+        secSlc[i] *= std::complex<float>(std::cos(phase),
+                                         -1 * std::sin(phase));
     }
 }
 
@@ -203,14 +211,17 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
     size_t nthreads = omp_thread_count();
 
-    // Set flatten flag based range offset raster ptr value
-    bool flatten = rngOffsetRaster ? true : false;
-
     //signal object for refSlc
     isce3::signal::Signal<float> refSignal(nthreads);
 
     //signal object for secSlc
     isce3::signal::Signal<float> secSignal(nthreads);
+
+    //signal object for geometryIfgram
+    isce3::signal::Signal<float> geometryIfgramSignal(nthreads);
+
+    //signal object for geometryIfgramConj
+    isce3::signal::Signal<float> geometryIfgramConjSignal(nthreads);
 
     // instantiate Looks used for multi-looking the interferogram
     isce3::signal::Looks<float> looksObj;
@@ -365,8 +376,19 @@ crossmul(isce3::io::Raster& refSlcRaster,
     if (_doCommonRangeBandFilter) {
         geometryIfgram.resize(spectrumSize);
         rangeFrequencies.resize(fft_size);
-        // TODO determine what this does and document
+
+        // Compute the range frequency for each pixel
         fftfreq(1.0/_rangeSamplingFrequency, rangeFrequencies);
+
+        geometryIfgramSignal.forwardRangeFFT(geometryIfgram, refSpectrum,
+                        fft_size, linesPerBlock);
+        geometryIfgramSignal.inverseRangeFFT(refSpectrum, geometryIfgram,
+                        fft_size, linesPerBlock);
+
+        geometryIfgramConjSignal.forwardRangeFFT(geometryIfgramConj, secSpectrum,
+                       fft_size, linesPerBlock);
+        geometryIfgramConjSignal.inverseRangeFFT(secSpectrum, geometryIfgramConj,
+                      fft_size, linesPerBlock);
     }
 
     // loop over all blocks
@@ -439,15 +461,16 @@ crossmul(isce3::io::Raster& refSlcRaster,
                 }
             }
 
-            // Forward FFT to compute topo-dependent spectrum
-            refSignal.forward(geometryIfgramConj, refSpectrum);
-            refSignal.forward(geometryIfgram, secSpectrum);
+            // Forward FFT to compute topo-dependent spectrum to determine the
+            // frequency shift
+            geometryIfgramConjSignal.forward(geometryIfgramConj, refSpectrum);
+            geometryIfgramSignal.forward(geometryIfgram, secSpectrum);
 
             // Apply range common band filter to ref and sec SLC
+            // and the resultant refSlc and secSlc have no topo phase removal
             rangeCommonBandFilter(refSlc, secSlc, geometryIfgram,
                     geometryIfgramConj, refSpectrum, secSpectrum,
                     rangeFrequencies, rangeFilter, blockRowsData, fft_size);
-
         }
 
         // upsample the reference and secondary SLCs
@@ -471,7 +494,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
             }
         }
 
-        if (flatten) {
+        if (_doFlatten) {
             // Read range offsets
             std::valarray<double> offsetLine(ncols);
             for (size_t line = 0; line < blockRowsData; ++line) {
@@ -485,7 +508,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
                     double phase = 4.0*M_PI*_rangePixelSpacing*rngOffset[line*ncols+col]/_wavelength;
                     geometryIfgramConj[line*fft_size + col] = std::complex<float> (std::cos(phase),
                                                                             -1.0*std::sin(phase));
-
                 }
             }
         }
@@ -500,7 +522,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                     sum += ifgramUpsampled[line*(ncols*_oversampleFactor) + j + col*_oversampleFactor];
                 ifgram[line*ncols + col] = sum/ov;
 
-                if (flatten)
+                if (_doFlatten)
                     ifgram[line*ncols + col] *= geometryIfgramConj[line*fft_size + col];
             }
         }

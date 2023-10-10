@@ -61,6 +61,12 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
         .def_property("do_common_range_band_filter",
                 py::overload_cast<>(&Crossmul::doCommonRangeBandFilter, py::const_),
                 py::overload_cast<bool>(&Crossmul::doCommonRangeBandFilter))
+        .def_property("do_common_azimuth_band_filter",
+                py::overload_cast<>(&Crossmul::doCommonAzimuthBandFilter, py::const_),
+                py::overload_cast<bool>(&Crossmul::doCommonAzimuthBandFilter))
+        .def_property("do_flatten",
+                py::overload_cast<>(&Crossmul::doFlatten, py::const_),
+                py::overload_cast<bool>(&Crossmul::doFlatten))
         .def_property("range_sampling_frequency",
                 py::overload_cast<>(&Crossmul::rangeSamplingFrequency, py::const_),
                 py::overload_cast<double>(&Crossmul::rangeSamplingFrequency))

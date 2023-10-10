@@ -62,7 +62,9 @@ class CrossmulRunConfig(RunConfig):
         # flatten defaults to bool True
         # flatten_path defaults to scratch_path
         flatten = crossmul_cfg['flatten']
-        if flatten:
+        do_common_band_filter = crossmul_cfg['common_band_range_filter']
+
+        if flatten or do_common_band_filter:
             if 'flatten_path' in crossmul_cfg:
                 flatten_path = crossmul_cfg['flatten_path']
             else:

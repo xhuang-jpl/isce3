@@ -129,7 +129,6 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
             _filter[line*fft_size+col] = _filter1D[col] / norm;
         }
     }
-
 }
 
 
@@ -268,7 +267,7 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
     // Construct vector of frequencies
     std::valarray<double> frequency(fft_size);
     fftfreq(1.0/prf, frequency);
-    
+
     // Loop over range bins
     for (int j = 0; j < ncols; ++j) {
         // Compute center frequency of common band

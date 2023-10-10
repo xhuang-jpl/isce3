@@ -32,6 +32,8 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
     crossmul_params = cfg['processing']['crossmul']
     scratch_path = pathlib.Path(cfg['product_path_group']['scratch_path'])
     flatten = crossmul_params['flatten']
+    do_common_range_band_filter = crossmul_params['common_band_range_filter']
+
     lines_per_block = crossmul_params['lines_per_block']
 
     if rg_looks == None:
@@ -39,7 +41,7 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
     if az_looks == None:
         az_looks = crossmul_params['azimuth_looks']
 
-    if flatten:
+    if flatten or do_common_range_band_filter:
         flatten_path = crossmul_params['flatten_path']
 
     if output_hdf5 is None:
@@ -63,6 +65,13 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
         crossmul = isce3.cuda.signal.Crossmul()
     else:
         crossmul = isce3.signal.Crossmul()
+        # do common range band filter
+        crossmul.do_common_range_band_filter =\
+            do_common_range_band_filter
+        # do common azimuth band filter
+        crossmul.do_common_azimuth_band_filter = False
+        # do the flatten
+        crossmul.do_flatten = flatten
 
     crossmul.range_looks = rg_looks
     crossmul.az_looks = az_looks
@@ -98,8 +107,15 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
             crossmul.range_pixel_spacing = rdr_grid.range_pixel_spacing
             crossmul.wavelength = rdr_grid.wavelength
 
+            # CPU version
+            # TODO: Add those parameters for GPU
+            if not use_gpu:
+                crossmul.range_sampling_frequency = \
+                    1.0 / (crossmul.range_pixel_spacing*2.0/isce3.core.speed_of_light)
+                crossmul.range_bandwidth = ref_slc.getSwathMetadata(freq).processed_range_bandwidth
+
             # enable/disable flatten accordingly
-            if flatten:
+            if flatten or do_common_range_band_filter:
                 # set frequency dependent range offset raster
                 flatten_raster = isce3.io.Raster(
                     f'{flatten_path}/geo2rdr/freq{freq}/range.off')
