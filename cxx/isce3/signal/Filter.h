@@ -90,6 +90,19 @@ class isce3::signal::Filter {
                                 size_t ncols,
                                 size_t nrows);
 
+        /** Construct azimuth common band filter with the doppler centroid compensation*/
+        void constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
+                                const isce3::core::LUT1d<double> & secDoppler,
+                                std::valarray<double> &rangeOffsets,
+                                double bandwidth,
+                                double prf,
+                                double beta,
+                                std::valarray<std::complex<T>> &signal,
+                                std::valarray<std::complex<T>> &spectrum,
+                                size_t ncols,
+                                size_t nrows,
+                                bool isReferenceSLCFilter = true);
+
         /** Filter a signal in frequency domain*/
         void filter(std::valarray<std::complex<T>> &signal,
                 std::valarray<std::complex<T>> &spectrum);

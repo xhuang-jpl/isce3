@@ -111,9 +111,12 @@ rangeFrequencyShift(std::valarray<std::complex<float>> &refSpectrum,
     std::cout << "idx1, idx2: "<< idx1 << " , " << idx2 <<  std::endl;
 
     // use the smallest idx to determine the frequency shift
+    // this is because their peaks can lie at two sides if
+    // the fftshift operation is not performed.
     idx = std::min(idx1, idx2);
 
     // frequency shift is the difference of the two peaks
+    // i.e., two times of the offset of the one peak
     frequencyShift = 2.0 * rangeFrequencies[idx];
 }
 

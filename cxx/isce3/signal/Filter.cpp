@@ -231,6 +231,97 @@ constructRangeBandpassCosine(std::valarray<double> subBandCenterFrequencies,
 /**
 * @param[in] refDoppler Doppler LUT1d of the reference SLC
 * @param[in] secDoppler Doppler LUT1d of the secondary SLC
+* @param[in] rangeOffsets Range pixel offsets between secondary and reference SLC (i.e., secondary - reference)
+* @param[in] bandwidth common bandwidth in azimuth
+* @param[in] prf pulse repetition frequency
+* @param[in] beta parameter for raised cosine filter
+* @param[in] signal a block of data to filter
+* @param[in] spectrum of the block of data
+* @param[in] ncols number of columns of the block of data
+* @param[in] nrows number of rows of the block of data
+* @param[in] isReferenceSLCFilter filter on the reference SLC, default is true.
+*/
+template <class T>
+void
+isce3::signal::Filter<T>::
+constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
+                        const isce3::core::LUT1d<double> & secDoppler,
+                        std::valarray<double> &rangeOffsets,
+                        double bandwidth,
+                        double prf,
+                        double beta,
+                        std::valarray<std::complex<T>> &signal,
+                        std::valarray<std::complex<T>> &spectrum,
+                        size_t ncols,
+                        size_t nrows,
+                        bool isReferenceSLCFilter)
+{
+    _filter.resize(ncols*nrows);
+
+    // Pedestal-dependent frequency offset for transition region
+    const double df = 0.5 * bandwidth * beta;
+    // Compute normalization factor for preserving average power between input
+    // data and filtered data. Assumes both filter and input signal have flat
+    // spectra in the passband.
+    //const double norm = std::sqrt(input_BW / BW);
+    const double norm = 1.0;
+
+    // we probably need to give next power of 2 ???
+    int fft_size = nrows;
+    // Construct vector of frequencies
+    std::valarray<double> frequency(fft_size);
+    fftfreq(1.0/prf, frequency);
+
+    // Loop over range bins
+    for (int j = 0; j < ncols; ++j) {
+        // Compute center frequency of common band
+        // I think we need the range offsets here to restore the fDC
+        // for the secondary doppler since it is the resampled RSLC
+        // middle frequency for the reference SLC
+        double fmid = -0.5 * (refDoppler.eval(j) -
+                              secDoppler.eval(j + rangeOffsets[j]));
+
+        // for seconary SLC filter
+        if (!isReferenceSLCFilter) fmid *= -1;
+
+        // Compute filter
+        for (size_t i = 0; i < frequency.size(); ++i) {
+
+            // Get the absolute value of shifted frequency
+            const double freq = std::abs(frequency[i] - fmid);
+
+            // Passband
+            if (freq <= (0.5 * bandwidth - df)) {
+                _filter[i*ncols+j] = std::complex<T>(norm, 0.0);
+
+            // Transition region
+            } else if (freq > (0.5 * bandwidth - df) && freq <= (0.5 * bandwidth + df)) {
+                _filter[i*ncols+j] = std::complex<T>(norm * 0.5 *
+                                    (1.0 + std::cos(M_PI / (bandwidth*beta) *
+                                    (freq - 0.5 * (1.0 - beta) * bandwidth))), 0.0);
+
+            // Stop band
+            } else {
+                _filter[i*ncols+j] = std::complex<T>(0.0, 0.0);
+            }
+        }
+    }
+
+    // Normalize the filter
+    const std::complex<T> filtNorm(fft_size, fft_size);
+    for (int j = 0; j < ncols; ++j) {
+        for (size_t i = 0; i < frequency.size(); ++i) {
+            _filter[i*ncols+j] /= filtNorm;
+        }
+    }
+
+    _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
+    _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);
+}
+
+/**
+* @param[in] refDoppler Doppler LUT1d of the reference SLC
+* @param[in] secDoppler Doppler LUT1d of the secondary SLC
 * @param[in] bandwidth common bandwidth in azimuth
 * @param[in] prf pulse repetition frequency
 * @param[in] beta parameter for raised cosine filter
@@ -271,6 +362,8 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
     // Loop over range bins
     for (int j = 0; j < ncols; ++j) {
         // Compute center frequency of common band
+        // I think we need the range offsets here for the secondary doppler
+        // as here is the resampled secondary RSLC
         const double fmid = 0.5 * (refDoppler.eval(j) + secDoppler.eval(j));
 
         // Compute filter

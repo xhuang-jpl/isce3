@@ -59,7 +59,7 @@ void lookdownShiftImpact(size_t oversample, size_t fft_size, size_t blockRows,
 // Utility function to get number of OpenMP threads
 // (gcc sometimes has problems with omp_get_num_threads)
 size_t omp_thread_count() {
-    // may use the omp_get_num_procs()
+    // may use the omp_get_num_procs()?
     size_t n = 0;
     #pragma omp parallel reduction(+:n)
     n += 1;
@@ -265,7 +265,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
     std::valarray<std::complex<float>> secSlc(spectrumSize);
 
     // storage for a block of range offsets
-    std::valarray<double> rngOffset(ncols*linesPerBlock);
+    std::valarray<double> rngOffset(spectrumSize);
 
     // storage for a simulated interferogram which its phase is the
     // interferometric phase due to the imaging geometry:
@@ -361,16 +361,12 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
     // Declare valarray for azimuth spectrum used by filter
     std::valarray<std::complex<float>> refAzimuthSpectrum;
+    std::valarray<std::complex<float>> secAzimuthSpectrum;
 
     if (_doCommonAzimuthBandFilter) {
         // Allocate storage for azimuth spectrum
         refAzimuthSpectrum.resize(spectrumSize);
-
-        // Construct azimuth common band filter for a block of data
-        azimuthFilter.constructAzimuthCommonbandFilter(
-                _refDoppler, _secDoppler, _commonAzimuthBandwidth,
-                _prf, _beta, refSlc, refAzimuthSpectrum, fft_size,
-                linesPerBlock);
+        secAzimuthSpectrum.resize(spectrumSize);
     }
 
     if (_doCommonRangeBandFilter) {
@@ -380,6 +376,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
         // Compute the range frequency for each pixel
         fftfreq(1.0/_rangeSamplingFrequency, rangeFrequencies);
 
+        // Construct the FFTW plan for both geometryIfgram and its conjugation
         geometryIfgramSignal.forwardRangeFFT(geometryIfgram, refSpectrum,
                         fft_size, linesPerBlock);
         geometryIfgramSignal.inverseRangeFFT(refSpectrum, geometryIfgram,
@@ -425,10 +422,34 @@ crossmul(isce3::io::Raster& refSlcRaster,
             secSlc[std::slice(line*fft_size, ncols, 1)] = dataLine;
         }
 
+        // load the range offsets that are required by the flatten,
+        // common range and azimuth filters
+        if (_doFlatten || _doCommonAzimuthBandFilter || _doCommonRangeBandFilter) {
+            std::valarray<double> offsetLine(ncols);
+            for (size_t line = 0; line < blockRowsData; ++line) {
+                rngOffsetRaster->getLine(offsetLine, rowStart + line);
+                rngOffset[std::slice(line*fft_size, ncols, 1)] = offsetLine;
+            }
+        }
+
         //common azimuth band-pass filter the reference and secondary SLCs
         if (_doCommonAzimuthBandFilter) {
+            // Construct azimuth common band filter for a block of data
+            azimuthFilter.constructAzimuthCommonbandFilter(
+                    _refDoppler, _secDoppler, rngOffset,
+                    _azimuthBandwidth,
+                    _prf, _beta, refSlc, refAzimuthSpectrum, fft_size,
+                    linesPerBlock, true);
             azimuthFilter.filter(refSlc, refAzimuthSpectrum);
-            azimuthFilter.filter(secSlc, refAzimuthSpectrum);
+
+            // Construct azimuth common band filter for a block of data
+            azimuthFilter.constructAzimuthCommonbandFilter(
+                    _refDoppler, _secDoppler, rngOffset,
+                    _azimuthBandwidth,
+                    _prf, _beta, secSlc, secAzimuthSpectrum, fft_size,
+                    linesPerBlock, false);
+
+            azimuthFilter.filter(secSlc, secAzimuthSpectrum);
         }
 
         // common range band-pass filtering
@@ -439,19 +460,12 @@ crossmul(isce3::io::Raster& refSlcRaster,
             std::cout << " - range pixel spacing: " << _rangePixelSpacing << std::endl;
             std::cout << " - wavelength: " << _wavelength << std::endl;
 
-            // Read range offsets
-            std::valarray<double> offsetLine(ncols);
-            for (size_t line = 0; line < blockRowsData; ++line) {
-                rngOffsetRaster->getLine(offsetLine, rowStart + line);
-                rngOffset[std::slice(line*ncols, ncols, 1)] = offsetLine;
-            }
-
             // Convert range offset from meters to complex phase
             #pragma omp parallel for
             for (size_t line = 0; line < blockRowsData; ++line) {
                 for (size_t col = 0; col < ncols; ++col) {
                     double phase = 4.0 * M_PI
-                        * _rangePixelSpacing*rngOffset[line*ncols+col]
+                        * _rangePixelSpacing*rngOffset[line*fft_size+col]
                         / _wavelength;
 
                     geometryIfgram[line*fft_size + col] =
@@ -495,17 +509,10 @@ crossmul(isce3::io::Raster& refSlcRaster,
         }
 
         if (_doFlatten) {
-            // Read range offsets
-            std::valarray<double> offsetLine(ncols);
-            for (size_t line = 0; line < blockRowsData; ++line) {
-                rngOffsetRaster->getLine(offsetLine, rowStart + line);
-                rngOffset[std::slice(line*ncols, ncols, 1)] = offsetLine;
-            }
-
             #pragma omp parallel for
             for (size_t line = 0; line < blockRowsData; ++line) {
                 for (size_t col = 0; col < ncols; ++col) {
-                    double phase = 4.0*M_PI*_rangePixelSpacing*rngOffset[line*ncols+col]/_wavelength;
+                    double phase = 4.0*M_PI*_rangePixelSpacing*rngOffset[line*fft_size+col]/_wavelength;
                     geometryIfgramConj[line*fft_size + col] = std::complex<float> (std::cos(phase),
                                                                             -1.0*std::sin(phase));
                 }

@@ -81,13 +81,13 @@ class isce3::signal::Crossmul {
         inline bool doCommonAzimuthBandFilter() const {
             return _doCommonAzimuthBandFilter; }
 
-        /** Set azimuth common bandwidth */
-        inline void commonAzimuthBandwidth(double azBandwidth) {
-            _commonAzimuthBandwidth = azBandwidth; }
+        /** Set azimuth bandwidth */
+        inline void azimuthBandwidth(double azBandwidth) {
+            _azimuthBandwidth = azBandwidth; }
 
-        /** Get azimuth common bandwidth */
-        inline double commonAzimuthBandwidth() const {
-            return _commonAzimuthBandwidth; }
+        /** Get azimuth bandwidth */
+        inline double azimuthBandwidth() const {
+            return _azimuthBandwidth; }
 
         /** Set beta parameter for the azimuth common band filter */
         inline void beta(double beta) { _beta = beta; }
@@ -195,12 +195,11 @@ class isce3::signal::Crossmul {
         // Flag for common azimuth band filtering
         bool _doCommonAzimuthBandFilter = false;
 
-        // Azimuth common bandwidth
-        // TODO make a part of constructor?
-        double _commonAzimuthBandwidth;
+        // Azimuth  bandwidth
+        double _azimuthBandwidth;
 
         // Beta parameter for constructing common azimuth band filter
-        double _beta;
+        double _beta = 0.25;
 
         // Flag for common range band filtering
         bool _doCommonRangeBandFilter = false;
