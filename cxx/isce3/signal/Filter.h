@@ -15,6 +15,7 @@
 #include <isce3/core/Constants.h>
 #include <isce3/io/Raster.h>
 #include <isce3/core/LUT1d.h>
+#include <isce3/math/Bessel.h>
 #include "Signal.h"
 
 // Declaration
@@ -70,9 +71,19 @@ class isce3::signal::Filter {
                                        int fft_size,
                                        std::valarray<std::complex<T>> &_filter1D);
 
+        /** Construct a cosine range band-pass filter for multiple bands*/
         void constructRangeBandpassCosine(std::valarray<double> subBandCenterFrequencies,
                              std::valarray<double> subBandBandwidths,
                              double dt,
+                             std::valarray<double>& frequency,
+                             double beta,
+                             std::valarray<std::complex<T>>& _filter1D);
+
+        /** Construct a kaiser range band-pass filter for multiple bands*/
+        void constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
+                             std::valarray<double> subBandBandwidths,
+                             double dt,
+                             int fft_size,
                              std::valarray<double>& frequency,
                              double beta,
                              std::valarray<std::complex<T>>& _filter1D);

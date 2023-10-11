@@ -121,7 +121,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     // bandwidth of (W - frequency shift)
     std::valarray<double> filterCenterFrequency{0.0};
     std::valarray<double> filterBandwidth{_rangeBandwidth - fabs(frequencyShift)};
-    std::string filterType = "cosine";
+
+    std::string filterType = "kaiser";
 
     // Contruct the low pass filter for this block. This filter is
     // common for both SLCs

@@ -117,7 +117,15 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
                             frequency,
                             beta,
                             _filter1D);
-
+    } else if (filterType=="kaiser"){
+        double beta = 2.5;
+        constructRangeBandpassKaiser(subBandCenterFrequencies,
+                            subBandBandwidths,
+                            dt,
+                            fft_size,
+                            frequency,
+                            beta,
+                            _filter1D);
     } else {
         std::cout << filterType << " filter has not been implemented" << std::endl;
     }
@@ -225,6 +233,73 @@ constructRangeBandpassCosine(std::valarray<double> subBandCenterFrequencies,
             }
         }
 
+    }
+}
+
+/**
+ * @param[in] subBandCenterFrequencies a vector of center frequencies for each band
+ * @param[in] subBandBandwidths a vector of bandwidths for each band
+ * @param[in] dt samplig rate of the signal
+ * @param[in] fft_size length of the spectrum
+ * @param[in] frequency a vector of frequencies
+ * @param[in] beta parameter for the kaiser filter (normally set 2.5)
+ * @param[out] _filter1D one dimensional boxcar bandpass filter in frequency domain
+ */
+template <class T>
+void
+isce3::signal::Filter<T>::
+constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
+                             std::valarray<double> subBandBandwidths,
+                             double dt,
+                             int fft_size,
+                             std::valarray<double>& frequency,
+                             double beta,
+                             std::valarray<std::complex<T>>& _filter1D)
+{
+
+    // construct a kaiser bandpass filter in frequency domian
+    // which may have several bands defined by centerferquencies and
+    // subBandBandwidths
+    for (size_t i = 0; i<subBandCenterFrequencies.size(); ++i){
+
+        //frequency of the lower bound of this band
+        double fL = subBandCenterFrequencies[i] - subBandBandwidths[i]/2;
+
+        //frequency of the higher bound of this band
+        double fH = subBandCenterFrequencies[i] + subBandBandwidths[i]/2;
+
+        //index of frequencies for fL and fH
+        int indL;
+        indexOfFrequency(dt, fft_size, fL, indL);
+        int indH;
+        indexOfFrequency(dt, fft_size, fH, indH);
+        std::cout << "fL: "<< fL << " , fH: " << fH << " indL: " << indL << " , indH: " << indH << std::endl;
+
+        // bessel_i0 of beta
+        double bessel_i0_beta = isce3::math::bessel_i0(beta);
+
+        if (fL<0 && fH>=0){
+            for (size_t ind = indL; ind < fft_size; ++ind){
+                double fre = fL + (ind - indL) / (dt * fft_size);
+                double tmp  = 2.0 * fre * dt;
+                double kaiserCoefficent = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
+                _filter1D[ind] = std::complex<T>(kaiserCoefficent/bessel_i0_beta, 0.0);
+            }
+            for (size_t ind = 0; ind < indH; ++ind){
+                double fre = ind / (dt * fft_size);
+                double tmp  = 2.0 * fre * dt;
+                double kaiserCoefficent = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
+                _filter1D[ind] = std::complex<T>(kaiserCoefficent/bessel_i0_beta, 0.0);
+            }
+
+        }else{
+            for (size_t ind = indL; ind < indH; ++ind){
+                double fre = (ind - 0.5 * (indL + indH)) / (dt * fft_size);
+                double tmp  = 2.0 * fre * dt;
+                double kaiserCoefficent = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
+                _filter1D[ind] = std::complex<T>(kaiserCoefficent/bessel_i0_beta, 0.0);
+            }
+        }
     }
 }
 
