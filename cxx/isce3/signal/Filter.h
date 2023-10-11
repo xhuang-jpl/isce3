@@ -99,7 +99,6 @@ class isce3::signal::Filter {
                             std::valarray<std::complex<T>> &spectrum,
                             size_t ncols,
                             size_t nrows,
-                            bool isReferenceSLCFilter,
                             std::string filterType);
 
         /** Construct azimuth common band cosine filter with the doppler centroid compensation*/
@@ -112,8 +111,7 @@ class isce3::signal::Filter {
                                 std::valarray<std::complex<T>> &signal,
                                 std::valarray<std::complex<T>> &spectrum,
                                 size_t ncols,
-                                size_t nrows,
-                                bool isReferenceSLCFilter = true);
+                                size_t nrows);
 
         /** Construct azimuth common band kaiser filter with the doppler centroid compensation*/
         void constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDoppler,
@@ -125,8 +123,7 @@ class isce3::signal::Filter {
                                 std::valarray<std::complex<T>> &signal,
                                 std::valarray<std::complex<T>> &spectrum,
                                 size_t ncols,
-                                size_t nrows,
-                                bool isReferenceSLCFilter = true);
+                                size_t nrows);
 
         /** Filter a signal in frequency domain*/
         void filter(std::valarray<std::complex<T>> &signal,

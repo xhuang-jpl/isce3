@@ -443,7 +443,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                     _refDoppler, _secDoppler, rngOffset,
                     _azimuthBandwidth,
                     _prf, beta, refSlc, refAzimuthSpectrum, fft_size,
-                    linesPerBlock, true, filterType);
+                    linesPerBlock, filterType);
             azimuthFilter.filter(refSlc, refAzimuthSpectrum);
 
             // Construct azimuth common band filter for a block of data of the secondary
@@ -451,7 +451,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                     _refDoppler, _secDoppler, rngOffset,
                     _azimuthBandwidth,
                     _prf, beta, secSlc, secAzimuthSpectrum, fft_size,
-                    linesPerBlock, false, filterType);
+                    linesPerBlock, filterType);
 
             azimuthFilter.filter(secSlc, secAzimuthSpectrum);
         }

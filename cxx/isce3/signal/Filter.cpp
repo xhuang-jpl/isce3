@@ -256,7 +256,6 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
                              double beta,
                              std::valarray<std::complex<T>>& _filter1D)
 {
-
     // construct a kaiser bandpass filter in frequency domian
     // which may have several bands defined by centerferquencies and
     // subBandBandwidths
@@ -282,22 +281,22 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
             for (size_t ind = indL; ind < fft_size; ++ind){
                 double fre = fL + (ind - indL) / (dt * fft_size);
                 double tmp  = 2.0 * fre * dt;
-                double kaiserCoefficent = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
-                _filter1D[ind] = std::complex<T>(kaiserCoefficent/bessel_i0_beta, 0.0);
+                double kaiserCoefficient = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
+                _filter1D[ind] = std::complex<T>(kaiserCoefficient/bessel_i0_beta, 0.0);
             }
             for (size_t ind = 0; ind < indH; ++ind){
                 double fre = ind / (dt * fft_size);
                 double tmp  = 2.0 * fre * dt;
-                double kaiserCoefficent = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
-                _filter1D[ind] = std::complex<T>(kaiserCoefficent/bessel_i0_beta, 0.0);
+                double kaiserCoefficient = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
+                _filter1D[ind] = std::complex<T>(kaiserCoefficient/bessel_i0_beta, 0.0);
             }
 
         }else{
             for (size_t ind = indL; ind < indH; ++ind){
                 double fre = (ind - 0.5 * (indL + indH)) / (dt * fft_size);
                 double tmp  = 2.0 * fre * dt;
-                double kaiserCoefficent = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
-                _filter1D[ind] = std::complex<T>(kaiserCoefficent/bessel_i0_beta, 0.0);
+                double kaiserCoefficient = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
+                _filter1D[ind] = std::complex<T>(kaiserCoefficient/bessel_i0_beta, 0.0);
             }
         }
     }
@@ -314,7 +313,6 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
 * @param[in] spectrum of the block of data
 * @param[in] ncols number of columns of the block of data
 * @param[in] nrows number of rows of the block of data
-* @param[in] isReferenceSLCFilter filter on the reference SLC, default is true.
 */
 template <class T>
 void
@@ -329,7 +327,6 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
                     std::valarray<std::complex<T>> &spectrum,
                     size_t ncols,
                     size_t nrows,
-                    bool isReferenceSLCFilter,
                     std::string filterType)
 {
     if (filterType=="cosine"){
@@ -339,7 +336,7 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
                             rangeOffsets,
                             bandwidth,
                             prf, beta, signal, spectrum,
-                            ncols, nrows, isReferenceSLCFilter);
+                            ncols, nrows);
 
     } else if (filterType=="kaiser"){
         constructAzimuthCommonbandKaiserFilter(
@@ -348,7 +345,7 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
                             rangeOffsets,
                             bandwidth,
                             prf, beta, signal, spectrum,
-                            ncols, nrows, isReferenceSLCFilter);
+                            ncols, nrows);
     } else{
          std::cout << filterType << " filter has not been implemented" << std::endl;
     }
@@ -365,7 +362,6 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
 * @param[in] spectrum of the block of data
 * @param[in] ncols number of columns of the block of data
 * @param[in] nrows number of rows of the block of data
-* @param[in] isReferenceSLCFilter filter on the reference SLC, default is true.
 */
 template <class T>
 void
@@ -379,8 +375,7 @@ constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDop
                         std::valarray<std::complex<T>> &signal,
                         std::valarray<std::complex<T>> &spectrum,
                         size_t ncols,
-                        size_t nrows,
-                        bool isReferenceSLCFilter)
+                        size_t nrows)
 {
     _filter.resize(ncols*nrows);
 
@@ -404,11 +399,8 @@ constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDop
         // I think we need the range offsets here to restore the fDC
         // for the secondary doppler since it is the resampled RSLC
         // middle frequency for the reference SLC
-        double fmid = -0.5 * (refDoppler.eval(j) -
-                              secDoppler.eval(j + rangeOffsets[j]));
-
-        // for secondary SLC filter
-        if (!isReferenceSLCFilter) fmid *= -1;
+        double fmid =   0.5 * (refDoppler.eval(j) +
+                               secDoppler.eval(j + rangeOffsets[j]));
 
         // Compute filter
         for (size_t i = 0; i < frequency.size(); ++i) {
@@ -456,7 +448,6 @@ constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDop
 * @param[in] spectrum of the block of data
 * @param[in] ncols number of columns of the block of data
 * @param[in] nrows number of rows of the block of data
-* @param[in] isReferenceSLCFilter filter on the reference SLC, default is true.
 */
 template <class T>
 void
@@ -470,8 +461,7 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
                         std::valarray<std::complex<T>> &signal,
                         std::valarray<std::complex<T>> &spectrum,
                         size_t ncols,
-                        size_t nrows,
-                        bool isReferenceSLCFilter)
+                        size_t nrows)
 {
     _filter.resize(ncols*nrows);
     _filter =  std::complex<T>(0.0, 0.0);
@@ -483,20 +473,17 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
 
     // bessel_i0 of beta
     double bessel_i0_beta = isce3::math::bessel_i0(beta);
-    double meanDopFreqshifts = 0.0;
+    double meanDopCenterFreq = 0.0;
     // Loop over range bins
     for (int j = 0; j < ncols; ++j) {
         // Compute center frequency of common band
         // I think we need the range offsets here to restore the fDC
         // for the secondary doppler since it is the resampled RSLC
         // frequency shift for the reference SLC
-        double fmid = -0.5 * (refDoppler.eval(j) -
+        double fmid =  0.5 * (refDoppler.eval(j) +
                               secDoppler.eval(j + rangeOffsets[j]));
 
-        // for secondary SLC filter
-        if (!isReferenceSLCFilter) fmid *= -1;
-
-        meanDopFreqshifts += fmid;
+        meanDopCenterFreq += fmid;
 
         // Compute the filter centered at fmid
         for (size_t i = 0; i < frequency.size(); ++i) {
@@ -508,12 +495,12 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
             if (freq < -prf/2.0) freq += prf;
 
             double tmp  = 2.0 * freq / prf;
-            double kaiserCoefficent = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
-            _filter[i*ncols+j] = std::complex<T>(kaiserCoefficent/bessel_i0_beta, 0.0);
+            double kaiserCoefficient = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
+            _filter[i*ncols+j] = std::complex<T>(kaiserCoefficient/bessel_i0_beta, 0.0);
         }
     }
 
-    std::cout << " - mean doppler centroid shift:" << meanDopFreqshifts/ncols << std::endl;
+    std::cout << " - mean doppler center freq:" << meanDopCenterFreq/ncols << std::endl;
 
     _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
     _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);

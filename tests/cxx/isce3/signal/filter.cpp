@@ -59,7 +59,7 @@ TEST(Filter, constructAzimuthCommonbandFilter)
                                                 prf,
                                                 beta,
                                                 refSlc, refSpectrum,
-                                                ncols, blockRows, true);
+                                                ncols, blockRows);
     filter.writeFilter(ncols, blockRows);
 
 }
