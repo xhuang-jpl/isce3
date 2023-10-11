@@ -42,7 +42,7 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
     if az_looks == None:
         az_looks = crossmul_params['azimuth_looks']
 
-    if flatten or do_common_range_band_filter:
+    if flatten or do_common_range_band_filter or do_common_azimuth_band_filter:
         flatten_path = crossmul_params['flatten_path']
 
     if output_hdf5 is None:
