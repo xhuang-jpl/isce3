@@ -122,7 +122,7 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     std::valarray<double> filterCenterFrequency{0.0};
     std::valarray<double> filterBandwidth{_rangeBandwidth - fabs(frequencyShift)};
 
-    std::string filterType = "kaiser";
+    std::string filterType = "cosine";
 
     // Contruct the low pass filter for this block. This filter is
     // common for both SLCs
@@ -435,20 +435,22 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
         //common azimuth band-pass filter the reference and secondary SLCs
         if (_doCommonAzimuthBandFilter) {
-            // Construct azimuth common band filter for a block of data
+
+            std::string filterType = "kaiser";
+            // Construct azimuth common band filter for a block of data of the reference
             azimuthFilter.constructAzimuthCommonbandFilter(
                     _refDoppler, _secDoppler, rngOffset,
                     _azimuthBandwidth,
-                    _prf, _beta, refSlc, refAzimuthSpectrum, fft_size,
-                    linesPerBlock, true);
+                    _prf, 2.5, refSlc, refAzimuthSpectrum, fft_size,
+                    linesPerBlock, true, filterType);
             azimuthFilter.filter(refSlc, refAzimuthSpectrum);
 
-            // Construct azimuth common band filter for a block of data
+            // Construct azimuth common band filter for a block of data of the secondary
             azimuthFilter.constructAzimuthCommonbandFilter(
                     _refDoppler, _secDoppler, rngOffset,
                     _azimuthBandwidth,
-                    _prf, _beta, secSlc, secAzimuthSpectrum, fft_size,
-                    linesPerBlock, false);
+                    _prf, 2.5, secSlc, secAzimuthSpectrum, fft_size,
+                    linesPerBlock, false, filterType);
 
             azimuthFilter.filter(secSlc, secAzimuthSpectrum);
         }

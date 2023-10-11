@@ -24,6 +24,8 @@ TEST(Filter, constructAzimuthCommonbandFilter)
 
     std::valarray<std::complex<float>> refSlc(ncols*blockRows);
     std::valarray<std::complex<float>> refSpectrum(nfft*blockRows);
+    std::valarray<double> rangeOffsets(nfft*blockRows);
+    rangeOffsets = 0.0;
 
     // Get some metadata from an existing HDF5 file
     std::string h5file(TESTDATA_DIR "envisat.h5");
@@ -50,13 +52,14 @@ TEST(Filter, constructAzimuthCommonbandFilter)
     double commonAzimuthBandwidth = 1000.0;
 
     isce3::signal::Filter<float> filter;
-    filter.constructAzimuthCommonbandFilter(dop1,
-                                            dop2,
-                                            commonAzimuthBandwidth,
-                                            prf,
-                                            beta,
-                                            refSlc, refSpectrum,
-                                            ncols, blockRows);
+    filter.constructAzimuthCommonbandCosineFilter(dop1,
+                                                dop2,
+                                                rangeOffsets,
+                                                commonAzimuthBandwidth,
+                                                prf,
+                                                beta,
+                                                refSlc, refSpectrum,
+                                                ncols, blockRows, true);
     filter.writeFilter(ncols, blockRows);
 
 }
@@ -80,10 +83,10 @@ TEST(Filter, constructBoxcarRangeBandpassFilter)
 
     // get the range bandwidth
     double BW = swath.processedRangeBandwidth();
-    
+
     //The bands are specified by two vectors:
     //  1) a vector of center frequencies for each sub-band
-    std::valarray<double> subBandCenterFrequencies{-3.0e6, 0.0, 3e6}; 
+    std::valarray<double> subBandCenterFrequencies{-3.0e6, 0.0, 3e6};
     //  2) a vector of bandwidth of each sub-band
     std::valarray<double> subBandBandwidths{2.0e6, 2.0e6, 2.0e6};
 
@@ -115,7 +118,7 @@ TEST(Filter, constructBoxcarRangeBandpassFilter)
                                   filterType);
 
     //filter.writeFilter(ncols, blockRows);
-    
+
 }
 
 int main(int argc, char * argv[]) {

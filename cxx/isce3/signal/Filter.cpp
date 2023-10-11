@@ -309,7 +309,7 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
 * @param[in] rangeOffsets Range pixel offsets between secondary and reference SLC (i.e., secondary - reference)
 * @param[in] bandwidth common bandwidth in azimuth
 * @param[in] prf pulse repetition frequency
-* @param[in] beta parameter for raised cosine filter
+* @param[in] beta parameter for raised cosine filter (0.25) or for the kaiser filter (2.5)
 * @param[in] signal a block of data to filter
 * @param[in] spectrum of the block of data
 * @param[in] ncols number of columns of the block of data
@@ -320,6 +320,57 @@ template <class T>
 void
 isce3::signal::Filter<T>::
 constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
+                    const isce3::core::LUT1d<double> & secDoppler,
+                    std::valarray<double> &rangeOffsets,
+                    double bandwidth,
+                    double prf,
+                    double beta,
+                    std::valarray<std::complex<T>> &signal,
+                    std::valarray<std::complex<T>> &spectrum,
+                    size_t ncols,
+                    size_t nrows,
+                    bool isReferenceSLCFilter,
+                    std::string filterType)
+{
+    if (filterType=="cosine"){
+        constructAzimuthCommonbandCosineFilter(
+                            refDoppler,
+                            secDoppler,
+                            rangeOffsets,
+                            bandwidth,
+                            prf, beta, signal, spectrum,
+                            ncols, nrows, isReferenceSLCFilter);
+
+    } else if (filterType=="kaiser"){
+        constructAzimuthCommonbandKaiserFilter(
+                            refDoppler,
+                            secDoppler,
+                            rangeOffsets,
+                            bandwidth,
+                            prf, beta, signal, spectrum,
+                            ncols, nrows, isReferenceSLCFilter);
+    } else{
+         std::cout << filterType << " filter has not been implemented" << std::endl;
+    }
+}
+
+/**
+* @param[in] refDoppler Doppler LUT1d of the reference SLC
+* @param[in] secDoppler Doppler LUT1d of the secondary SLC
+* @param[in] rangeOffsets Range pixel offsets between secondary and reference SLC (i.e., secondary - reference)
+* @param[in] bandwidth common bandwidth in azimuth
+* @param[in] prf pulse repetition frequency
+* @param[in] beta parameter for raised cosine filter
+* @param[in] signal a block of data to filter
+* @param[in] spectrum of the block of data
+* @param[in] ncols number of columns of the block of data
+* @param[in] nrows number of rows of the block of data
+* @param[in] isReferenceSLCFilter filter on the reference SLC, default is true.
+*/
+template <class T>
+void
+isce3::signal::Filter<T>::
+constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDoppler,
                         const isce3::core::LUT1d<double> & secDoppler,
                         std::valarray<double> &rangeOffsets,
                         double bandwidth,
@@ -356,7 +407,7 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
         double fmid = -0.5 * (refDoppler.eval(j) -
                               secDoppler.eval(j + rangeOffsets[j]));
 
-        // for seconary SLC filter
+        // for secondary SLC filter
         if (!isReferenceSLCFilter) fmid *= -1;
 
         // Compute filter
@@ -397,36 +448,32 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
 /**
 * @param[in] refDoppler Doppler LUT1d of the reference SLC
 * @param[in] secDoppler Doppler LUT1d of the secondary SLC
+* @param[in] rangeOffsets Range pixel offsets between secondary and reference SLC (i.e., secondary - reference)
 * @param[in] bandwidth common bandwidth in azimuth
 * @param[in] prf pulse repetition frequency
-* @param[in] beta parameter for raised cosine filter
+* @param[in] beta parameter for kaiser filter
 * @param[in] signal a block of data to filter
 * @param[in] spectrum of the block of data
 * @param[in] ncols number of columns of the block of data
 * @param[in] nrows number of rows of the block of data
+* @param[in] isReferenceSLCFilter filter on the reference SLC, default is true.
 */
 template <class T>
 void
 isce3::signal::Filter<T>::
-constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
+constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDoppler,
                         const isce3::core::LUT1d<double> & secDoppler,
+                        std::valarray<double> &rangeOffsets,
                         double bandwidth,
                         double prf,
                         double beta,
                         std::valarray<std::complex<T>> &signal,
                         std::valarray<std::complex<T>> &spectrum,
                         size_t ncols,
-                        size_t nrows)
+                        size_t nrows,
+                        bool isReferenceSLCFilter)
 {
     _filter.resize(ncols*nrows);
-
-    // Pedestal-dependent frequency offset for transition region
-    const double df = 0.5 * bandwidth * beta;
-    // Compute normalization factor for preserving average power between input
-    // data and filtered data. Assumes both filter and input signal have flat
-    // spectra in the passband.
-    //const double norm = std::sqrt(input_BW / BW);
-    const double norm = 1.0;
 
     // we probably need to give next power of 2 ???
     int fft_size = nrows;
@@ -434,47 +481,35 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
     std::valarray<double> frequency(fft_size);
     fftfreq(1.0/prf, frequency);
 
+    // bessel_i0 of beta
+    double bessel_i0_beta = isce3::math::bessel_i0(beta);
+
     // Loop over range bins
     for (int j = 0; j < ncols; ++j) {
         // Compute center frequency of common band
-        // I think we need the range offsets here for the secondary doppler
-        // as here is the resampled secondary RSLC
-        const double fmid = 0.5 * (refDoppler.eval(j) + secDoppler.eval(j));
+        // I think we need the range offsets here to restore the fDC
+        // for the secondary doppler since it is the resampled RSLC
+        // frequency shift for the reference SLC
+        double fmid = -0.5 * (refDoppler.eval(j) -
+                              secDoppler.eval(j + rangeOffsets[j]));
 
-        // Compute filter
+        // for secondary SLC filter
+        if (!isReferenceSLCFilter) fmid *= -1;
+
+        // Compute the filter
         for (size_t i = 0; i < frequency.size(); ++i) {
 
-            // Get the absolute value of shifted frequency
-            const double freq = std::abs(frequency[i] - fmid);
-
-            // Passband
-            if (freq <= (0.5 * bandwidth - df)) {
-                _filter[i*ncols+j] = std::complex<T>(norm, 0.0);
-
-            // Transition region
-            } else if (freq > (0.5 * bandwidth - df) && freq <= (0.5 * bandwidth + df)) {
-                _filter[i*ncols+j] = std::complex<T>(norm * 0.5 *
-                                    (1.0 + std::cos(M_PI / (bandwidth*beta) *
-                                    (freq - 0.5 * (1.0 - beta) * bandwidth))), 0.0);
-
-            // Stop band
-            } else {
-                _filter[i*ncols+j] = std::complex<T>(0.0, 0.0);
-            }
-        }
-    }
-
-    // Normalize the filter
-    const std::complex<T> filtNorm(fft_size, fft_size);
-    for (int j = 0; j < ncols; ++j) {
-        for (size_t i = 0; i < frequency.size(); ++i) {
-            _filter[i*ncols+j] /= filtNorm;
+            const double freq = frequency[i] - fmid;
+            double tmp  = 2.0 * freq / prf;
+            double kaiserCoefficent = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
+            _filter[i*ncols+j] = std::complex<T>(kaiserCoefficent/bessel_i0_beta, 0.0);
         }
     }
 
     _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
     _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);
 }
+
 
 /**
 * @param[in] signal a block of data to filter.

@@ -32,7 +32,7 @@ class isce3::signal::Filter {
 
         ~Filter() {};
 
-    /** constructs forward abd backward FFT plans for filtering a block of data in range direction. */
+        /** constructs forward abd backward FFT plans for filtering a block of data in range direction. */
         void initiateRangeFilter(std::valarray<std::complex<T>> &signal,
                                 std::valarray<std::complex<T>> &spectrum,
                                 size_t ncols,
@@ -88,21 +88,35 @@ class isce3::signal::Filter {
                              double beta,
                              std::valarray<std::complex<T>>& _filter1D);
 
-        //T constructRangeCommonbandFilter();
-
         /** Construct azimuth common band filter*/
         void constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
+                            const isce3::core::LUT1d<double> & secDoppler,
+                            std::valarray<double> &rangeOffsets,
+                            double bandwidth,
+                            double prf,
+                            double beta,
+                            std::valarray<std::complex<T>> &signal,
+                            std::valarray<std::complex<T>> &spectrum,
+                            size_t ncols,
+                            size_t nrows,
+                            bool isReferenceSLCFilter,
+                            std::string filterType);
+
+        /** Construct azimuth common band cosine filter with the doppler centroid compensation*/
+        void constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDoppler,
                                 const isce3::core::LUT1d<double> & secDoppler,
+                                std::valarray<double> &rangeOffsets,
                                 double bandwidth,
                                 double prf,
                                 double beta,
                                 std::valarray<std::complex<T>> &signal,
                                 std::valarray<std::complex<T>> &spectrum,
                                 size_t ncols,
-                                size_t nrows);
+                                size_t nrows,
+                                bool isReferenceSLCFilter = true);
 
-        /** Construct azimuth common band filter with the doppler centroid compensation*/
-        void constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
+        /** Construct azimuth common band kaiser filter with the doppler centroid compensation*/
+        void constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDoppler,
                                 const isce3::core::LUT1d<double> & secDoppler,
                                 std::valarray<double> &rangeOffsets,
                                 double bandwidth,
