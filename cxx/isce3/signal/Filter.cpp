@@ -474,7 +474,7 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
                         bool isReferenceSLCFilter)
 {
     _filter.resize(ncols*nrows);
-
+    _filter =  std::complex<T>(0.0, 0.0);
     // we probably need to give next power of 2 ???
     int fft_size = nrows;
     // Construct vector of frequencies
@@ -499,7 +499,12 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
         // Compute the filter
         for (size_t i = 0; i < frequency.size(); ++i) {
 
-            const double freq = frequency[i] - fmid;
+            double freq = frequency[i] - fmid;
+
+            // make it circular
+            if (freq > prf/2.0)  freq -= prf;
+            if (freq < -prf/2.0) freq += prf;
+
             double tmp  = 2.0 * freq / prf;
             double kaiserCoefficent = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
             _filter[i*ncols+j] = std::complex<T>(kaiserCoefficent/bessel_i0_beta, 0.0);
