@@ -110,18 +110,20 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
             crossmul.wavelength = rdr_grid.wavelength
 
             # CPU version
-            # TODO: Add those parameters for GPU
+            # TODO: Add parameters to GPU implementation
             if not use_gpu:
+                # range sampling rate and bandwidth
                 crossmul.range_sampling_frequency = \
                     1.0 / (crossmul.range_pixel_spacing*2.0/isce3.core.speed_of_light)
                 crossmul.range_bandwidth = \
                     ref_slc.getSwathMetadata(freq).processed_range_bandwidth
-
-                crossmul.azimuth_bandwidth = ref_slc.getSwathMetadata(freq).processed_azimuth_bandwidth
+                # azimuth band width and PRF
+                crossmul.azimuth_bandwidth = \
+                    ref_slc.getSwathMetadata(freq).processed_azimuth_bandwidth
                 crossmul.prf = rdr_grid.prf
 
             # enable/disable flatten accordingly
-            if flatten or do_common_range_band_filter:
+            if flatten or do_common_range_band_filter or do_common_azimuth_band_filter:
                 # set frequency dependent range offset raster
                 flatten_raster = isce3.io.Raster(
                     f'{flatten_path}/geo2rdr/freq{freq}/range.off')
