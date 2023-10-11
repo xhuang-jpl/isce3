@@ -483,7 +483,7 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
 
     // bessel_i0 of beta
     double bessel_i0_beta = isce3::math::bessel_i0(beta);
-
+    double meanDopFreqshifts = 0.0;
     // Loop over range bins
     for (int j = 0; j < ncols; ++j) {
         // Compute center frequency of common band
@@ -496,7 +496,9 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
         // for secondary SLC filter
         if (!isReferenceSLCFilter) fmid *= -1;
 
-        // Compute the filter
+        meanDopFreqshifts += fmid;
+
+        // Compute the filter centered at fmid
         for (size_t i = 0; i < frequency.size(); ++i) {
 
             double freq = frequency[i] - fmid;
@@ -510,6 +512,8 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
             _filter[i*ncols+j] = std::complex<T>(kaiserCoefficent/bessel_i0_beta, 0.0);
         }
     }
+
+    std::cout << " - mean doppler centroid shift:" << meanDopFreqshifts/ncols << std::endl;
 
     _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
     _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);

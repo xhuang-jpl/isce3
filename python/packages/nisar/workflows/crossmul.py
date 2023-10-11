@@ -119,7 +119,6 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
 
                 crossmul.azimuth_bandwidth = ref_slc.getSwathMetadata(freq).processed_azimuth_bandwidth
                 crossmul.prf = rdr_grid.prf
-                crossmul.beta = 0.25
 
             # enable/disable flatten accordingly
             if flatten or do_common_range_band_filter:

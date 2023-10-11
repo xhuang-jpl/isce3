@@ -79,9 +79,6 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
         .def_property("prf",
                 py::overload_cast<>(&Crossmul::prf, py::const_),
                 py::overload_cast<double>(&Crossmul::prf))
-        .def_property("beta",
-                py::overload_cast<>(&Crossmul::beta, py::const_),
-                py::overload_cast<double>(&Crossmul::beta))
         .def_property("wavelength",
                 py::overload_cast<>(&Crossmul::wavelength, py::const_),
                 py::overload_cast<double>(&Crossmul::wavelength))

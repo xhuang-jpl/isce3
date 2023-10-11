@@ -108,7 +108,7 @@ rangeFrequencyShift(std::valarray<std::complex<float>> &refSpectrum,
     // get the index of the max of secAvgSpectrum
     getPeakIndex(secAvgSpectrum, idx2);
 
-    std::cout << "idx1, idx2, columns: "<< idx1 << " , " << idx2 << ", " << fft_size <<std::endl;
+    //std::cout << "idx1, idx2, columns: "<< idx1 << " , " << idx2 << ", " << fft_size <<std::endl;
 
     // use the smallest idx to determine the frequency shift
     // this is because their peaks can lie at two sides if

@@ -113,8 +113,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                         ncols,
                         frequencyShift);
 
-    std::cout << "frequencyShift : "<< frequencyShift << std::endl;
-    std::cout << "range bandwidth: " << _rangeBandwidth << std::endl;
+    std::cout << " - rangeFrequencyShift : "<< frequencyShift << std::endl;
+    std::cout << " - range bandwidth: " << _rangeBandwidth << std::endl;
 
     // Since the spectrum of the ref and sec SLCs are already aligned,
     // we design the low-pass filter as a band-pass at zero frequency with
@@ -437,11 +437,12 @@ crossmul(isce3::io::Raster& refSlcRaster,
         if (_doCommonAzimuthBandFilter) {
 
             std::string filterType = "kaiser";
+            double beta = 2.5;
             // Construct azimuth common band filter for a block of data of the reference
             azimuthFilter.constructAzimuthCommonbandFilter(
                     _refDoppler, _secDoppler, rngOffset,
                     _azimuthBandwidth,
-                    _prf, 2.5, refSlc, refAzimuthSpectrum, fft_size,
+                    _prf, beta, refSlc, refAzimuthSpectrum, fft_size,
                     linesPerBlock, true, filterType);
             azimuthFilter.filter(refSlc, refAzimuthSpectrum);
 
@@ -449,7 +450,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
             azimuthFilter.constructAzimuthCommonbandFilter(
                     _refDoppler, _secDoppler, rngOffset,
                     _azimuthBandwidth,
-                    _prf, 2.5, secSlc, secAzimuthSpectrum, fft_size,
+                    _prf, beta, secSlc, secAzimuthSpectrum, fft_size,
                     linesPerBlock, false, filterType);
 
             azimuthFilter.filter(secSlc, secAzimuthSpectrum);
