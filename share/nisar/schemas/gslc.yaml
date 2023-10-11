@@ -51,12 +51,14 @@ runconfig:
 
         primary_executable:
             product_type: enum('GSLC')
+            product_version: str('^\d+\.\d+\.\d+$', required=False)
             composite_release_id: regex(r'\w\d\d\d\d\d', name='CRID', required=False)
             processing_type: enum('PR', 'UR', required=False)
             product_accuracy: enum('P', 'M', 'N', 'F', required=False)
             urgent_request_id: list(str(), required=False)
             processing_center: str(required=False)
             data_source: enum('A', 'M', required=False)
+            partial_granule_id: str(required=False)
 
         debug_level_group:
             debug_switch: bool()
@@ -64,12 +66,7 @@ runconfig:
         #adt section - isce3 + pyre workflow
         processing:
             # Mechanism to select frequencies and polarizations
-            input_subset:
-                # List of frequencies to process. Default empty representing all
-                list_of_frequencies:
-                    # List of polarization channels to process. Default empty representing all
-                    A: any(list(str(min=2, max=2), min=1, max=4), str(min=2, max=2), null(), required=False)
-                    B: any(list(str(min=2, max=2), min=1, max=4), str(min=2, max=2), null(), required=False)
+            input_subset: include('input_subset_options', required=False)
 
             # DEM download options: checked only if internet access is available
             dem_download: include('dem_download_options', required=False)
@@ -105,6 +102,15 @@ runconfig:
         logging: include('logging_options', required=False)
 
 ---
+input_subset_options:
+    # List of frequencies to process. Default empty representing all
+    list_of_frequencies: include('list_of_frequencies_options', required=False)
+
+list_of_frequencies_options:
+    # List of polarization channels to process. Default empty representing all
+    A: any(list(str(min=2, max=2), min=1, max=4), str(min=2, max=2), null(), required=False)
+    B: any(list(str(min=2, max=2), min=1, max=4), str(min=2, max=2), null(), required=False)
+
 radar_grid_cubes_options:
 
     # List of heights in meters
@@ -164,7 +170,7 @@ workflows_options:
     qa_reports: bool(required=False)
 
 qa_reports_options:
-    power_image:
+    backscatter_img:
         linear_units: bool(required=False)
         nlooks_freqa: list(int(min=1), min=2, max=2, required=False)
         nlooks_freqb: list(int(min=1), min=2, max=2, required=False)

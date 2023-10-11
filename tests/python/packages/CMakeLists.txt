@@ -11,12 +11,14 @@ isce3/geocode/geocode_slc.py
 isce3/io/background.py
 isce3/matchtemplate/import_ampcor.py
 isce3/matchtemplate/test_ampcor.py
-isce3/signal/compute_evd_cpi.py
+isce3/signal/rfi_process_evd.py
 isce3/signal/doppler_est_func.py
 isce3/signal/fir_filter_func.py
 isce3/unwrap/snaphu.py
 nisar/antenna/beamformer.py
+nisar/antenna/pattern.py
 nisar/cal/corner_reflector_slc_func.py
+nisar/cal/corner_reflector.py
 nisar/cal/faraday_rotation_angle_slc.py
 nisar/cal/pol_channel_imbalance_slc.py
 nisar/mixed_mode/logic.py
@@ -28,6 +30,7 @@ nisar/products/readers/attitude.py
 nisar/products/readers/instrument_parser.py
 nisar/products/readers/orbit.py
 nisar/products/readers/raw.py
+nisar/products/readers/rslc_cal.py
 nisar/workflows/crossmul.py
 nisar/workflows/estimate_abscal_factor.py
 nisar/workflows/faraday_rot_angle_from_rslc.py
@@ -40,6 +43,7 @@ nisar/workflows/geocode_insar.py
 #nisar/workflows/gen_el_null_range_product.py
 nisar/workflows/gen_el_rising_edge_product.py
 nisar/workflows/gslc.py
+nisar/workflows/helpers.py
 nisar/workflows/insar.py
 nisar/workflows/filter_interferogram.py
 nisar/workflows/bandpass_insar.py

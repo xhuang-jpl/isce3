@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import defaultdict
 from dataclasses import dataclass
 from nisar.products.readers.Raw.Raw import RawBase
@@ -141,6 +143,11 @@ class PolChannelSet(set):
                     float(x) for x in raw.getChirpParameters(freq_id, pol[0])]
                 l.append(PolChannel(freq_id, pol, Band(fc, abs(K * T))))
         return cls(l)
+
+    @property
+    def frequencies(self) -> list[str]:
+        """List of frequency sub bands"""
+        return sorted(list({chan.freq_id for chan in self}))
 
     def intersection(self, others: Set[PolChannel], regularize=True) -> 'PolChannelSet':
         """

@@ -222,7 +222,7 @@ class InSARBaseWriter(h5py.File):
                 np.bool_(rfi_mitigation_flag),
                 (
                     "Flag to indicate if RFI correction has been applied"
-                    " to reference RSLC"
+                    f" to {rslc_name} RSLC"
                 ),
             ),
             mixed_mode,
@@ -234,7 +234,23 @@ class InSARBaseWriter(h5py.File):
         src_param_group = \
             rslc_h5py_file_obj[f"{rslc.ProcessingInformationPath}/parameters"]
 
-        src_param_group.copy("referenceTerrainHeight", dst_param_group)
+        reference_terrain_height = "referenceTerrainHeight"
+        reference_terrain_height_description = \
+            f"Reference Terrain Height as a function of time for {rslc_name} RSLC"
+        if reference_terrain_height in src_param_group:
+            src_param_group.copy(reference_terrain_height, dst_param_group)
+            dst_param_group[reference_terrain_height].attrs['description'] = \
+                reference_terrain_height_description
+        else:
+            ds_param = DatasetParams(
+                "referenceTerrainHeight",
+                "None",
+                reference_terrain_height_description,
+                {
+                    "units":"meters"
+                },
+            )
+            add_dataset_and_attrs(dst_param_group, ds_param)
 
         for ds_param in ds_params:
             add_dataset_and_attrs(dst_param_group, ds_param)
@@ -651,19 +667,17 @@ class InSARBaseWriter(h5py.File):
         Add the identification group to the product
         """
         radar_band_name = self._get_band_name()
-        processing_center = \
-            self.cfg["primary_executable"].get("processing_center")
-        processing_type = self.cfg["primary_executable"].get("processing_type")
+        primary_exec_cfg =  self.cfg["primary_executable"]
 
-        # processing center (JPL or NRSA)
+        processing_center = primary_exec_cfg.get("processing_center")
+        processing_type = primary_exec_cfg.get("processing_type")
+        partial_granule_id = primary_exec_cfg.get("partial_granule_id")
+        product_version = primary_exec_cfg.get("product_version")
+
+        # processing center (JPL, NRSC, or Others)
+        # if it is None, 'JPL' will be applied
         if processing_center is None:
-            processing_center = "undefined"
-        elif processing_center.upper() == "J":
             processing_center = "JPL"
-        elif processing_center == "N":
-            processing_center = "NRSA"
-        else:
-            processing_center = "undefined"
 
         # Extract relevant identification from reference and secondary RSLC
         ref_id_group = self.ref_h5py_file_obj[self.ref_rslc.IdentificationPath]
@@ -784,12 +798,17 @@ class InSARBaseWriter(h5py.File):
             ds.attrs['description'] = \
                 f"Azimuth {time_in_description} time of {rslc_name} RSLC product"
 
+        # Granule Id and product version
+        if partial_granule_id is None:
+            partial_granule_id = "None"
+        if product_version is None:
+            product_version = \
+                self.product_info.ProductVersion
+
         id_ds_names_to_be_created = [
             DatasetParams(
                 "granuleId",
-                # NOTE: the graduleId is a placeholder here, waiting for the
-                # runconfig change.
-                "None",
+                partial_granule_id,
                 "Unique granule identification name",
             ),
             DatasetParams(
@@ -837,7 +856,7 @@ class InSARBaseWriter(h5py.File):
             ),
             DatasetParams(
                 "productVersion",
-                self.product_info.ProductVersion,
+                product_version,
                 (
                     "Product version which represents the structure of the"
                     " product and the science content governed by the"
