@@ -56,12 +56,14 @@ runconfig:
 
         primary_executable:
             product_type: enum('GCOV')
+            product_version: str('^\d+\.\d+\.\d+$', required=False)
             composite_release_id: regex(r'\w\d\d\d\d\d', name='CRID', required=False)
             processing_type: enum('PR', 'UR', required=False)
             product_accuracy: enum('P', 'M', 'N', 'F', required=False)
             urgent_request_id: list(str(), required=False)
             processing_center: str(required=False)
             data_source: enum('A', 'M', required=False)
+            partial_granule_id: str(required=False)
 
         debug_level_group:
             debug_switch: bool()
@@ -69,20 +71,7 @@ runconfig:
         #adt section - isce3 + pyre workflow
         processing:
             # Mechanism to select frequencies and polarizations
-            input_subset:
-                # List of frequencies to process. Default empty representing all
-                list_of_frequencies:
-                    # List of polarization channels to process. Default empty representing all
-                    A: any(list(str(min=2, max=2), min=1, max=4), str(min=2, max=2), null(), required=False)
-                    B: any(list(str(min=2, max=2), min=1, max=4), str(min=2, max=2), null(), required=False)
-
-                # Compute cross-elements (True) or diagonals only (False). Default: False
-                fullcovariance: bool(required=False)
-
-                # Perform polarimetric symmetrization. It's only applicable
-                # for quad-polarimetric datasets (i.e. datasets that include
-                # HV and VH), otherwise, the flag is ignored.
-                symmetrize_cross_pol_channels:  bool(required=False)
+            input_subset: include('input_subset_options', required=False)
 
             # DEM download options: checked only if internet access is available
             dem_download: include('dem_download_options', required=False)
@@ -116,6 +105,23 @@ runconfig:
         logging: include('log_nfo', required=False)
 
 ---
+input_subset_options:
+    # List of frequencies to process. Default empty representing all
+    list_of_frequencies: include('list_of_frequencies_options', required=False)
+
+    # Compute cross-elements (True) or diagonals only (False). Default: False
+    fullcovariance: bool(required=False)
+
+    # Perform polarimetric symmetrization. It's only applicable
+    # for quad-polarimetric datasets (i.e. datasets that include
+    # HV and VH), otherwise, the flag is ignored.
+    symmetrize_cross_pol_channels:  bool(required=False)
+
+list_of_frequencies_options:
+    # List of polarization channels to process. Default empty representing all
+    A: any(list(str(min=2, max=2), min=1, max=4), str(min=2, max=2), null(), required=False)
+    B: any(list(str(min=2, max=2), min=1, max=4), str(min=2, max=2), null(), required=False)
+
 radar_grid_cubes_options:
 
     # List of heights in meters
@@ -225,6 +231,19 @@ rtc_options:
     # RTC DEM upsampling
     dem_upsampling: int(min=1, required=False)
 
+    # RTC area beta mode. Options:
+    # 'auto' - Default value is defined by the RTC algorithm that is being
+    #     executed, i.e., 'pixel_area' for 'algorithm_type' equal to
+    #     'bilinear_distribution' and 'projection_angle' for
+    #     'algorithm_type' equal to 'area_projection'
+    #  'pixel_area' - Estimate the beta surface reference area `A_beta`
+    #     using the pixel area, which is the product of the range spacing
+    #     by the azimuth spacing (computed using the ground velocity)
+    #  'projection_angle' - estimate the beta surface reference area `A_beta`
+    #     using the projection angle method:
+    #     `A_beta = A_sigma * cos(projection_angle)`
+    area_beta_mode: enum('auto', 'pixel_area', 'projection_angle', required=False)
+
 geocode_options:
 
     # Geocoding algorithm type, area projection, or interpolation:
@@ -246,11 +265,16 @@ geocode_options:
     # Processing upsampling factor on top of the input geogrid
     geogrid_upsampling: int(required=False)
 
-    # PLACEHOLDER - Save the number of looks used to compute GCOV
+    # Save the number of looks used to compute GCOV
     save_nlooks: bool(required=False)
 
-    # PLACEHOLDER - Save the RTC area factor used to compute GCOV
+    # Save the area normalization factor (ANF) to normalize GCOV
+    # imagery to the original SLC backscatter convention:
+    # beta0 or sigma0 (ellipsoid)
     save_rtc_anf: bool(required=False)
+
+    # Save the RTC area normalization factor (ANF) gamma0 to sigma0
+    save_rtc_anf_gamma0_to_sigma0: bool(required=False)
 
     # PLACEHOLDER - Save interpolated DEM used to compute GCOV
     save_dem: bool(required=False)

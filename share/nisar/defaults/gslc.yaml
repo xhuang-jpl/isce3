@@ -48,6 +48,8 @@ runconfig:
 
         primary_executable:
             product_type: GSLC
+            product_version: 0.1.0
+            partial_granule_id:
 
         debug_level_group:
             debug_switch: false
@@ -85,15 +87,24 @@ runconfig:
         processing:
             input_subset:
                 # Frequencies and polarizations to process
+                # Keys for frequency A and B followed by a list of polarizations to process:
+                #     {frequency}: [polarizations]
+                #
+                # - If the entire field is left empty, all available frequencies will be processed.
+                # - Otherwise, only frequencies listed (i.e, 'A' and/or 'B') will be processed.
+                # - If the [polarizations] list is empty, all available polarizations
+                # for given frequency will be processed
+                #
+                # Example 1:
+                #     list_of_frequencies:  # (empty) process all polarizations from all
+                #                           # available frequencies
+                # Example 2:
+                #     list_of_frequencies:
+                #         A: [HH, HV]  # process only polarizations HH and HV from frequency A
+                #         B:           # process all polarizations from frequency B
+                #
+                #
                 list_of_frequencies:
-                    # Keys for frequency A and B followed by a list of polarizations to process:
-                    #     {frequency}: [polarizations]
-                    #
-                    # - Only frequencies listed (i.e, 'A' and/or 'B') will be processed.
-                    # - If the [polarizations] list is empty, all available polarizations 
-                    # for given frequency will be processed
-                    A:
-                    B:
 
             # TODO OPTIONAL - Only checked when internet access is available
             dem_download:
@@ -119,10 +130,10 @@ runconfig:
             # OPTIONAL - Mechanism to specify output posting and DEM
             geocode:
                 # OPTIONAL - To control output grid in same units as output EPSG
-                x_snap: 100
+                x_snap:
 
                 # OPTIONAL - To control output grid in same units as output EPSG
-                y_snap: 100
+                y_snap:
 
                 # OPTIONAL - Same as input DEM if not provided.
                 output_epsg:
@@ -202,27 +213,27 @@ runconfig:
 
                 # Flag to run `validate` workflow to validate the
                 # input file against its product spec.
-                # Default: False
-                validate: false
+                # Default: True
+                validate: true
 
                 # Flag to run `qa_reports` workflow to generate a
                 # PDF report, geolocated browse image, compute statistics
                 # on the input file, etc..
-                # Default: False
-                qa_reports: false
+                # Default: True
+                qa_reports: true
 
             qa_reports:
 
                 backscatter_img:
 
-                    # True to compute power in linear units when generating
-                    # the power image for the browse images and graphical
+                    # True to compute backscatter in linear units when generating
+                    # the backscatter image for the browse images and graphical
                     # summary PDF. False for decibel units.
                     # Default: True
                     linear_units: true
 
                     # Number of looks along each axis of the Frequency A
-                    # image arrays for multilooking the power image.
+                    # image arrays for multilooking the backscatter image.
                     # Format: [<num_rows>, <num_cols>]
                     # Example: [6,7]
                     # If not provided, the QA code to compute the nlooks values
@@ -231,7 +242,7 @@ runconfig:
                     nlooks_freqa:
 
                     # Number of looks along each axis of the Frequency B
-                    # image arrays for multilooking the power image.
+                    # image arrays for multilooking the backscatter image.
                     # Format: [<num_rows>, <num_cols>]
                     # Example: [6,7]
                     # If not provided, the QA code to compute the nlooks values
@@ -251,7 +262,7 @@ runconfig:
                     # Default: (5.0, 95.0)
                     percentile_for_clipping: [5.0, 95.0]
 
-                    # Gamma correction parameter applied to power and browse image(s).
+                    # Gamma correction parameter applied to backscatter and browse image(s).
                     # Gamma will be applied as follows:
                     # array_out = normalized_array ^ gamma
                     # where normalized_array is a copy of the image with values
@@ -274,14 +285,14 @@ runconfig:
                 histogram:
 
                     # Step size to decimate the input array for computing
-                    # the power and phase histograms.
+                    # the backscatter and phase histograms.
                     # For example, [2,3] means every 2nd azimuth line and
                     # every 3rd range sample will be used to compute the histograms.
                     # Format: [<azimuth>, <range>]
                     # Default: (10, 10)
                     decimation_ratio: [10, 10]
 
-                    # Range in dB for the power histogram's bin edges. Endpoint will
+                    # Range in dB for the backscatter histogram's bin edges. Endpoint will
                     # be included. Format: [<starting value>, <endpoint>]
                     # Default: (-80.0, 20.0)
                     backscatter_histogram_bin_edges_range: [-80.0, 20.0]

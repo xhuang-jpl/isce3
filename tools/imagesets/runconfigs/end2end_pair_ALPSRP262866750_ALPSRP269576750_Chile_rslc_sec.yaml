@@ -83,15 +83,15 @@ runconfig:
             gpu_id: 0
         processing:
             output_grid:
-                start_time: 2011-02-15T03:30:28.429980000
-                end_time: 2011-02-15T03:30:44.829973246
+                start_time: 2011-02-15T03:30:28.429980
+                end_time: 2011-02-15T03:30:44.829973
                 start_range:
                 end_range:
-                output_prf:
+                output_prf: 1520
                 time_snap_interval: 1.0
             range_window:
                 kind: Kaiser
-                shape: 3.0
+                shape: 1.6
             azimuth_window:
                 kind: Kaiser
                 shape: 0.0
@@ -144,11 +144,13 @@ runconfig:
             is_enabled:
                 presum_blu: true
                 rangecomp: true
-                eap: true
+                eap: false
                 range_cor: true
                 azcomp: true
         qa:
             workflows:
                 validate: true
                 qa_reports: true
+                absolute_radiometric_calibration: true
                 noise_estimation: true
+                point_target_analyzer: true

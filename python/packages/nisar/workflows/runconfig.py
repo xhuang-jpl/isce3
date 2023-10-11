@@ -73,8 +73,10 @@ class RunConfig:
             with open(self.args.run_config_path) as f_yaml:
                 self.user = parser.load(f_yaml)
 
-        # copy user suppiled config into default config
-        helpers.deep_update(self.cfg, self.user)
+        # copy user supplied config into default config
+        flag_none_is_valid = self.workflow_name not in ['gcov', 'gslc']
+
+        helpers.deep_update(self.cfg, self.user, flag_none_is_valid)
 
     def load_geocode_yaml_to_dict(self):
         '''
@@ -100,6 +102,9 @@ class RunConfig:
             journal.logfile(log_path, mode=write_mode)
         else:
             self.args.restart = True
+
+        if self.workflow_name in ['gcov', 'gslc']:
+            return
 
         # remove default frequency(s) if not chosen by user
         default_freqs = self.cfg['processing']['input_subset']['list_of_frequencies']
@@ -170,6 +175,13 @@ class RunConfig:
 
         slc = SLC(hdf5file=input_path)
 
+        # if freq_pols is empty, process all frequencies and polarizations
+        if freq_pols is None:
+            self.cfg['processing']['input_subset']['list_of_frequencies'] = \
+                slc.polarizations
+            return
+
+        # otherwise, check contents of freq_pols
         for freq in freq_pols.keys():
             if freq not in slc.frequencies:
                 err_str = f"Frequency {freq} invalid; not found in source frequencies."
@@ -203,6 +215,8 @@ class RunConfig:
 
         # make geogrids for each frequency
         geogrids = {}
+
+        has_wrapped_igram_geogrids = self.workflow_name not in ['gcov', 'gslc']
         wrapped_igram_geogrids = {}
 
         # for each frequency check source RF polarization values and make geogrids
@@ -210,10 +224,15 @@ class RunConfig:
         for freq in freq_pols.keys():
             # build geogrids only if pols not None
             geogrids[freq] = geogrid.create(self.cfg, self.workflow_name, freq)
-            wrapped_igram_geogrids[freq] = geogrid.create(self.cfg, self.workflow_name, freq,
-                                                          is_geo_wrapped_igram=True)
+            if has_wrapped_igram_geogrids:
+                wrapped_igram_geogrids[freq] = geogrid.create(
+                    self.cfg, self.workflow_name, freq,
+                    is_geo_wrapped_igram=True)
+
         # place geogrids in cfg for later processing
         self.cfg['processing']['geocode']['geogrids'] = geogrids
+        if not has_wrapped_igram_geogrids:
+            return
         self.cfg['processing']['geocode']['wrapped_igram_geogrids'] = wrapped_igram_geogrids
 
     def prep_cubes_geocode_cfg(self):

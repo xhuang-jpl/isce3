@@ -33,7 +33,7 @@ def geocode_insar_cfg_check(cfg):
                      'ionosphere_phase_screen_uncertainty',
                      'unwrapped_phase', 'along_track_offset',
                      'slant_range_offset', 'correlation_surface_peak',
-                     'layover_shadow_mask']
+                     'mask']
     goff_datasets = ['along_track_offset', 'snr',
                      'along_track_offset_variance',
                      'correlation_surface_peak', 'cross_offset_variance',
@@ -53,14 +53,6 @@ def geocode_insar_cfg_check(cfg):
     if cfg['worker']['gpu_enabled']:
         igram_interp_method =  cfg['processing']['geocode']\
                 ['wrapped_interferogram']['interp_method']
-
-        if igram_interp_method == 'SINC':
-            data_interp_method = cfg['processing']['geocode']['interp_method']
-            warns_msg = 'SINC interplation method is not supported by GPU,' +\
-                    f'the {data_interp_method} will be applied'
-            cfg['processing']['geocode']\
-                     ['wrapped_interferogram']['interp_method'] = data_interp_method
-            warnings.warn(warns_msg)
 
 
 class GeocodeInsarRunConfig(RunConfig):
@@ -97,16 +89,3 @@ class GeocodeInsarRunConfig(RunConfig):
 
         # Check geocode_insar runconfig values
         geocode_insar_cfg_check(self.cfg)
-
-        # multilooks valid?
-        az_looks = self.cfg['processing']['crossmul']['azimuth_looks']
-        if az_looks > 1 and az_looks % 2 == 0:
-            err_str = f"azimuth looks = {az_looks} not an odd integer."
-            error_channel.log(err_str)
-            raise ValueError(err_str)
-
-        rg_looks = self.cfg['processing']['crossmul']['range_looks']
-        if rg_looks > 1 and rg_looks % 2 == 0:
-            err_str = f"range looks = {rg_looks} not an odd integer."
-            error_channel.log(err_str)
-            raise ValueError(err_str)
