@@ -464,11 +464,14 @@ crossmul(isce3::io::Raster& refSlcRaster,
             std::cout << " - range pixel spacing: " << _rangePixelSpacing << std::endl;
             std::cout << " - wavelength: " << _wavelength << std::endl;
 
-            // Convert range offset from meters to complex phase
+            // Convert range offset from meters to complex one-way phase
             #pragma omp parallel for
             for (size_t line = 0; line < blockRowsData; ++line) {
                 for (size_t col = 0; col < ncols; ++col) {
-                    double phase = 4.0 * M_PI
+
+                    // Use the one-way phase instead of the two-way phase
+                    // to align the spectrum and determin the frequency shifts
+                    double phase = 2.0 * M_PI
                         * _rangePixelSpacing*rngOffset[line*fft_size+col]
                         / _wavelength;
 
