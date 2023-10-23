@@ -118,7 +118,7 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
                             beta,
                             _filter1D);
     } else if (filterType=="kaiser"){
-        double beta = 2.5;
+        double beta = 1.6;
         constructRangeBandpassKaiser(subBandCenterFrequencies,
                             subBandBandwidths,
                             dt,

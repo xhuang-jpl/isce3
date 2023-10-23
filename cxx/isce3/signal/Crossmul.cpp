@@ -150,14 +150,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 
     // restore the original phase without the geometry phase
     // in case other steps will use the original phase
-    #pragma omp parallel for
-    for (size_t i = 0; i < vectorLength; ++i) {
-        double phase = std::arg(geometryIfgram[i]);
-        refSlc[i] *=
-                std::complex<float>(std::cos(phase), std::sin(phase));
-        secSlc[i] *= std::complex<float>(std::cos(phase),
-                                         -1 * std::sin(phase));
-    }
+    refSlc *= geometryIfgram;
+    secSlc *= geometryIfgramConj;
 }
 
 void isce3::signal::Crossmul::
@@ -437,7 +431,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
         if (_doCommonAzimuthBandFilter) {
 
             std::string filterType = "kaiser";
-            double beta = 2.5;
+            double beta = 1.6;
             // Construct azimuth common band filter for a block of data of the reference
             azimuthFilter.constructAzimuthCommonbandFilter(
                     _refDoppler, _secDoppler, rngOffset,
@@ -470,7 +464,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                 for (size_t col = 0; col < ncols; ++col) {
 
                     // Use the one-way phase instead of the two-way phase
-                    // to align the spectrum and determin the frequency shifts
+                    // to align the spectrum and determine the frequency shifts
                     double phase = 2.0 * M_PI
                         * _rangePixelSpacing*rngOffset[line*fft_size+col]
                         / _wavelength;
@@ -536,8 +530,9 @@ crossmul(isce3::io::Raster& refSlcRaster,
                     sum += ifgramUpsampled[line*(ncols*_oversampleFactor) + j + col*_oversampleFactor];
                 ifgram[line*ncols + col] = sum/ov;
 
-                if (_doFlatten)
+                if (_doFlatten) {
                     ifgram[line*ncols + col] *= geometryIfgramConj[line*fft_size + col];
+                }
             }
         }
 
