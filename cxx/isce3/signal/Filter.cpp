@@ -474,15 +474,19 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
     // bessel_i0 of beta
     double bessel_i0_beta = isce3::math::bessel_i0(beta);
     double meanDopCenterFreq = 0.0;
+    double meanDopCenterFreqShift = 0.0;
     // Loop over range bins
     for (int j = 0; j < ncols; ++j) {
         // Compute center frequency of common band
-        // I think we need the range offsets here to restore the fDC
-        // for the secondary doppler since it is the resampled RSLC
-        // frequency shift for the reference SLC
-        double fmid =  0.5 * (refDoppler.eval(j) +
-                              secDoppler.eval(j + rangeOffsets[j]));
+        // the range offsets here are to restore the fDC
+        // for the secondary doppler since it has been resampled
+        double refFreq = refDoppler.eval(j);
+        double secFreq = secDoppler.eval(j + rangeOffsets[j]);
 
+        double fmid =  0.5 * (refFreq + secFreq);
+        double fshift = std::abs(refFreq - secFreq);
+
+        meanDopCenterFreqShift += fshift;
         meanDopCenterFreq += fmid;
 
         // Compute the filter centered at fmid
@@ -494,13 +498,19 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
             if (freq > prf/2.0)  freq -= prf;
             if (freq < -prf/2.0) freq += prf;
 
-            double tmp  = 2.0 * freq / prf;
-            double kaiserCoefficient = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
-            _filter[i*ncols+j] = std::complex<T>(kaiserCoefficient/bessel_i0_beta, 0.0);
+            if (std::abs(freq) > 0.5 * (bandwidth - fshift)) {
+                _filter[i*ncols+j] = std::complex<T>(0.0,0.0);
+            }
+            else {
+                double tmp  = 2.0 * freq / prf;
+                double kaiserCoefficient = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
+                _filter[i*ncols+j] = std::complex<T>(kaiserCoefficient/bessel_i0_beta, 0.0);
+            }
         }
     }
 
     std::cout << " - mean doppler center freq:" << meanDopCenterFreq/ncols << std::endl;
+    std::cout << " - mean doppler center freq shift:" << meanDopCenterFreqShift/ncols << std::endl;
 
     _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
     _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);
