@@ -164,7 +164,7 @@ class isce3::signal::Crossmul {
         inline void getPeakIndex(std::valarray<float> data,
                                 size_t &peakIndex);
 
-        /** Range common band filtering*/
+        /** Range common band filtering and return the new bandwidth*/
         double rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                 std::valarray<std::complex<float>> &secSlc,
                 std::valarray<std::complex<float>> geometryIfgram,

@@ -495,8 +495,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
                     geometryIfgram[line*fft_size + col] =
                         std::complex<float> (std::cos(phase), std::sin(phase));
-                    geometryIfgramConj[line*fft_size + col] =
-                        std::complex<float> (std::cos(phase), -1.0*std::sin(phase));
+                    geometryIfgramConj[line*fft_size + col] = std::conj(geometryIfgram[line*fft_size + col]);
 
                     // Compensate the kaiser windowing effects in range direction
                     refSpectrum[line*fft_size + col] /= filterKaiser[col];
@@ -639,6 +638,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
     }
 
     // update the azimuth and range bandwidth after common band filtering
+    // using the mean bandwidth
     if (_doCommonRangeBandFilter) _processedRangeBandwidth /= nblocks;
     if (_doCommonAzimuthBandFilter) _processedAzimuthBandwidth /= nblocks;
 }
