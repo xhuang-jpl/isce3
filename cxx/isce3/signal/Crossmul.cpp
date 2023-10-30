@@ -78,7 +78,7 @@ size_t omp_thread_count() {
 * @param[in] blockLength number of rows
 * @param[in] ncols number of columns
 */
-void isce3::signal::Crossmul::
+double isce3::signal::Crossmul::
 rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                         std::valarray<std::complex<float>> &secSlc,
                         std::valarray<std::complex<float>> geometryIfgram,
@@ -151,6 +151,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     // in case other steps will use the original phase
     refSlc *= geometryIfgram;
     secSlc *= geometryIfgramConj;
+
+    return (_rangeBandwidth - frequencyShift);
 }
 
 void isce3::signal::Crossmul::
@@ -244,6 +246,18 @@ crossmul(isce3::io::Raster& refSlcRaster,
         nblocks = 1;
     } else if (nrows % (nblocks * linesPerBlock) != 0) {
         nblocks += 1;
+    }
+
+    // set up the processed azimuth and range bandwidth
+    if (_doCommonAzimuthBandFilter) {
+        _processedAzimuthBandwidth = 0.0;
+    } else {
+        _processedAzimuthBandwidth = _azimuthBandwidth;
+    }
+    if (_doCommonRangeBandFilter) {
+        _processedRangeBandwidth = 0.0;
+    } else {
+        _processedRangeBandwidth = _rangeBandwidth;
     }
 
     // size of not-unsampled valarray
@@ -427,16 +441,18 @@ crossmul(isce3::io::Raster& refSlcRaster,
         }
 
         //common azimuth band-pass filter the reference and secondary SLCs
+        //TODO: since there is no windowing is applied in azimuth, no need to revert
+        //the windowing effects, and the attena pattern coefficents are not stored in the
+        //SLC yet, will wait for the implementation and revert the attena pattern then
         if (_doCommonAzimuthBandFilter) {
-
             std::string filterType = "kaiser";
             double beta = 1.6;
             // Construct azimuth common band filter for a block of data of the reference
-            azimuthFilter.constructAzimuthCommonbandFilter(
-                    _refDoppler, _secDoppler, rngOffset,
-                    _azimuthBandwidth,
-                    _prf, beta, refSlc, refAzimuthSpectrum, fft_size,
-                    linesPerBlock, filterType);
+            _processedAzimuthBandwidth += azimuthFilter.constructAzimuthCommonbandFilter(
+                        _refDoppler, _secDoppler, rngOffset,
+                        _azimuthBandwidth,
+                        _prf, beta, refSlc, refAzimuthSpectrum, fft_size,
+                        linesPerBlock, filterType);
             azimuthFilter.filter(refSlc, refAzimuthSpectrum);
 
             // Construct azimuth common band filter for a block of data of the secondary
@@ -482,9 +498,9 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
             // Apply range common band filter to ref and sec SLC
             // and the resultant refSlc and secSlc have no topo phase removal
-            rangeCommonBandFilter(refSlc, secSlc, geometryIfgram,
-                    geometryIfgramConj, refSpectrum, secSpectrum,
-                    rangeFrequencies, rangeFilter, linesPerBlock, fft_size);
+            _processedRangeBandwidth += rangeCommonBandFilter(refSlc, secSlc, geometryIfgram,
+                        geometryIfgramConj, refSpectrum, secSpectrum,
+                        rangeFrequencies, rangeFilter, linesPerBlock, fft_size);
         }
 
         // upsample the reference and secondary SLCs
@@ -581,4 +597,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
                                      blockRowsData);
         }
     }
+
+    // update the azimuth and range bandwidth after common band filtering
+    if (_doCommonRangeBandFilter) _processedRangeBandwidth /= nblocks;
+    if (_doCommonAzimuthBandFilter) _processedAzimuthBandwidth /= nblocks;
 }

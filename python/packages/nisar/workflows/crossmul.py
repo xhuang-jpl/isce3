@@ -14,6 +14,8 @@ from osgeo import gdal
 gdal.UseExceptions()
 
 from nisar.products.readers import SLC
+from nisar.products.insar import product_paths
+
 from nisar.workflows import prepare_insar_hdf5
 from nisar.workflows.compute_stats import compute_stats_real_data
 from nisar.workflows.crossmul_runconfig import CrossmulRunConfig
@@ -103,7 +105,7 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
                 sec_slc.getDopplerCentroid(frequency=freq))
             crossmul.set_dopplers(ref_dopp, sec_dopp)
 
-            freq_group_path = f'/science/LSAR/RIFG/swaths/frequency{freq}'
+            freq_group_path = f'{product_paths.RIFGGroupsPaths().SwathsPath}/frequency{freq}'
 
             # prepare flattening and range filter parameters
             rdr_grid = ref_slc.getRadarGrid(freq)
@@ -187,6 +189,19 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
                 # Compute multilooked interferogram and coherence raster
                 crossmul.crossmul(ref_slc_raster, sec_slc_raster, ifg_raster,
                                   coh_raster, flatten_raster)
+
+                # populate the new bandwidth along azimuth and range
+                # TODO: GPU
+                if not use_gpu:
+                    processing_info_path = \
+                        product_paths.RIFGGroupsPaths().ProcessingInformationPath
+                    ifgram_processing_parameter = \
+                        f'{processing_info_path}/parameters/interferogram/frequency{freq}'
+                    # Update the bandwidth
+                    dst_h5[f'{ifgram_processing_parameter}/azimuthBandwidth'][...] = \
+                        crossmul.processed_azimuth_bandwidth
+                    dst_h5[f'{ifgram_processing_parameter}/rangeBandwidth'][...] = \
+                        crossmul.processed_range_bandwidth
 
                 del ifg_raster
 

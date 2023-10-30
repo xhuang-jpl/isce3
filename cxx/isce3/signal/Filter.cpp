@@ -315,7 +315,7 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
 * @param[in] nrows number of rows of the block of data
 */
 template <class T>
-void
+double
 isce3::signal::Filter<T>::
 constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
                     const isce3::core::LUT1d<double> & secDoppler,
@@ -330,7 +330,7 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
                     std::string filterType)
 {
     if (filterType=="cosine"){
-        constructAzimuthCommonbandCosineFilter(
+        return constructAzimuthCommonbandCosineFilter(
                             refDoppler,
                             secDoppler,
                             rangeOffsets,
@@ -339,7 +339,7 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
                             ncols, nrows);
 
     } else if (filterType=="kaiser"){
-        constructAzimuthCommonbandKaiserFilter(
+        return constructAzimuthCommonbandKaiserFilter(
                             refDoppler,
                             secDoppler,
                             rangeOffsets,
@@ -348,6 +348,7 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
                             ncols, nrows);
     } else{
          std::cout << filterType << " filter has not been implemented" << std::endl;
+         return bandwidth;
     }
 }
 
@@ -364,7 +365,7 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
 * @param[in] nrows number of rows of the block of data
 */
 template <class T>
-void
+double
 isce3::signal::Filter<T>::
 constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDoppler,
                         const isce3::core::LUT1d<double> & secDoppler,
@@ -393,15 +394,22 @@ constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDop
     std::valarray<double> frequency(fft_size);
     fftfreq(1.0/prf, frequency);
 
+    double meanDopCenterFreq = 0.0;
+    double meanDopCenterFreqShift = 0.0;
     // Loop over range bins
     for (int j = 0; j < ncols; ++j) {
         // Compute center frequency of common band
         // I think we need the range offsets here to restore the fDC
         // for the secondary doppler since it is the resampled RSLC
         // middle frequency for the reference SLC
-        double fmid =   0.5 * (refDoppler.eval(j) +
-                               secDoppler.eval(j + rangeOffsets[j]));
+        double refFreq = refDoppler.eval(j);
+        double secFreq = secDoppler.eval(j + rangeOffsets[j]);
 
+        double fmid =  0.5 * (refFreq + secFreq);
+        double fshift = std::abs(refFreq - secFreq);
+
+        meanDopCenterFreqShift += fshift;
+        meanDopCenterFreq += fmid;
         // Compute filter
         for (size_t i = 0; i < frequency.size(); ++i) {
 
@@ -433,8 +441,15 @@ constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDop
         }
     }
 
+    meanDopCenterFreq /= ncols;
+    meanDopCenterFreqShift /= ncols;
+    std::cout << " - mean doppler center freq:" << meanDopCenterFreq << std::endl;
+    std::cout << " - mean doppler center freq shift:" << meanDopCenterFreqShift << std::endl;
+
     _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
     _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);
+
+    return (bandwidth - meanDopCenterFreqShift);
 }
 
 /**
@@ -450,7 +465,7 @@ constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDop
 * @param[in] nrows number of rows of the block of data
 */
 template <class T>
-void
+double
 isce3::signal::Filter<T>::
 constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDoppler,
                         const isce3::core::LUT1d<double> & secDoppler,
@@ -509,11 +524,15 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
         }
     }
 
-    std::cout << " - mean doppler center freq:" << meanDopCenterFreq/ncols << std::endl;
-    std::cout << " - mean doppler center freq shift:" << meanDopCenterFreqShift/ncols << std::endl;
+    meanDopCenterFreq /= ncols;
+    meanDopCenterFreqShift /= ncols;
+    std::cout << " - mean doppler center freq:" << meanDopCenterFreq << std::endl;
+    std::cout << " - mean doppler center freq shift:" << meanDopCenterFreqShift << std::endl;
 
     _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
     _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);
+
+    return (bandwidth - meanDopCenterFreqShift);
 }
 
 

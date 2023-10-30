@@ -95,5 +95,7 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
                 py::overload_cast<>(&Crossmul::linesPerBlock, py::const_),
                 py::overload_cast<size_t>(&Crossmul::linesPerBlock))
         .def_property_readonly("multilook_enabled", &Crossmul::multiLookEnabled)
+        .def_property_readonly("processed_range_bandwidth", &Crossmul::processedRangeBandwidth)
+        .def_property_readonly("processed_azimuth_bandwidth", &Crossmul::processedAzimuthBandwidth)
         ;
 }

@@ -89,6 +89,10 @@ class isce3::signal::Crossmul {
         inline double azimuthBandwidth() const {
             return _azimuthBandwidth; }
 
+        /** Get processed azimuth bandwidth */
+        inline double processedAzimuthBandwidth() const {
+            return _processedAzimuthBandwidth; }
+
         /** Set beta parameter for the azimuth common band filter */
         inline void beta(double beta) { _beta = beta; }
 
@@ -129,6 +133,10 @@ class isce3::signal::Crossmul {
         /** Get the range bandwidth */
         inline double rangeBandwidth() const {return _rangeBandwidth; }
 
+        /** Get processed range bandwidth after common band filter*/
+        inline double processedRangeBandwidth() const {
+            return _processedRangeBandwidth; }
+
         /** Set oversample factor */
         inline void oversampleFactor(size_t oversamp) { _oversampleFactor = oversamp; }
 
@@ -157,16 +165,16 @@ class isce3::signal::Crossmul {
                                 size_t &peakIndex);
 
         /** Range common band filtering*/
-        void rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
-                        std::valarray<std::complex<float>> &secSlc,
-                        std::valarray<std::complex<float>> geometryIfgram,
-                        std::valarray<std::complex<float>> geometryIfgramConj,
-                        std::valarray<std::complex<float>> &refSpectrum,
-                        std::valarray<std::complex<float>> &secSpectrum,
-                        std::valarray<double> &rangeFrequencies,
-                        isce3::signal::Filter<float> &rngFilter,
-                        size_t blockRows,
-                        size_t ncols);
+        double rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
+                std::valarray<std::complex<float>> &secSlc,
+                std::valarray<std::complex<float>> geometryIfgram,
+                std::valarray<std::complex<float>> geometryIfgramConj,
+                std::valarray<std::complex<float>> &refSpectrum,
+                std::valarray<std::complex<float>> &secSpectrum,
+                std::valarray<double> &rangeFrequencies,
+                isce3::signal::Filter<float> &rngFilter,
+                size_t blockRows,
+                size_t ncols);
 
     private:
         //Doppler LUT for the refernce SLC
@@ -198,6 +206,9 @@ class isce3::signal::Crossmul {
         // Azimuth  bandwidth
         double _azimuthBandwidth;
 
+        // Processed azimuth bandwidth after the common band filtering
+        double _processedAzimuthBandwidth;
+
         // Beta parameter for constructing common azimuth band filter
         double _beta = 0.25;
 
@@ -212,6 +223,9 @@ class isce3::signal::Crossmul {
 
         // range signal bandwidth
         double _rangeBandwidth;
+
+        // Processed range bandwidth after the common band filtering
+        double _processedRangeBandwidth;
 
         // number of lines per block
         size_t _linesPerBlock = 1024;
