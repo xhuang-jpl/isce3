@@ -1,8 +1,8 @@
-import numpy as np
+from dataclasses import dataclass
 import journal
+import numpy as np
 from scipy.fft import fft, ifft, fftfreq
 from scipy.signal import resample
-from dataclasses import dataclass
 
 import isce3
 from nisar.workflows.focus import cosine_window
@@ -38,11 +38,16 @@ class bandpass_meta_data:
             bandpass meta data object
         """
         rdr_grid = slc_product.getRadarGrid(freq)
-        rg_sample_freq = isce3.core.speed_of_light * 0.5 / rdr_grid.range_pixel_spacing
-        rg_bandwidth = slc_product.getSwathMetadata(freq).processed_range_bandwidth
-        center_frequency = isce3.core.speed_of_light / rdr_grid.wavelength
-        return cls(rdr_grid.range_pixel_spacing, rdr_grid.wavelength, rg_sample_freq,
-                   rg_bandwidth, center_frequency, rdr_grid.slant_range)
+        rg_sample_freq = \
+            isce3.core.speed_of_light * 0.5 / \
+            rdr_grid.range_pixel_spacing
+        rg_bandwidth = \
+            slc_product.getSwathMetadata(freq).processed_range_bandwidth
+        center_frequency = \
+            isce3.core.speed_of_light / rdr_grid.wavelength
+        return cls(rdr_grid.range_pixel_spacing, rdr_grid.wavelength,
+                   rg_sample_freq, rg_bandwidth, center_frequency,
+                   rdr_grid.slant_range)
 
 
 def check_range_bandwidth_overlap(ref_slc, sec_slc, pols):
@@ -114,7 +119,8 @@ class SplitSpectrum:
         """
         self.freq = freq
         self.rg_sample_freq = rg_sample_freq
-        self.rg_pxl_spacing = isce3.core.speed_of_light / 2.0 / self.rg_sample_freq
+        self.rg_pxl_spacing = \
+            isce3.core.speed_of_light * 0.5 / self.rg_sample_freq
         self.rg_bandwidth = rg_bandwidth
         self.center_frequency = center_frequency
         self.slant_range = slant_range
@@ -157,13 +163,14 @@ class SplitSpectrum:
         -------
         resampled_slc or slc_demodulate: numpy.ndarray
             numpy array of bandpassed slc
-            if resampling is True, return resampled slc with bandpass and demodulation
-            if resampling is False, return slc with bandpass and demodulation without resampling
+            if resampling is True,
+            return resampled slc with bandpass and demodulation
+            if resampling is False,
+            return slc with bandpass and demodulation without resampling
         meta : dict
             dict containing meta data of bandpassed slc
             center_frequency, rg_bandwidth, range_spacing, slant_range
         """
-        error_channel = journal.error('splitspectrum.bandpass_shift_spectrum')
 
         rg_sample_freq = self.rg_sample_freq
         rg_bandwidth = self.rg_bandwidth
@@ -202,18 +209,22 @@ class SplitSpectrum:
             resample_width_end = np.max(x_cand[x_cand % resampling_scale_factor == 0])
 
             # resample SLC
-            resampled_slc = resample(slc_demodulate[:, :resample_width_end], sub_width, axis=1)
+            resampled_slc = resample(
+                slc_demodulate[:, :resample_width_end], sub_width, axis=1)
 
-            meta['range_spacing'] = self.rg_pxl_spacing * resampling_scale_factor
-            meta['slant_range'] = np.linspace(self.slant_range(0), self.slant_range(width),
-                            sub_width, endpoint=False)
+            meta['range_spacing'] = \
+                self.rg_pxl_spacing * resampling_scale_factor
+            meta['slant_range'] = \
+                self.slant_range(0) + \
+                    np.arange(sub_width) * meta['range_spacing']
 
             return resampled_slc, meta
 
         else:
             meta['range_spacing'] = self.rg_pxl_spacing
-            meta['slant_range'] = np.linspace(self.slant_range(0), self.slant_range(width),
-                            width, endpoint=False)
+            meta['slant_range'] = \
+                self.slant_range(0) + \
+                    np.arange(width) * meta['range_spacing']
 
             return slc_demodulate, meta
 
@@ -272,7 +283,8 @@ class SplitSpectrum:
             error_channel.log(err_str)
             raise ValueError(err_str)
 
-        # construct window to be deconvolved from the original SLC in freq domain
+        # construct window to be deconvolved
+        # from the original SLC in freq domain
         window_target = self.get_range_bandpass_window(
             center_frequency=0,
             freq_low=-rg_bandwidth/2,
@@ -332,11 +344,12 @@ class SplitSpectrum:
         height, width = slc_array.shape
         range_time = np.arange(width) / rg_sample_freq
         slc_shifted = slc_array * np.exp(1j * 2.0 * np.pi
-                                     * diff_frequency * range_time)
+                                         * diff_frequency * range_time)
         return slc_shifted
 
     def freq_spectrum(self, cfrequency, dt, fft_size):
-        ''' Return Discrete Fourier Transform sample frequencies with center frequency bias.
+        ''' Return Discrete Fourier Transform sample frequencies
+        with center frequency bias.
 
         Parameters:
         ----------
@@ -500,19 +513,21 @@ class SplitSpectrum:
         filter_1d : np.ndarray
             one dimensional kaiser bandpass filter in frequency domain
         '''
-        filter_1d = self._construct_range_bandpass_kaiser_cosine(frequency_range,
-                                                     freq_low,
-                                                     freq_high,
-                                                     np.kaiser,
-                                                     window_shape)
+        filter_1d = self._construct_range_bandpass_kaiser_cosine(
+            frequency_range,
+            freq_low,
+            freq_high,
+            np.kaiser,
+            window_shape)
         return filter_1d
 
-    def _construct_range_bandpass_kaiser_cosine(self,
-                                               frequency_range,
-                                               freq_low,
-                                               freq_high,
-                                               window_function,
-                                               window_shape):
+    def _construct_range_bandpass_kaiser_cosine(
+            self,
+            frequency_range,
+            freq_low,
+            freq_high,
+            window_function,
+            window_shape):
         '''Generate a Kaiser or cosine bandpass window
 
         Parameters
@@ -533,6 +548,8 @@ class SplitSpectrum:
         filter_1d : np.ndarray
             one dimensional kaiser bandpass filter in frequency domain
         '''
+        error_channel = journal.error(
+            'splitspectrum._construct_range_bandpass_kaiser_cosine')
 
         subbandwidth = np.abs(freq_high - freq_low)
         fft_size = len(frequency_range)
@@ -549,12 +566,16 @@ class SplitSpectrum:
 
         # sampling frequency is 1.2 times wider than bandwith
         sampling_bandwidth_ratio = 1.2
-        sampling_low_frequency = freq_low - (sampling_bandwidth_ratio - 1) * subbandwidth * 0.5
-        sampling_high_frequency = freq_high + (sampling_bandwidth_ratio - 1) * subbandwidth * 0.5
+        sampling_low_frequency = \
+            freq_low - (sampling_bandwidth_ratio - 1) * subbandwidth * 0.5
+        sampling_high_frequency = \
+            freq_high + (sampling_bandwidth_ratio - 1) * subbandwidth * 0.5
 
         # index for low and high sampling frequency in frequency_range
-        idx_freq_low = np.abs(frequency_range - sampling_low_frequency).argmin()
-        idx_freq_high = np.abs(frequency_range - sampling_high_frequency).argmin()
+        idx_freq_low = np.abs(
+            frequency_range - sampling_low_frequency).argmin()
+        idx_freq_high = np.abs(
+            frequency_range - sampling_high_frequency).argmin()
 
         if idx_freq_low >= idx_freq_high:
             subband_length = idx_freq_high + fft_size - idx_freq_low + 1
@@ -573,6 +594,7 @@ class SplitSpectrum:
             filter_1d[idx_freq_low : idx_freq_high+1] = subwindow
 
         return filter_1d
+
 
     def construct_range_bandpass_tukey(self,
                                        frequency_range,
@@ -614,6 +636,7 @@ class SplitSpectrum:
             # Transition region
             elif ((freq < freq_low + df) and (freq >= freq_low - df)) \
                     or ((freq <= freq_high + df) and (freq > freq_high - df)):
-                filter_1d[i] = 0.5 * (1.0 + np.cos(np.pi / (subbandwidth * window_shape)
-                            * (freqabs - 0.5 * (1.0 - window_shape) * subbandwidth)))
+                filter_1d[i] = 0.5 * (
+                    1.0 + np.cos(np.pi / (subbandwidth * window_shape)
+                    * (freqabs - 0.5 * (1.0 - window_shape) * subbandwidth)))
         return filter_1d

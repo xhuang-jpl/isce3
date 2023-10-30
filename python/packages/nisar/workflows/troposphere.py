@@ -4,7 +4,6 @@ import h5py
 import journal
 import numpy as np
 import os
-from scipy.interpolate import RegularGridInterpolator
 import time
 
 import pyaps3 as pa
@@ -13,6 +12,7 @@ import isce3
 from isce3.core import transform_xy_to_latlon
 from nisar.workflows import h5_prep
 from nisar.workflows.troposphere_runconfig import InsarTroposphereRunConfig
+from nisar.products.insar.product_paths import GUNWGroupsPaths
 from nisar.workflows.yaml_argparse import YamlArgparse
 
 
@@ -34,6 +34,9 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
     '''
 
     error_channel = journal.error('troposphere.compute_troposphere_delay')
+
+    # Instantiate GUNW product object to avoid hard-coded paths to GUNW datasets
+    gunw_obj = GUNWGroupsPaths()
 
     # Fetch the configurations
     tropo_weather_model_cfg = cfg['dynamic_ancillary_file_group']\
@@ -70,7 +73,7 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
     with h5py.File(gunw_hdf5, 'r', libver='latest', swmr=True) as h5_obj:
 
         # Fetch the GUWN Incidence Angle Datacube
-        rdr_grid_path = 'science/LSAR/GUNW/metadata/radarGrid'
+        rdr_grid_path = gunw_obj.RadarGridPath
 
         inc_angle_cube = h5_obj[f'{rdr_grid_path}/incidenceAngle'][()]
         xcoord_radar_grid = h5_obj[f'{rdr_grid_path}/xCoordinates'][()]
@@ -78,11 +81,11 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
         height_radar_grid = h5_obj[f'{rdr_grid_path}/heightAboveEllipsoid'][()]
 
         # EPSG code
-        epsg = int(h5_obj['science/LSAR/GUNW/metadata/radarGrid/epsg'][()])
+        epsg = int(h5_obj[f'{rdr_grid_path}/epsg'][()])
 
         # Wavelenth in meters
         wavelength = isce3.core.speed_of_light / \
-                h5_obj['/science/LSAR/GUNW/grids/frequencyA/centerFrequency'][()]
+                h5_obj[f'{gunw_obj.GridsPath}/frequencyA/centerFrequency'][()]
 
         # X and y for the entire datacube
         y_2d_radar = np.tile(ycoord_radar_grid, (len(xcoord_radar_grid), 1)).T
@@ -141,15 +144,15 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                     tropo_delay_datacube /= np.cos(np.deg2rad(inc_angle_cube))
 
                 # Save to the dictionary in memory
-                tropo_delay_product_name = f'tropoDelay_{tropo_package}_{tropo_delay_direction}_{tropo_delay_product}'
+                tropo_delay_product_name = \
+                    f'tropoDelay_{tropo_package}_{tropo_delay_direction}_{tropo_delay_product}'
                 troposphere_delay_datacube[tropo_delay_product_name]  = tropo_delay_datacube
 
         # raider package
         else:
             import xarray as xr
-            import RAiDER
             from RAiDER.llreader import BoundingBox
-            from RAiDER.losreader import Zenith, Conventional, Raytracing
+            from RAiDER.losreader import Zenith, Raytracing
             from RAiDER.delay import tropo_delay as raider_tropo_delay
             from RAiDER.models.hres import HRES
 
@@ -175,16 +178,38 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                 ds = xr.open_dataset(weather_model_file)
 
                 # Get the datetime of the weather model file
-                weather_model_time = ds.time.values.astype('datetime64[s]').astype(datetime)[0]
+                weather_model_time = \
+                    ds.time.values.astype('datetime64[s]').astype(datetime)[0]
                 hres = HRES()
-                # Set up the time
+                # Set up the time, Lat/Lon, and working location, where
+                # the lat/lon bounds are applied to clip the global
+                # weather model to minimize the data processing
                 hres.setTime(weather_model_time)
-                # Set up the input file
-                hres.files = [weather_model_file]
-                # Load the input weather model file
-                hres.load(weather_model_output_dir, ll_bounds = lat_lon_bounds)
-                # Return the ouput file if it exists
+                hres.set_latlon_bounds(ll_bounds = lat_lon_bounds)
+                hres.set_wmLoc(weather_model_output_dir)
+
+                # Load the ECMWF NetCDF weather model
+                hres.load_weather(weather_model_file)
+
+                # Process the weather model data
+                hres._find_e()
+                hres._uniform_in_z(_zlevels=None)
+
+                # This function implemented in the RAiDER
+                # fills the NaNs with 0
+                hres._checkForNans()
+
+                hres._get_wet_refractivity()
+                hres._get_hydro_refractivity()
+                hres._adjust_grid(hres.get_latlon_bounds())
+
+                # Compute Zenith delays at the weather model grid nodes
+                hres._getZTD()
+
                 output_file = hres.out_file(weather_model_output_dir)
+                hres._out_name =  output_file
+
+                # Return the ouput file if it exists
                 if os.path.exists(output_file):
                     return output_file
                 else:
@@ -192,12 +217,14 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                     return hres.write()
 
             # ouput location
-            weather_model_output_dir = os.path.join(scratch_path, 'weather_model_files')
+            weather_model_output_dir = \
+                os.path.join(scratch_path, 'weather_model_files')
 
             # Acquisition time for reference and secondary images
-            acquisition_time_ref = h5_obj['science/LSAR/identification/referenceZeroDopplerStartTime'][()]\
+
+            acquisition_time_ref = h5_obj[f'{gunw_obj.IdentificationPath}/referenceZeroDopplerStartTime'][()]\
                     .astype('datetime64[s]').astype(datetime)
-            acquisition_time_second = h5_obj['science/LSAR/identification/secondaryZeroDopplerStartTime'][()]\
+            acquisition_time_second = h5_obj[f'{gunw_obj.IdentificationPath}/secondaryZeroDopplerStartTime'][()]\
                     .astype('datetime64[s]').astype(datetime)
 
             # AOI bounding box
@@ -213,6 +240,8 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                               max_lon + margin]
 
             aoi = BoundingBox(lat_lon_bounds)
+            aoi.xpts = xcoord_radar_grid
+            aoi.ypts = ycoord_radar_grid
 
             # Zenith
             delay_direction_obj = Zenith()
@@ -223,16 +252,18 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
             # Height levels
             height_levels = list(height_radar_grid)
 
-            # Convert to RAiDER NetCDF
-            reference_weather_model_file = \
+            # If the input weather model is HRES,
+            # convert it to the RAiDER internal NetCDF
+            if weather_model_type == 'HRES':
+                reference_weather_model_file = \
                     _convert_HRES_to_raider_NetCDF(reference_weather_model_file,
                                                    lat_lon_bounds, weather_model_output_dir)
 
-            secondary_weather_model_file = \
+                secondary_weather_model_file = \
                     _convert_HRES_to_raider_NetCDF(secondary_weather_model_file,
                                                    lat_lon_bounds, weather_model_output_dir)
 
-            # Troposphere delay computation
+            # Troposphere delay datacube computation
             tropo_delay_reference, _ = raider_tropo_delay(dt=acquisition_time_ref,
                                                           weather_model_file=reference_weather_model_file,
                                                           aoi=aoi,
@@ -252,7 +283,8 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                 # Compute troposphere delay with raider package
                 # comb is the summation of wet and hydro components
                 if tropo_delay_product == 'comb':
-                    tropo_delay = tropo_delay_reference['wet'] + tropo_delay_reference['hydro'] - \
+                    tropo_delay = \
+                        tropo_delay_reference['wet'] + tropo_delay_reference['hydro'] - \
                             tropo_delay_secondary['wet'] - tropo_delay_secondary['hydro']
                 else:
                     tropo_delay = tropo_delay_reference[tropo_delay_product] - \
@@ -261,37 +293,14 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                 # Convert it to radians units
                 tropo_delay_datacube = -tropo_delay * 4.0 * np.pi / wavelength
 
-                # Create a maksed datacube that excludes the NaN values
-                tropo_delay_datacube_masked = np.ma.masked_invalid(tropo_delay_datacube)
-
-                # Interpolate to radar grid to keep its dimension consistent with other datacubes
-                tropo_delay_interpolator = RegularGridInterpolator((tropo_delay_reference.z,
-                                                                    tropo_delay_reference.y,
-                                                                    tropo_delay_reference.x),
-                                                                   tropo_delay_datacube_masked,
-                                                                   method='linear')
-
-                # Interpolate the troposphere delay
-                hv, yv, xv = np.meshgrid(height_radar_grid,
-                                         ycoord_radar_grid,
-                                         xcoord_radar_grid,
-                                         indexing='ij')
-
-                pnts = np.stack(
-                        (hv.flatten(), yv.flatten(), xv.flatten()), axis=-1)
-
-                # Interpolate
-                tropo_delay_datacube = tropo_delay_interpolator(
-                        pnts).reshape(inc_angle_cube.shape)
-
                 # Line of sight mapping
                 if tropo_delay_direction == 'line_of_sight_mapping':
                     tropo_delay_datacube /= np.cos(np.deg2rad(inc_angle_cube))
 
                 # Save to the dictionary in memory
-                tropo_delay_product_name = f'tropoDelay_{tropo_package}_{tropo_delay_direction}_{tropo_delay_product}'
+                tropo_delay_product_name = \
+                    f'tropoDelay_{tropo_package}_{tropo_delay_direction}_{tropo_delay_product}'
                 troposphere_delay_datacube[tropo_delay_product_name]  = tropo_delay_datacube
-
 
     return troposphere_delay_datacube
 
@@ -311,12 +320,13 @@ def write_to_GUNW_product(tropo_delay_datacubes: dict, gunw_hdf5: str):
      -------
        None
     '''
-
+    # Instantiate GUNW object to avoid hard-coded path to GUNW datasets
+    gunw_obj = GUNWGroupsPaths()
     with h5py.File(gunw_hdf5, 'a', libver='latest', swmr=True) as f:
 
         for product_name, product_cube in tropo_delay_datacubes.items():
 
-             radar_grid = f.get('science/LSAR/GUNW/metadata/radarGrid')
+             radar_grid = f.get(gunw_obj.RadarGridPath)
 
              # Troposphere delay product information
              products = product_name.split('_')
