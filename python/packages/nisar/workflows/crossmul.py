@@ -190,7 +190,9 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
                 crossmul.crossmul(ref_slc_raster, sec_slc_raster, ifg_raster,
                                   coh_raster, flatten_raster)
 
-                # populate the new bandwidth along azimuth and range
+                # populate the new bandwidth along azimuth and range after the common band filter
+                # if there is no common band filter applied, the bandwith will remain the same with
+                # the orignal SLC bandwith
                 # TODO: GPU
                 if not use_gpu:
                     processing_info_path = \
