@@ -67,6 +67,9 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
         device = isce3.cuda.core.Device(cfg['worker']['gpu_id'])
         isce3.cuda.core.set_device(device)
         crossmul = isce3.cuda.signal.Crossmul()
+
+        if do_common_range_band_filter or do_common_azimuth_band_filter:
+            raise NotImplementedError("Common band filers have not been implemented for GPU")
     else:
         crossmul = isce3.signal.Crossmul()
         # do common range band filter

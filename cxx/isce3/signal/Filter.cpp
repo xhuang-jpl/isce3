@@ -272,7 +272,7 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
         indexOfFrequency(dt, fft_size, fL, indL);
         int indH;
         indexOfFrequency(dt, fft_size, fH, indH);
-        std::cout << " - fL: "<< fL << " , fH: " << fH << " indL: " << indL << " , indH: " << indH << std::endl;
+        // std::cout << " - fL: "<< fL << " , fH: " << fH << " indL: " << indL << " , indH: " << indH << std::endl;
 
         // bessel_i0 of beta
         double bessel_i0_beta = isce3::math::bessel_i0(beta);
@@ -526,8 +526,8 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
 
     meanDopCenterFreq /= ncols;
     meanDopCenterFreqShift /= ncols;
-    std::cout << " - mean doppler center freq:" << meanDopCenterFreq << std::endl;
-    std::cout << " - mean doppler center freq shift:" << meanDopCenterFreqShift << std::endl;
+    std::cout << " - mean doppler center freq (Hz):" << meanDopCenterFreq << std::endl;
+    std::cout << " - mean doppler center freq shift (Hz):" << meanDopCenterFreqShift << std::endl;
 
     _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
     _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);

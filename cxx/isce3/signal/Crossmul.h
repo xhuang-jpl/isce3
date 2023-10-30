@@ -55,7 +55,7 @@ class isce3::signal::Crossmul {
         /** Get range pixel spacing */
         inline double rangePixelSpacing() const { return _rangePixelSpacing; }
 
-        /** Set Wavelength*/
+        /** Set Wavelength in meters*/
         inline void wavelength(double wvl) { _wavelength = wvl; }
 
         /** Get Wavelength*/
@@ -81,7 +81,7 @@ class isce3::signal::Crossmul {
         inline bool doCommonAzimuthBandFilter() const {
             return _doCommonAzimuthBandFilter; }
 
-        /** Set azimuth bandwidth */
+        /** Set azimuth bandwidth in Hz*/
         inline void azimuthBandwidth(double azBandwidth) {
             _azimuthBandwidth = azBandwidth; }
 
@@ -115,19 +115,19 @@ class isce3::signal::Crossmul {
         inline bool doFlatten() const {
             return _doFlatten; }
 
-        /** Set pulse repetition frequency (PRF) */
+        /** Set pulse repetition frequency (PRF) in Hz */
         inline void prf(double prf) { _prf = prf; }
 
         /** Get pulse repetition frequency (PRF) */
         inline double prf() const { return _prf; }
 
-        /** Set range sampling frequency  */
+        /** Set range sampling frequency in Hz */
         inline void rangeSamplingFrequency(double rgSamplingFreq) { _rangeSamplingFrequency = rgSamplingFreq; }
 
         /** Get range sampling frequency  */
         inline double rangeSamplingFrequency() const { return _rangeSamplingFrequency; }
 
-        /** Set the range bandwidth */
+        /** Set the range bandwidth in Hz*/
         inline void rangeBandwidth(double rngBandwidth) { _rangeBandwidth = rngBandwidth; }
 
         /** Get the range bandwidth */
@@ -167,8 +167,8 @@ class isce3::signal::Crossmul {
         /** Range common band filtering and return the new bandwidth*/
         double rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                 std::valarray<std::complex<float>> &secSlc,
-                std::valarray<std::complex<float>> geometryIfgram,
-                std::valarray<std::complex<float>> geometryIfgramConj,
+                std::valarray<std::complex<float>> &geometryIfgram,
+                std::valarray<std::complex<float>> &geometryIfgramConj,
                 std::valarray<std::complex<float>> &refSpectrum,
                 std::valarray<std::complex<float>> &secSpectrum,
                 std::valarray<double> &rangeFrequencies,

@@ -67,8 +67,8 @@ size_t omp_thread_count() {
 }
 
 /**
-* @param[in] refSlc a block of the reference SLC to be filtered
-* @param[in] secSlc a block of second SLC to be filtered
+* @param[in, out] refSlc a block of the reference SLC to be filtered
+* @param[in, out] secSlc a block of second SLC to be filtered
 * @param[in] geometryIfgram a simulated interferogram that contains the geometrical phase due to baseline separation
 * @param[in] geometryIfgramConj conjugate of geometryIfgram
 * @param[in] refSpectrum spectrum of geometryIfgramConj in range direction
@@ -81,8 +81,8 @@ size_t omp_thread_count() {
 double isce3::signal::Crossmul::
 rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                         std::valarray<std::complex<float>> &secSlc,
-                        std::valarray<std::complex<float>> geometryIfgram,
-                        std::valarray<std::complex<float>> geometryIfgramConj,
+                        std::valarray<std::complex<float>> &geometryIfgram,
+                        std::valarray<std::complex<float>> &geometryIfgramConj,
                         std::valarray<std::complex<float>> &refSpectrum,
                         std::valarray<std::complex<float>> &secSpectrum,
                         std::valarray<double> &rangeFrequencies,
@@ -113,8 +113,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                         ncols,
                         frequencyShift);
 
-    std::cout << " - rangeFrequencyShift : "<< frequencyShift << std::endl;
-    std::cout << " - range bandwidth: " << _rangeBandwidth << std::endl;
+    std::cout << " - rangeFrequencyShift (MHz): "<< frequencyShift/1e6 << std::endl;
+    std::cout << " - range bandwidth (MHz): " << _rangeBandwidth/1e6 << std::endl;
 
     // Since the spectrum of the ref and sec SLCs are already aligned,
     // we design the low-pass filter as a band-pass at zero frequency with
@@ -476,8 +476,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
         if (_doCommonRangeBandFilter) {
             // Some diagnostic messages to make sure everything has been configured
             // TODO use journal instead of cout
-            std::cout << " - range pixel spacing: " << _rangePixelSpacing << std::endl;
-            std::cout << " - wavelength: " << _wavelength << std::endl;
+            std::cout << " - range pixel spacing (m): " << _rangePixelSpacing << std::endl;
+            std::cout << " - wavelength (m): " << _wavelength << std::endl;
 
             refWindowSignal.forward(refSlc, refSpectrum);
             secWindowSignal.forward(secSlc, secSpectrum);
