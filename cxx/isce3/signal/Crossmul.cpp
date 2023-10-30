@@ -219,6 +219,12 @@ crossmul(isce3::io::Raster& refSlcRaster,
     //signal object for geometryIfgramConj
     isce3::signal::Signal<float> geometryIfgramConjSignal(nthreads);
 
+    //signal object for refSlc windowing effects revert
+    isce3::signal::Signal<float> refWindowSignal(nthreads);
+
+    //signal object for secSlc windowing effects revert
+    isce3::signal::Signal<float> secWindowSignal(nthreads);
+
     // instantiate Looks used for multi-looking the interferogram
     isce3::signal::Looks<float> looksObj;
 
@@ -371,6 +377,9 @@ crossmul(isce3::io::Raster& refSlcRaster,
     std::valarray<std::complex<float>> refAzimuthSpectrum;
     std::valarray<std::complex<float>> secAzimuthSpectrum;
 
+    // Kaiser filter to compensate the range windowing effects
+    std::valarray<std::complex<double>> filterKaiser;
+
     if (_doCommonAzimuthBandFilter) {
         // Allocate storage for azimuth spectrum
         refAzimuthSpectrum.resize(spectrumSize);
@@ -384,6 +393,19 @@ crossmul(isce3::io::Raster& refSlcRaster,
         // Compute the range frequency for each pixel
         fftfreq(1.0/_rangeSamplingFrequency, rangeFrequencies);
 
+        // Harde coded here to build the Kaiser window to
+        // compensate the windowing effects in range direction
+        filterKaiser.resize(fft_size);
+        const double beta = 1.6;
+        const double dt = 1.0/_rangeSamplingFrequency;
+        const double bessel_i0_beta = isce3::math::bessel_i0(beta);
+        for (size_t i = 0; i < rangeFrequencies.size(); ++i){
+            double fre = rangeFrequencies[i];
+            double tmp  = 2.0 * fre * dt;
+            double kaiserCoefficient = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
+            filterKaiser[i] = std::complex<double>(kaiserCoefficient/bessel_i0_beta, 0.0);
+        }
+
         // Construct the FFTW plan for both geometryIfgram and its conjugation
         geometryIfgramSignal.forwardRangeFFT(geometryIfgram, refSpectrum,
                         fft_size, linesPerBlock);
@@ -394,6 +416,16 @@ crossmul(isce3::io::Raster& refSlcRaster,
                        fft_size, linesPerBlock);
         geometryIfgramConjSignal.inverseRangeFFT(secSpectrum, geometryIfgramConj,
                       fft_size, linesPerBlock);
+
+        refWindowSignal.forwardRangeFFT(refSlc, refSpectrum,
+                        fft_size, linesPerBlock);
+        refWindowSignal.inverseRangeFFT(refSpectrum, refSlc,
+                        fft_size, linesPerBlock);
+
+        secWindowSignal.forwardRangeFFT(secSlc, secSpectrum,
+                        fft_size, linesPerBlock);
+        secWindowSignal.inverseRangeFFT(secSpectrum, secSlc,
+                        fft_size, linesPerBlock);
     }
 
     // loop over all blocks
@@ -440,6 +472,52 @@ crossmul(isce3::io::Raster& refSlcRaster,
             }
         }
 
+        // common range band-pass filtering
+        if (_doCommonRangeBandFilter) {
+            // Some diagnostic messages to make sure everything has been configured
+            // TODO use journal instead of cout
+            std::cout << " - range pixel spacing: " << _rangePixelSpacing << std::endl;
+            std::cout << " - wavelength: " << _wavelength << std::endl;
+
+            refWindowSignal.forward(refSlc, refSpectrum);
+            secWindowSignal.forward(secSlc, secSpectrum);
+
+            // Convert range offset from meters to complex one-way phase
+            #pragma omp parallel for
+            for (size_t line = 0; line < blockRowsData; ++line) {
+                for (size_t col = 0; col < ncols; ++col) {
+
+                    // Use the one-way phase instead of the two-way phase
+                    // to align the spectrum and determine the frequency shifts
+                    double phase = 2.0 * M_PI
+                        * _rangePixelSpacing*rngOffset[line*fft_size+col]
+                        / _wavelength;
+
+                    geometryIfgram[line*fft_size + col] =
+                        std::complex<float> (std::cos(phase), std::sin(phase));
+                    geometryIfgramConj[line*fft_size + col] =
+                        std::complex<float> (std::cos(phase), -1.0*std::sin(phase));
+
+                    // Compensate the kaiser windowing effects in range direction
+                    refSpectrum[line*fft_size + col] /= filterKaiser[col];
+                    secSpectrum[line*fft_size + col] /= filterKaiser[col];
+                }
+            }
+            refWindowSignal.inverse(refSpectrum, refSlc);
+            secWindowSignal.inverse(secSpectrum, secSlc);
+
+            // Forward FFT to compute topo-dependent spectrum to determine the
+            // frequency shift
+            geometryIfgramConjSignal.forward(geometryIfgramConj, refSpectrum);
+            geometryIfgramSignal.forward(geometryIfgram, secSpectrum);
+
+            // Apply range common band filter to ref and sec SLC
+            // and the resultant refSlc and secSlc have no topo phase removal
+            _processedRangeBandwidth += rangeCommonBandFilter(refSlc, secSlc, geometryIfgram,
+                        geometryIfgramConj, refSpectrum, secSpectrum,
+                        rangeFrequencies, rangeFilter, linesPerBlock, fft_size);
+        }
+
         //common azimuth band-pass filter the reference and secondary SLCs
         //TODO: since there is no windowing is applied in azimuth, no need to revert
         //the windowing effects, and the attena pattern coefficents are not stored in the
@@ -463,44 +541,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
                     linesPerBlock, filterType);
 
             azimuthFilter.filter(secSlc, secAzimuthSpectrum);
-        }
-
-        // common range band-pass filtering
-        if (_doCommonRangeBandFilter) {
-
-            // Some diagnostic messages to make sure everything has been configured
-            // TODO use journal instead of cout
-            std::cout << " - range pixel spacing: " << _rangePixelSpacing << std::endl;
-            std::cout << " - wavelength: " << _wavelength << std::endl;
-
-            // Convert range offset from meters to complex one-way phase
-            #pragma omp parallel for
-            for (size_t line = 0; line < blockRowsData; ++line) {
-                for (size_t col = 0; col < ncols; ++col) {
-
-                    // Use the one-way phase instead of the two-way phase
-                    // to align the spectrum and determine the frequency shifts
-                    double phase = 2.0 * M_PI
-                        * _rangePixelSpacing*rngOffset[line*fft_size+col]
-                        / _wavelength;
-
-                    geometryIfgram[line*fft_size + col] =
-                        std::complex<float> (std::cos(phase), std::sin(phase));
-                    geometryIfgramConj[line*fft_size + col] =
-                        std::complex<float> (std::cos(phase), -1.0*std::sin(phase));
-                }
-            }
-
-            // Forward FFT to compute topo-dependent spectrum to determine the
-            // frequency shift
-            geometryIfgramConjSignal.forward(geometryIfgramConj, refSpectrum);
-            geometryIfgramSignal.forward(geometryIfgram, secSpectrum);
-
-            // Apply range common band filter to ref and sec SLC
-            // and the resultant refSlc and secSlc have no topo phase removal
-            _processedRangeBandwidth += rangeCommonBandFilter(refSlc, secSlc, geometryIfgram,
-                        geometryIfgramConj, refSpectrum, secSpectrum,
-                        rangeFrequencies, rangeFilter, linesPerBlock, fft_size);
         }
 
         // upsample the reference and secondary SLCs
