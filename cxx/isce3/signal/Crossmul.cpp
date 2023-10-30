@@ -147,7 +147,6 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                                     blockLength,
                                     filterType);
     rngFilter.filter(secSlc, secSpectrum);
-
     // restore the original phase without the geometry phase
     // in case other steps will use the original phase
     refSlc *= geometryIfgram;
@@ -431,7 +430,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
         if (_doCommonAzimuthBandFilter) {
 
             std::string filterType = "kaiser";
-            double beta = 2.5;
+            double beta = 1.6;
             // Construct azimuth common band filter for a block of data of the reference
             azimuthFilter.constructAzimuthCommonbandFilter(
                     _refDoppler, _secDoppler, rngOffset,
@@ -485,7 +484,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
             // and the resultant refSlc and secSlc have no topo phase removal
             rangeCommonBandFilter(refSlc, secSlc, geometryIfgram,
                     geometryIfgramConj, refSpectrum, secSpectrum,
-                    rangeFrequencies, rangeFilter, blockRowsData, fft_size);
+                    rangeFrequencies, rangeFilter, linesPerBlock, fft_size);
         }
 
         // upsample the reference and secondary SLCs

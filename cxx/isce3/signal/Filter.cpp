@@ -272,7 +272,7 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
         indexOfFrequency(dt, fft_size, fL, indL);
         int indH;
         indexOfFrequency(dt, fft_size, fH, indH);
-        std::cout << "fL: "<< fL << " , fH: " << fH << " indL: " << indL << " , indH: " << indH << std::endl;
+        std::cout << " - fL: "<< fL << " , fH: " << fH << " indL: " << indL << " , indH: " << indH << std::endl;
 
         // bessel_i0 of beta
         double bessel_i0_beta = isce3::math::bessel_i0(beta);
