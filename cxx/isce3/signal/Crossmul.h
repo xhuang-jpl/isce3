@@ -93,11 +93,14 @@ class isce3::signal::Crossmul {
         inline double processedAzimuthBandwidth() const {
             return _processedAzimuthBandwidth; }
 
-        /** Set beta parameter for the azimuth common band filter */
-        inline void beta(double beta) { _beta = beta; }
+        /** Set beta parameter for the azimuth common band filter
+         The meaning of this parameter depends on the `window_type`.
+         For a raised-cosine window, it is the pedestal height of the window.
+         For a Kaiser window, it is the beta parameter.*/
+        inline void windowParameter(double windowParameter) { _windowParameter = windowParameter; }
 
         /** Get beta parameter for the azimuth common band filter */
-        inline double beta() const { return _beta; }
+        inline double windowParameter() const { return _windowParameter; }
 
         /** Set common range band filtering flag */
         inline void doCommonRangeBandFilter(bool doRgBandFilter) {
@@ -167,8 +170,8 @@ class isce3::signal::Crossmul {
         /** Range common band filtering and return the new bandwidth*/
         double rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                 std::valarray<std::complex<float>> &secSlc,
-                std::valarray<std::complex<float>> &geometryIfgram,
-                std::valarray<std::complex<float>> &geometryIfgramConj,
+                const std::valarray<std::complex<float>> &geometryIfgram,
+                const std::valarray<std::complex<float>> &geometryIfgramConj,
                 std::valarray<std::complex<float>> &refSpectrum,
                 std::valarray<std::complex<float>> &secSpectrum,
                 std::valarray<double> &rangeFrequencies,
@@ -209,8 +212,8 @@ class isce3::signal::Crossmul {
         // Processed azimuth bandwidth after the common band filtering
         double _processedAzimuthBandwidth;
 
-        // Beta parameter for constructing common azimuth band filter
-        double _beta = 0.25;
+        // Window parameter for constructing common azimuth band filter
+        double _windowParameter = 1.6;
 
         // Flag for common range band filtering
         bool _doCommonRangeBandFilter = false;

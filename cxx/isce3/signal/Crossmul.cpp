@@ -59,7 +59,6 @@ void lookdownShiftImpact(size_t oversample, size_t fft_size, size_t blockRows,
 // Utility function to get number of OpenMP threads
 // (gcc sometimes has problems with omp_get_num_threads)
 size_t omp_thread_count() {
-    // may use the omp_get_num_procs()?
     size_t n = 0;
     #pragma omp parallel reduction(+:n)
     n += 1;
@@ -71,8 +70,8 @@ size_t omp_thread_count() {
 * @param[in, out] secSlc a block of second SLC to be filtered
 * @param[in] geometryIfgram a simulated interferogram that contains the geometrical phase due to baseline separation
 * @param[in] geometryIfgramConj conjugate of geometryIfgram
-* @param[in] refSpectrum spectrum of geometryIfgramConj in range direction
-* @param[in] secSpectrum spectrum of geometryIfgram in range direction
+* @param[in, out] refSpectrum spectrum of geometryIfgramConj in range direction
+* @param[in, out] secSpectrum spectrum of geometryIfgram in range direction
 * @param[in] rangeFrequencies frequencies in range direction
 * @param[in] rngFilter a filter object
 * @param[in] blockLength number of rows
@@ -81,8 +80,8 @@ size_t omp_thread_count() {
 double isce3::signal::Crossmul::
 rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                         std::valarray<std::complex<float>> &secSlc,
-                        std::valarray<std::complex<float>> &geometryIfgram,
-                        std::valarray<std::complex<float>> &geometryIfgramConj,
+                        const std::valarray<std::complex<float>> &geometryIfgram,
+                        const std::valarray<std::complex<float>> &geometryIfgramConj,
                         std::valarray<std::complex<float>> &refSpectrum,
                         std::valarray<std::complex<float>> &secSpectrum,
                         std::valarray<double> &rangeFrequencies,
@@ -96,12 +95,12 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     // Aligning the spectrum of the two SLCs
     // Shifting the range spectrum of each image according to the local
     // (slope-dependent) wavenumber. This shift in frequency domain is
-    // achieved by removing/adding the geometrical (representing topography)
+    // achieved by removing/adding the geometrical phase (representing topography)
     // from/to reference and secondary SLCs in time domain.
     refSlc *= geometryIfgramConj;
     secSlc *= geometryIfgram;
 
-    // range frequency shift
+    // range frequency shift, in Hz
     double frequencyShift = 0.0;
 
     // determine the frequency shift based on the power spectral density of
@@ -255,16 +254,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
     }
 
     // set up the processed azimuth and range bandwidth
-    if (_doCommonAzimuthBandFilter) {
-        _processedAzimuthBandwidth = 0.0;
-    } else {
-        _processedAzimuthBandwidth = _azimuthBandwidth;
-    }
-    if (_doCommonRangeBandFilter) {
-        _processedRangeBandwidth = 0.0;
-    } else {
-        _processedRangeBandwidth = _rangeBandwidth;
-    }
+    _processedAzimuthBandwidth = _doCommonAzimuthBandFilter ? 0.0 : _azimuthBandwidth;
+    _processedRangeBandwidth = _doCommonRangeBandFilter ? 0.0 : _rangeBandwidth;
 
     // size of not-unsampled valarray
     const auto spectrumSize = fft_size * linesPerBlock;
@@ -396,7 +387,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
         // Harde coded here to build the Kaiser window to
         // compensate the windowing effects in range direction
         filterKaiser.resize(fft_size);
-        const double beta = 1.6;
+        const double beta = _windowParameter;
         const double dt = 1.0/_rangeSamplingFrequency;
         const double bessel_i0_beta = isce3::math::bessel_i0(beta);
         for (size_t i = 0; i < rangeFrequencies.size(); ++i){
@@ -523,12 +514,11 @@ crossmul(isce3::io::Raster& refSlcRaster,
         //SLC yet, will wait for the implementation and revert the attena pattern then
         if (_doCommonAzimuthBandFilter) {
             std::string filterType = "kaiser";
-            double beta = 1.6;
             // Construct azimuth common band filter for a block of data of the reference
             _processedAzimuthBandwidth += azimuthFilter.constructAzimuthCommonbandFilter(
                         _refDoppler, _secDoppler, rngOffset,
                         _azimuthBandwidth,
-                        _prf, beta, refSlc, refAzimuthSpectrum, fft_size,
+                        _prf, _windowParameter, refSlc, refAzimuthSpectrum, fft_size,
                         linesPerBlock, filterType);
             azimuthFilter.filter(refSlc, refAzimuthSpectrum);
 
@@ -536,7 +526,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
             azimuthFilter.constructAzimuthCommonbandFilter(
                     _refDoppler, _secDoppler, rngOffset,
                     _azimuthBandwidth,
-                    _prf, beta, secSlc, secAzimuthSpectrum, fft_size,
+                    _prf, _windowParameter, secSlc, secAzimuthSpectrum, fft_size,
                     linesPerBlock, filterType);
 
             azimuthFilter.filter(secSlc, secAzimuthSpectrum);
