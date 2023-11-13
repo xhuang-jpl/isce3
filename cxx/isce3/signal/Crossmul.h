@@ -49,13 +49,13 @@ class isce3::signal::Crossmul {
         /** Get doppler LUT for secondary SLC */
         inline const isce3::core::LUT1d<double> & secDoppler() const { return _secDoppler; }
 
-        /** Set range pixel spacing */
+        /** Set range pixel spacing, in meters */
         inline void rangePixelSpacing(double rgPxlSpacing) { _rangePixelSpacing = rgPxlSpacing; }
 
-        /** Get range pixel spacing */
+        /** Get range pixel spacing, in meters */
         inline double rangePixelSpacing() const { return _rangePixelSpacing; }
 
-        /** Set Wavelength in meters*/
+        /** Set Wavelength, in meters*/
         inline void wavelength(double wvl) { _wavelength = wvl; }
 
         /** Get Wavelength*/
@@ -81,15 +81,15 @@ class isce3::signal::Crossmul {
         inline bool doCommonAzimuthBandFilter() const {
             return _doCommonAzimuthBandFilter; }
 
-        /** Set azimuth bandwidth in Hz*/
+        /** Set azimuth bandwidth, in Hz*/
         inline void azimuthBandwidth(double azBandwidth) {
             _azimuthBandwidth = azBandwidth; }
 
-        /** Get azimuth bandwidth */
+        /** Get azimuth bandwidth, in Hz */
         inline double azimuthBandwidth() const {
             return _azimuthBandwidth; }
 
-        /** Get processed azimuth bandwidth */
+        /** Get processed azimuth bandwidth, in Hz */
         inline double processedAzimuthBandwidth() const {
             return _processedAzimuthBandwidth; }
 
@@ -115,22 +115,22 @@ class isce3::signal::Crossmul {
         inline bool doFlatten() const {
             return _doFlatten; }
 
-        /** Set pulse repetition frequency (PRF) in Hz */
+        /** Set pulse repetition frequency (PRF), in Hz */
         inline void prf(double prf) { _prf = prf; }
 
-        /** Get pulse repetition frequency (PRF) */
+        /** Get pulse repetition frequency (PRF), in Hz */
         inline double prf() const { return _prf; }
 
-        /** Set range sampling frequency in Hz */
+        /** Set range sampling frequency, in Hz */
         inline void rangeSamplingFrequency(double rgSamplingFreq) { _rangeSamplingFrequency = rgSamplingFreq; }
 
-        /** Get range sampling frequency  */
+        /** Get range sampling frequency, in Hz*/
         inline double rangeSamplingFrequency() const { return _rangeSamplingFrequency; }
 
         /** Set the range bandwidth in Hz*/
         inline void rangeBandwidth(double rngBandwidth) { _rangeBandwidth = rngBandwidth; }
 
-        /** Get the range bandwidth */
+        /** Get the range bandwidth, in Hz */
         inline double rangeBandwidth() const {return _rangeBandwidth; }
 
         /** Get processed range bandwidth after common band filter*/
