@@ -93,14 +93,20 @@ class isce3::signal::Crossmul {
         inline double processedAzimuthBandwidth() const {
             return _processedAzimuthBandwidth; }
 
-        /** Set beta parameter for the azimuth common band filter
+        /** Set window parameter for the azimuth common band filter
          The meaning of this parameter depends on the `window_type`.
          For a raised-cosine window, it is the pedestal height of the window.
          For a Kaiser window, it is the beta parameter.*/
         inline void windowParameter(double windowParameter) { _windowParameter = windowParameter; }
 
-        /** Get beta parameter for the azimuth common band filter */
+        /** Get window parameter for the azimuth common band filter */
         inline double windowParameter() const { return _windowParameter; }
+
+        /** Get window type for the azimuth common band filter */
+        inline std::string windowType() const { return _windowType; }
+
+        /** Set the window type */
+        inline void windowType(std::string windowType) { _windowType = windowType; }
 
         /** Set common range band filtering flag */
         inline void doCommonRangeBandFilter(bool doRgBandFilter) {
@@ -167,7 +173,10 @@ class isce3::signal::Crossmul {
         inline void getPeakIndex(std::valarray<float> data,
                                 size_t &peakIndex);
 
-        /** Range common band filtering and return the new bandwidth*/
+        /** Range common band filtering and return the new bandwidth
+         The method is refering to the ESA InSAR tutorial part B.
+         (https://www.esa.int/esapub/tm/tm19/TM-19_ptB.pdf on page 19)
+        */
         double rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                 std::valarray<std::complex<float>> &secSlc,
                 const std::valarray<std::complex<float>> &geometryIfgram,
@@ -211,6 +220,9 @@ class isce3::signal::Crossmul {
 
         // Processed azimuth bandwidth after the common band filtering
         double _processedAzimuthBandwidth;
+
+        //
+        std::string _windowType = "kaiser";
 
         // Window parameter for constructing common azimuth band filter
         double _windowParameter = 1.6;

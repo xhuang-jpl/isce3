@@ -58,6 +58,12 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
         .def_property("range_pixel_spacing",
                 py::overload_cast<>(&Crossmul::rangePixelSpacing, py::const_),
                 py::overload_cast<double>(&Crossmul::rangePixelSpacing))
+        .def_property("window_parameter",
+                py::overload_cast<>(&Crossmul::windowParameter, py::const_),
+                py::overload_cast<double>(&Crossmul::windowParameter))
+        .def_property("window_type",
+                py::overload_cast<>(&Crossmul::windowType, py::const_),
+                py::overload_cast<std::string>(&Crossmul::windowType))
         .def_property("do_common_range_band_filter",
                 py::overload_cast<>(&Crossmul::doCommonRangeBandFilter, py::const_),
                 py::overload_cast<bool>(&Crossmul::doCommonRangeBandFilter))

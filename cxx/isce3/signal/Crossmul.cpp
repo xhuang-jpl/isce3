@@ -121,7 +121,7 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     std::valarray<double> filterCenterFrequency{0.0};
     std::valarray<double> filterBandwidth{_rangeBandwidth - fabs(frequencyShift)};
 
-    std::string filterType = "kaiser";
+    std::string filterType = _windowType;
 
     // Contruct the low pass filter for this block. This filter is
     // common for both SLCs
@@ -513,7 +513,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
         //the windowing effects, and the attena pattern coefficents are not stored in the
         //SLC yet, will wait for the implementation and revert the attena pattern then
         if (_doCommonAzimuthBandFilter) {
-            std::string filterType = "kaiser";
+            std::string filterType = _windowType;
             // Construct azimuth common band filter for a block of data of the reference
             _processedAzimuthBandwidth += azimuthFilter.constructAzimuthCommonbandFilter(
                         _refDoppler, _secDoppler, rngOffset,
