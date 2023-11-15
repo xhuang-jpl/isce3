@@ -117,7 +117,7 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 
     // Since the spectrum of the ref and sec SLCs are already aligned,
     // we design the low-pass filter as a band-pass at zero frequency with
-    // bandwidth of (W - frequency shift)
+    // bandwidth of (range bandwidth - frequency shift)
     std::valarray<double> filterCenterFrequency{0.0};
     std::valarray<double> filterBandwidth{_rangeBandwidth - fabs(frequencyShift)};
 
@@ -272,10 +272,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
     // storage for a block of range offsets
     std::valarray<double> rngOffset(spectrumSize);
 
-    // storage for a simulated interferogram which its phase is the
-    // interferometric phase due to the imaging geometry:
-    // phase = (4*PI/wavelength)*(rangePixelSpacing)*(rngOffset)
-
+    // InSAR phase due to topography
+    // geometryIfgram = (4*PI/wavelength)*(rangePixelSpacing)*(rngOffset)
     std::valarray<std::complex<float>> geometryIfgram;
 
     // complex conjugate of geometryIfgram
@@ -453,7 +451,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
             secSlc[std::slice(line*fft_size, ncols, 1)] = dataLine;
         }
 
-        // load the range offsets that are required by the flatten,
+        // load the range offsets that are required by flattening,
         // common range and azimuth filters
         if (_doFlatten || _doCommonAzimuthBandFilter || _doCommonRangeBandFilter) {
             std::valarray<double> offsetLine(ncols);
@@ -473,13 +471,12 @@ crossmul(isce3::io::Raster& refSlcRaster,
             refWindowSignal.forward(refSlc, refSpectrum);
             secWindowSignal.forward(secSlc, secSpectrum);
 
-            // Convert range offset from meters to complex one-way phase
+            // Convert range offset from meters to complex one-way geometric phase
             #pragma omp parallel for
             for (size_t line = 0; line < blockRowsData; ++line) {
                 for (size_t col = 0; col < ncols; ++col) {
 
-                    // Use the one-way phase instead of the two-way phase
-                    // to align the spectrum and determine the frequency shifts
+                    // one-way geometric phase to shift the spectrum
                     double phase = 2.0 * M_PI
                         * _rangePixelSpacing*rngOffset[line*fft_size+col]
                         / _wavelength;
@@ -488,7 +485,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                         std::complex<float> (std::cos(phase), std::sin(phase));
                     geometryIfgramConj[line*fft_size + col] = std::conj(geometryIfgram[line*fft_size + col]);
 
-                    // Compensate the kaiser windowing effects in range direction
+                    // Compensate the kaiser windowing effects along the range direction
                     refSpectrum[line*fft_size + col] /= filterKaiser[col];
                     secSpectrum[line*fft_size + col] /= filterKaiser[col];
                 }
@@ -496,7 +493,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
             refWindowSignal.inverse(refSpectrum, refSlc);
             secWindowSignal.inverse(secSpectrum, secSlc);
 
-            // Forward FFT to compute topo-dependent spectrum to determine the
+            // Forward FFT to compute geometry-dependent spectrum to determine the
             // frequency shift
             geometryIfgramConjSignal.forward(geometryIfgramConj, refSpectrum);
             geometryIfgramSignal.forward(geometryIfgram, secSpectrum);
@@ -509,8 +506,9 @@ crossmul(isce3::io::Raster& refSlcRaster,
         }
 
         //common azimuth band-pass filter the reference and secondary SLCs
+        //refering to ESA InSAR tutorial-part B (https://www.esa.int/esapub/tm/tm19/TM-19_ptB.pdf on page 20 and 21)
         //TODO: since there is no windowing is applied in azimuth, no need to revert
-        //the windowing effects, and the attena pattern coefficents are not stored in the
+        //the windowing effects, and the antenna pattern coefficients are not stored in the
         //SLC yet, will wait for the implementation and revert the attena pattern then
         if (_doCommonAzimuthBandFilter) {
             std::string filterType = _windowType;

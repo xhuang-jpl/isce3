@@ -195,10 +195,10 @@ class isce3::signal::Crossmul {
         //Doppler LUT for the secondary SLC
         isce3::core::LUT1d<double> _secDoppler;
 
-        // range pixel spacing
+        // range pixel spacing in meters
         double _rangePixelSpacing;
 
-        // radar wavelength
+        // radar wavelength in meters
         double _wavelength;
 
         // number of range looks
@@ -215,31 +215,31 @@ class isce3::signal::Crossmul {
         // Flag for common azimuth band filtering
         bool _doCommonAzimuthBandFilter = false;
 
-        // Azimuth  bandwidth
+        // Azimuth  bandwidth in Hz
         double _azimuthBandwidth;
 
-        // Processed azimuth bandwidth after the common band filtering
+        // Processed azimuth bandwidth after the common band filtering in Hz
         double _processedAzimuthBandwidth;
 
-        //
+        // Window type
         std::string _windowType = "kaiser";
 
-        // Window parameter for constructing common azimuth band filter
+        // Window parameter for constructing common band filter
         double _windowParameter = 1.6;
 
         // Flag for common range band filtering
         bool _doCommonRangeBandFilter = false;
 
-        //pulse repetition frequency
+        //pulse repetition frequency, in Hz
         double _prf;
 
-        // range samping frequency
+        // range samping frequency, in Hz
         double _rangeSamplingFrequency;
 
-        // range signal bandwidth
+        // range signal bandwidth in Hz
         double _rangeBandwidth;
 
-        // Processed range bandwidth after the common band filtering
+        // Processed range bandwidth after the common band filtering in Hz
         double _processedRangeBandwidth;
 
         // number of lines per block

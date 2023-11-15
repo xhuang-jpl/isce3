@@ -53,13 +53,13 @@ TEST(Filter, constructAzimuthCommonbandFilter)
 
     isce3::signal::Filter<float> filter;
     filter.constructAzimuthCommonbandCosineFilter(dop1,
-                                                dop2,
-                                                rangeOffsets,
-                                                commonAzimuthBandwidth,
-                                                prf,
-                                                beta,
-                                                refSlc, refSpectrum,
-                                                ncols, blockRows);
+                                                  dop2,
+                                                  rangeOffsets,
+                                                  commonAzimuthBandwidth,
+                                                  prf,
+                                                  beta,
+                                                  refSlc, refSpectrum,
+                                                  ncols, blockRows);
     filter.writeFilter(ncols, blockRows);
 
 }
