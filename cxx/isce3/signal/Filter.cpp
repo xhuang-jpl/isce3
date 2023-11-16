@@ -623,7 +623,7 @@ void
 isce3::signal::Filter<T>::_getKaiserord(const double ripple, const double width,
                                         int &n, double &beta)
 {
-    double A = std::abs(ripple)  // in case somebody is confused as to what's meant
+    const double A = std::abs(ripple)  // in case somebody is confused as to what's meant
     if (A < 8) {
         // Formula for N is not valid in this range.
         std::cout << "Requested maximum ripple attentuation " << A
@@ -635,7 +635,7 @@ isce3::signal::Filter<T>::_getKaiserord(const double ripple, const double width,
 
     // Kaiser's formula (as given in Oppenheim and Schafer) is for the filter
     // order, so we have to add 1 to get the number of taps.
-    double numtaps = (A - 7.95) / 2.285 / (M_PI * width) + 1;
+    const double numtaps = (A - 7.95) / 2.285 / (M_PI * width) + 1;
 
     n = int(std::ceil(numtaps));
     beta = _kaiser_beta(A);
@@ -662,7 +662,7 @@ isce3::signal::Filter<T>::_kaiser_beta(const double ripple)
 /**
  * @param[in] stopatt Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
  * @param[in] transition_width Width of transition region, normalized so that 1 corresponds to pi radians / sample.
- * @param[in] force_odd_len  Force to be odd lenght
+ * @param[in] force_odd_len  Force to be odd length
  * @param[out] n the length of the Kaiser window.
  * @param[out] beta the beta parameter for the Kaiser window
  * @param[out] t time samples for Kaiser filter design method
@@ -679,9 +679,10 @@ isce3::signal::Filter<T>::_kaiser_design(const double stopatt,
     _kaiserord(stopatt, transition_width, n, beta);
     if (force_odd_len && (n % 2 == 0)) n += 1;
 
-    t.resize(n);
+    if (t.size() <= 0) t.resize(n);
     for (size_t i = 0; i < t.size(); i++) t[i] = i - (n - 1) / 2.0;
 }
+
 /**
  * @param[in] t time samples for Kaiser filter design method
  * @param[in] beta the beta parameter for the Kaiser window
@@ -691,14 +692,107 @@ template <class T>
 void
 isce3::signal::Filter<T>::_kaiser_irf(const std::valarray<double> &t,
                          const double beta,
-                         std::valarray<std::complex> &irf)
+                         std::valarray<std::complex<T>> &irf)
 {
-    double alpha =  beta / M_PI;
-    double beta0 = isce3::math::bessel_i0(beta);
+    const double alpha =  beta / M_PI;
+    const double beta0 = isce3::math::bessel_i0(beta);
+
+    if (irf.size() <= 0) irf.resize(t.size());
     for (size_t i = 0; i < t.size(); i++) {
-        std::complex val(t[i] * t[i] - alpha * alpha, 0.0);
-        irf[i].real = isce3::math::sinc(std::sqrt(val).real) / beta0;
-        irf[i].imag = 0.0;
+        std::complex<T> val(t[i] * t[i] - alpha * alpha, 0.0);
+        irf[i] = std::complex<T>(isce3::math::sinc(std::sqrt(val).real) / beta0, 0.0);
+    }
+}
+
+/**
+ * @param[in] n the length of the Kaiser window.
+ * @param[in] beta the beta parameter for the Kaiser window
+ * @param[out] kaiser_window time samples for Kaiser filter design method
+ */
+template <class T>
+void
+isce3::signal::Filter<T>::_kaiser(const int n,
+                     const double beta,
+                     std::valarray<std::complex<T>> &kaiser_window)
+{
+    const double beta0 = isce3::math::bessel_i0(beta) * n;
+
+    if (kaiser_window.size() <= 0) kaiser_window.resize(n);
+
+    for (size_t i = 0; i < n; i++) {
+        const double t = i - (n - 1) / 2.0;
+        if (std::abs(t) <= n / 2.0) kaiser_window[i] = isce3::math::bessel_i0(
+            beta * std::sqrt(1.0 - (2 * t / n) * (2 * t / n))) / beta0;
+    }
+}
+
+/**
+ * @param[in] kaiser_window the Kaiser window.
+ * @param[in] fc the center frequency
+ * @param[out] shifted_kaiser_window shifted kaiser window with center frequency fc
+ */
+template <class T>
+void
+isce3::signal::Filter<T>::_lowpass2bandpass(const std::valarray<std::complex<T>> &kaiser_window,
+                    const double fc,
+                    std::valarray<std::complex<T>> &shifted_kaiser_window)
+{
+    if (shifted_kaiser_window.size() <= 0) shifted_kaiser_window.resize(kaiser_window.size());
+    const int n = kaiser_window.size();
+    for (size_t i = 0; i < n; i++) {
+        const double t = i - (n - 1) / 2.0;
+        const double phase = 2.0 * M_PI * fc * t;
+        const std::complex<T> ramp_phase(std::cos(phase), std::sin(phase));
+        shifted_kaiser_window[i] = kaiser_window[i] * ramp_phase;
+    }
+}
+
+/**
+ * @param[in] bandwidth the signal bandwidth
+ * @param[in] fs the sampling frequency
+ * @param[in] beta the Kaiser window beta parameter.
+ * @param[in] stopatt Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
+ * @param[in] transition_width transition width [0-1]
+ * @param[in] force_odd_len Force to be odd length
+ * @param[out] kaiser_window low bandpass kaiser window
+ */
+template <class T>
+void
+isce3::signal::Filter<T>::_design_shaped_lowpass_filter(const double bandwidth,
+                                           const double fs,
+                                           const double beta,
+                                           std::valarray<std::complex<T>> &kaiser_window,
+                                           const double stopatt,
+                                           const double transition_width,
+                                           const bool force_odd_len)
+{
+    // Normalized bandwdith
+    const double bw = bandwidth / fs;
+
+    // Transition width is specified in terms of output bandwidth, so scale to
+    // get width at sample rate of filter.
+    const double tw = transition_width * bw;
+
+    if ((bw + tw / 2.0) > 1.0) {
+        std::cout << "Passband + transition cannot exceed Nyquist\n";
+        throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+                "Passband + transition cannot exceed Nyquist");
+    }
+
+    int n = 0;
+    double beta = 0.0;
+    std::valarray<double> t;
+    std::valarray<std::complex<T>> irf;
+    std::valarray<std::complex<T>> kaiser;
+
+    _kaiser_design(stopatt, tw, force_odd_len, n, beta, t);
+    _kaiser_irf(t * bw, beta, irf);
+    _kaiser(n, beta, kaiser);
+
+    if (kaiser_window.size() <= 0) kaiser_window.resize(n);
+
+    for (size_t i = 0; i < n; i++) {
+        kaiser_window[i] = irf[i] * kaiser[i] * bw;
     }
 }
 

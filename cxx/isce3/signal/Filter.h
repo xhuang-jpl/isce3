@@ -153,8 +153,26 @@ class isce3::signal::Filter {
         /** Impulse response (Fourier transform) of Kaiser window*/
        void  _kaiser_irf(const std::valarray<double> &t,
                          const double beta,
-                         std::valarray<complex> &irf);
+                         std::valarray<std::complex<T>> &irf);
 
+       /**  Kaiser window with length n*/
+       void  _kaiser(const int n,
+                     const double beta,
+                     std::valarray<std::complex<T>> &kaiser_window);
+
+       /**  Turn a low pass filter into a band pass filter by applying a phase ramp.*/
+       void  _lowpass2bandpass(const std::valarray<std::complex<T>> &kaiser_window,
+                    const double fc,
+                    std::valarray<std::complex<T>> &shifted_kaiser_window);
+
+       /**   Design a low pass filter having a passband shaped like a window using the Kaiser method*/
+       void  _design_shaped_lowpass_filter(const double bandwidth,
+                                           const double fs,
+                                           const double beta,
+                                           std::valarray<std::complex<T>> &kaiser_window,
+                                           const double stopatt = 40.0,
+                                           const double transition_width = 0.15,
+                                           const bool force_odd_len = false);
     private:
         isce3::signal::Signal<T> _signal;
         std::valarray<std::complex<T>> _filter;
