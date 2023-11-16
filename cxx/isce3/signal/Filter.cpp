@@ -68,16 +68,15 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
                                 size_t nrows,
                                 std::string filterType)
 {
+    _signal.forwardRangeFFT(signal, spectrum, ncols, nrows);
+    _signal.inverseRangeFFT(spectrum, signal, ncols, nrows);
+
     constructRangeBandpassFilter(rangeSamplingFrequency,
                                 subBandCenterFrequencies,
                                 subBandBandwidths,
                                 ncols,
                                 nrows,
                                 filterType);
-
-    _signal.forwardRangeFFT(signal, spectrum, ncols, nrows);
-    _signal.inverseRangeFFT(spectrum, signal, ncols, nrows);
-
 }
 
 template <class T>
@@ -611,6 +610,96 @@ writeFilter(size_t ncols, size_t nrows)
     isce3::io::Raster filterRaster("filter.bin", ncols, nrows, 1, GDT_CFloat32, "ENVI");
     filterRaster.setBlock(_filter, 0, 0, ncols, nrows);
 
+}
+
+/**
+ * @param[in] ripple Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
+ * @param[in] width Width of transition region, normalized so that 1 corresponds to pi radians / sample.
+ * @param[out] n the length of the Kaiser window.
+ * @param[out] beta the beta parameter for the Kaiser window
+ */
+template <class T>
+void
+isce3::signal::Filter<T>::_getKaiserord(const double ripple, const double width,
+                                        int &n, double &beta)
+{
+    double A = std::abs(ripple)  // in case somebody is confused as to what's meant
+    if (A < 8) {
+        // Formula for N is not valid in this range.
+        std::cout << "Requested maximum ripple attentuation " << A
+                  << " is too small for the Kaiser formula.\n";
+
+         throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+                "Requested maximum ripple attentuation is too small for the Kaiser formula.");
+    }
+
+    // Kaiser's formula (as given in Oppenheim and Schafer) is for the filter
+    // order, so we have to add 1 to get the number of taps.
+    double numtaps = (A - 7.95) / 2.285 / (M_PI * width) + 1;
+
+    n = int(std::ceil(numtaps));
+    beta = _kaiser_beta(A);
+}
+
+/**
+ * @param[in] ripple The desired attenuation in the stopband and maximum ripple in the passband, in dB.
+ */
+template <class T>
+double
+isce3::signal::Filter<T>::_kaiser_beta(const double ripple)
+{
+    if (ripple > 50) {
+        return 0.1102 * (ripple - 8.7);
+    }
+    else if (ripple > 21){
+        return 0.5842 * (ripple - 21) ** 0.4 + 0.07886 * (ripple - 21);
+    }
+    else {
+        return 0.0;
+    }
+}
+
+/**
+ * @param[in] stopatt Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
+ * @param[in] transition_width Width of transition region, normalized so that 1 corresponds to pi radians / sample.
+ * @param[in] force_odd_len  Force to be odd lenght
+ * @param[out] n the length of the Kaiser window.
+ * @param[out] beta the beta parameter for the Kaiser window
+ * @param[out] t time samples for Kaiser filter design method
+ */
+template <class T>
+void
+isce3::signal::Filter<T>::_kaiser_design(const double stopatt,
+                            const double transition_width,
+                            const bool force_odd_len,
+                            int &n,
+                            double &beta,
+                            std::valarray<double> &t)
+{
+    _kaiserord(stopatt, transition_width, n, beta);
+    if (force_odd_len && (n % 2 == 0)) n += 1;
+
+    t.resize(n);
+    for (size_t i = 0; i < t.size(); i++) t[i] = i - (n - 1) / 2.0;
+}
+/**
+ * @param[in] t time samples for Kaiser filter design method
+ * @param[in] beta the beta parameter for the Kaiser window
+ * @param[out] irf time samples for Kaiser filter design method
+ */
+template <class T>
+void
+isce3::signal::Filter<T>::_kaiser_irf(const std::valarray<double> &t,
+                         const double beta,
+                         std::valarray<std::complex> &irf)
+{
+    double alpha =  beta / M_PI;
+    double beta0 = isce3::math::bessel_i0(beta);
+    for (size_t i = 0; i < t.size(); i++) {
+        std::complex val(t[i] * t[i] - alpha * alpha, 0.0);
+        irf[i].real = isce3::math::sinc(std::sqrt(val).real) / beta0;
+        irf[i].imag = 0.0;
+    }
 }
 
 template class isce3::signal::Filter<float>;

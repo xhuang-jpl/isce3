@@ -135,6 +135,27 @@ class isce3::signal::Filter {
         void writeFilter(size_t ncols, size_t nrows);
 
     private:
+        /** Determine the filter window parameters for the Kaiser window method*/
+        void _getKaiserord(const double ripple, const double width,
+                           int &n, double &beta);
+
+        /** Compute the Kaiser parameter `beta`, given the attenuation 'ripple`*/
+        double _kaiser_beta(const double ripple);
+
+        /** Return length, shape, and time samples for Kaiser filter design method*/
+       void  _kaiser_design(const double stopatt,
+                            const double transition_width,
+                            const bool force_odd_len,
+                            int &n,
+                            double &beta,
+                            std::valarray<double> &t);
+
+        /** Impulse response (Fourier transform) of Kaiser window*/
+       void  _kaiser_irf(const std::valarray<double> &t,
+                         const double beta,
+                         std::valarray<complex> &irf);
+
+    private:
         isce3::signal::Signal<T> _signal;
         std::valarray<std::complex<T>> _filter;
 
