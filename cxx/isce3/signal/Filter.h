@@ -16,6 +16,7 @@
 #include <isce3/io/Raster.h>
 #include <isce3/core/LUT1d.h>
 #include <isce3/math/Bessel.h>
+#include <isce3/math/Sinc.h>
 #include "Signal.h"
 
 // Declaration
@@ -134,45 +135,45 @@ class isce3::signal::Filter {
 
         void writeFilter(size_t ncols, size_t nrows);
 
-    private:
+    public:
         /** Determine the filter window parameters for the Kaiser window method*/
-        void _getKaiserord(const double ripple, const double width,
-                           int &n, double &beta);
+        void _kaiserord(const double ripple, const double width,
+                        int &n, double &beta);
 
         /** Compute the Kaiser parameter `beta`, given the attenuation 'ripple`*/
         double _kaiser_beta(const double ripple);
 
         /** Return length, shape, and time samples for Kaiser filter design method*/
-       void  _kaiser_design(const double stopatt,
-                            const double transition_width,
-                            const bool force_odd_len,
-                            int &n,
-                            double &beta,
-                            std::valarray<double> &t);
+        void  _kaiser_design(const double stopatt,
+                             const double transition_width,
+                             const bool force_odd_len,
+                             int &n,
+                             double &beta,
+                             std::valarray<double> &t);
 
         /** Impulse response (Fourier transform) of Kaiser window*/
-       void  _kaiser_irf(const std::valarray<double> &t,
-                         const double beta,
-                         std::valarray<std::complex<T>> &irf);
+        void  _kaiser_irf(const std::valarray<double> &t,
+                          const double beta,
+                          std::valarray<std::complex<T>> &irf);
 
-       /**  Kaiser window with length n*/
-       void  _kaiser(const int n,
-                     const double beta,
-                     std::valarray<std::complex<T>> &kaiser_window);
+        /**  Kaiser window with length n*/
+        void  _kaiser(const int n,
+                      const double beta,
+                      std::valarray<std::complex<T>> &kaiser_window);
 
-       /**  Turn a low pass filter into a band pass filter by applying a phase ramp.*/
-       void  _lowpass2bandpass(const std::valarray<std::complex<T>> &kaiser_window,
+        /**  Turn a low pass filter into a band pass filter by applying a phase ramp.*/
+        void  _lowpass2bandpass(const std::valarray<std::complex<T>> &kaiser_window,
                     const double fc,
                     std::valarray<std::complex<T>> &shifted_kaiser_window);
 
-       /**   Design a low pass filter having a passband shaped like a window using the Kaiser method*/
-       void  _design_shaped_lowpass_filter(const double bandwidth,
-                                           const double fs,
-                                           const double beta,
-                                           std::valarray<std::complex<T>> &kaiser_window,
-                                           const double stopatt = 40.0,
-                                           const double transition_width = 0.15,
-                                           const bool force_odd_len = false);
+        /**   Design a low pass filter having a passband shaped like a window using the Kaiser method*/
+        void  _design_shaped_lowpass_filter(const double bandwidth,
+                                            const double fs,
+                                            const double window_shape,
+                                            std::valarray<std::complex<T>> &kaiser_window,
+                                            const double stopatt = 40.0,
+                                            const double transition_width = 0.15,
+                                            const bool force_odd_len = false);
     private:
         isce3::signal::Signal<T> _signal;
         std::valarray<std::complex<T>> _filter;

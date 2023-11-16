@@ -620,10 +620,10 @@ writeFilter(size_t ncols, size_t nrows)
  */
 template <class T>
 void
-isce3::signal::Filter<T>::_getKaiserord(const double ripple, const double width,
+isce3::signal::Filter<T>::_kaiserord(const double ripple, const double width,
                                         int &n, double &beta)
 {
-    const double A = std::abs(ripple)  // in case somebody is confused as to what's meant
+    const double A = std::abs(ripple);  // in case somebody is confused as to what's meant
     if (A < 8) {
         // Formula for N is not valid in this range.
         std::cout << "Requested maximum ripple attentuation " << A
@@ -652,7 +652,7 @@ isce3::signal::Filter<T>::_kaiser_beta(const double ripple)
         return 0.1102 * (ripple - 8.7);
     }
     else if (ripple > 21){
-        return 0.5842 * (ripple - 21) ** 0.4 + 0.07886 * (ripple - 21);
+        return 0.5842 * std::pow(ripple - 21.0, 0.4) + 0.07886 * (ripple - 21);
     }
     else {
         return 0.0;
@@ -700,7 +700,7 @@ isce3::signal::Filter<T>::_kaiser_irf(const std::valarray<double> &t,
     if (irf.size() <= 0) irf.resize(t.size());
     for (size_t i = 0; i < t.size(); i++) {
         std::complex<T> val(t[i] * t[i] - alpha * alpha, 0.0);
-        irf[i] = std::complex<T>(isce3::math::sinc(std::sqrt(val).real) / beta0, 0.0);
+        irf[i] = std::complex<T>(isce3::math::sinc<T>(std::sqrt(val).real()) / beta0, 0.0);
     }
 }
 
@@ -715,14 +715,14 @@ isce3::signal::Filter<T>::_kaiser(const int n,
                      const double beta,
                      std::valarray<std::complex<T>> &kaiser_window)
 {
-    const double beta0 = isce3::math::bessel_i0(beta) * n;
+    const double beta0 = isce3::math::bessel_i0(beta);
 
     if (kaiser_window.size() <= 0) kaiser_window.resize(n);
 
     for (size_t i = 0; i < n; i++) {
         const double t = i - (n - 1) / 2.0;
         if (std::abs(t) <= n / 2.0) kaiser_window[i] = isce3::math::bessel_i0(
-            beta * std::sqrt(1.0 - (2 * t / n) * (2 * t / n))) / beta0;
+            beta * std::sqrt(1.0 - (2 * t / (n - 1)) * (2 * t / (n - 1)))) / beta0;
     }
 }
 
@@ -760,7 +760,7 @@ template <class T>
 void
 isce3::signal::Filter<T>::_design_shaped_lowpass_filter(const double bandwidth,
                                            const double fs,
-                                           const double beta,
+                                           const double window_shape,
                                            std::valarray<std::complex<T>> &kaiser_window,
                                            const double stopatt,
                                            const double transition_width,
@@ -786,13 +786,13 @@ isce3::signal::Filter<T>::_design_shaped_lowpass_filter(const double bandwidth,
     std::valarray<std::complex<T>> kaiser;
 
     _kaiser_design(stopatt, tw, force_odd_len, n, beta, t);
-    _kaiser_irf(t * bw, beta, irf);
+    _kaiser_irf(t * bw, window_shape, irf);
     _kaiser(n, beta, kaiser);
 
     if (kaiser_window.size() <= 0) kaiser_window.resize(n);
 
     for (size_t i = 0; i < n; i++) {
-        kaiser_window[i] = irf[i] * kaiser[i] * bw;
+        kaiser_window[i] = std::complex<T>(bw, 0.0) * irf[i] * kaiser[i];
     }
 }
 
