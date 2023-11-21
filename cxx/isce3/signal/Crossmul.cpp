@@ -372,8 +372,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
     std::valarray<std::complex<float>> secAzimuthSpectrum;
 
     // retrieve the original filter to revert the range windowing effects
-    std::valarray<std::complex<float>> originalRangeFilter(std::complex<float>(1.0, 0.0),
-                                                            fft_size);
+    std::valarray<std::complex<float>> originalRangeFilter;
+
     if (_doCommonAzimuthBandFilter) {
         // Allocate storage for azimuth spectrum
         refAzimuthSpectrum.resize(spectrumSize);
@@ -387,12 +387,21 @@ crossmul(isce3::io::Raster& refSlcRaster,
         // Compute the range frequency for each pixel
         fftfreq(1.0/_rangeSamplingFrequency, rangeFrequencies);
 
-        // For NISAR, build the Kaiser window to
+        // For NISAR, use a standard Kaiser window in frequency domain to
         // compensate the windowing effects in range direction
-        // TODO: this function is sensor dependent!
-        rangeFilter.constructRangeCommonbandKaiserFilter(0.0, _rangeBandwidth,
-                                                         _rangeSamplingFrequency,
-                                                         fft_size, 1.6, originalRangeFilter);
+        // TODO: This function is sensor dependent
+        // TODO: Need to confirm with Brian about the implementation
+        // rangeFilter.constructRangeCommonbandKaiserFilter(0.0, _rangeSamplingFrequency,
+        //                                                  _rangeSamplingFrequency,
+        //                                                  fft_size, 1.6, originalRangeFilter);
+        originalRangeFilter.resize(fft_size);
+        std::valarray<double> subBandCenterFrequencies{0.0};
+        std::valarray<double> subBandBandwidths{_rangeSamplingFrequency};
+        rangeFilter.constructRangeBandpassKaiser(subBandCenterFrequencies,
+                                                subBandBandwidths,
+                                                1.0/_rangeSamplingFrequency,
+                                                fft_size, rangeFrequencies, 1.6,
+                                                originalRangeFilter);
 
         // Construct the FFTW plan for both geometryIfgram and its conjugation
         geometryIfgramSignal.forwardRangeFFT(geometryIfgram, refSpectrum,
@@ -436,6 +445,9 @@ crossmul(isce3::io::Raster& refSlcRaster,
         secSlc = 0;
         ifgramUpsampled = 0;
         ifgram = 0;
+        geometryIfgramConj = 0;
+        geometryIfgram = 0;
+        rngOffset = 0;
 
         // get a block of reference and secondary SLC data
         // and a block of range offsets
@@ -485,12 +497,13 @@ crossmul(isce3::io::Raster& refSlcRaster,
                     geometryIfgramConj[line*fft_size + col] = std::conj(geometryIfgram[line*fft_size + col]);
 
                     // revert the original windowing effects along the slant range direction
-                    if (std::abs(originalRangeFilter[col]) > 1e-8) {
+                    if (originalRangeFilter.size() > 0 && std::abs(originalRangeFilter[col]) > 1e-8) {
                         refSpectrum[line*fft_size + col] /= originalRangeFilter[col];
                         secSpectrum[line*fft_size + col] /= originalRangeFilter[col];
                     }
                 }
             }
+
             refWindowSignal.inverse(refSpectrum, refSlc);
             secWindowSignal.inverse(secSpectrum, secSlc);
 
