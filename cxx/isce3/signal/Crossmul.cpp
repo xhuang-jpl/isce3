@@ -118,34 +118,39 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     // Since the spectrum of the ref and sec SLCs are already aligned,
     // we design the low-pass filter as a band-pass at zero frequency with
     // bandwidth of (range bandwidth - frequency shift)
-    std::valarray<double> filterCenterFrequency{0.0};
-    std::valarray<double> filterBandwidth{_rangeBandwidth - fabs(frequencyShift)};
+    const double filterCenterFrequency = 0.0;
+    const double filterBandwidth = _rangeBandwidth - fabs(frequencyShift);
 
     std::string filterType = _windowType;
 
     // Contruct the low pass filter for this block. This filter is
     // common for both SLCs
-    rngFilter.constructRangeBandpassFilter(_rangeSamplingFrequency,
+    rngFilter.constructRangeCommonbandFilter(_rangeSamplingFrequency,
                                     filterCenterFrequency,
                                     filterBandwidth,
                                     refSlc,
                                     refSpectrum,
                                     ncols,
                                     blockLength,
-                                    filterType);
+                                    _windowType,
+                                    _windowParameter);
+
     // low pass filter the ref  slc
     rngFilter.filter(refSlc, refSpectrum);
 
     // low band pass the sec slc
-    rngFilter.constructRangeBandpassFilter(_rangeSamplingFrequency,
+    rngFilter.constructRangeCommonbandFilter(_rangeSamplingFrequency,
                                     filterCenterFrequency,
                                     filterBandwidth,
                                     secSlc,
                                     secSpectrum,
                                     ncols,
                                     blockLength,
-                                    filterType);
+                                    _windowType,
+                                    _windowParameter);
+
     rngFilter.filter(secSlc, secSpectrum);
+
     // restore the original phase without the geometry phase
     // in case other steps will use the original phase
     refSlc *= geometryIfgram;

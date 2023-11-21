@@ -138,6 +138,57 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
     }
 }
 
+/**
+ * @param[in] rangeSamplingFrequency range sampling frequency
+ * @param[in] subBandCenterFrequency a vector of center frequencies for each band
+ * @param[in] subBandBandwidth a vector of bandwidths for each band
+ * @param[in, out] signal a block of data to filter
+ * @param[in, out] spectrum a block of spectrum, which is internally used for FFT computations
+ * @param[in] ncols number of columns of the block of data
+ * @param[in] nrows number of rows of the block of data
+ * @param[in] filterType type of the band-pass filter
+ * @param[in] windowParameter filter parameter
+
+ */
+template <class T>
+void
+isce3::signal::Filter<T>::constructRangeCommonbandFilter(const double rangeSamplingFrequency,
+                                        const double subBandCenterFrequency,
+                                        const double subBandBandwidth,
+                                        std::valarray<std::complex<T>> &signal,
+                                        std::valarray<std::complex<T>> &spectrum,
+                                        size_t ncols,
+                                        size_t nrows,
+                                        const std::string filterType,
+                                        const double windowParameter)
+{
+    _signal.forwardRangeFFT(signal, spectrum, ncols, nrows);
+    _signal.inverseRangeFFT(spectrum, signal, ncols, nrows);
+
+    int fft_size = ncols;
+
+    _filter.resize(fft_size*nrows);
+    std::valarray<std::complex<T>> _filter1D(fft_size); //
+    _filter1D = std::complex<T>(0.0,0.0);
+
+    if (filterType=="kaiser"){
+        constructRangeCommonbandKaiserFilter(subBandCenterFrequency,
+                            subBandBandwidth,
+                            rangeSamplingFrequency,
+                            fft_size,
+                            windowParameter,
+                            _filter1D);
+    } else {
+        std::cout << filterType << " filter has not been implemented" << std::endl;
+    }
+
+    //construct a block of the filter
+    for (size_t line = 0; line < nrows; line++ ){
+        for (size_t col = 0; col < fft_size; col++ ){
+            _filter[line*fft_size+col] = _filter1D[col];
+        }
+    }
+}
 
 /**
  * @param[in] subBandCenterFrequencies a vector of center frequencies for each band
@@ -233,6 +284,54 @@ constructRangeBandpassCosine(std::valarray<double> subBandCenterFrequencies,
         }
 
     }
+}
+
+/**
+ * @param[in] subBandCenterFrequencies a vector of center frequencies for each band
+ * @param[in] subBandBandwidths a vector of bandwidths for each band
+ * @param[in] rangeSamplingFrequency samplig rate of the signal
+ * @param[in] fft_size length of the spectrum
+ * @param[in] beta parameter for the kaiser filter (normally set 2.5)
+ * @param[out] filter1D one dimensional boxcar bandpass filter in frequency domain
+ */
+template <class T>
+void
+isce3::signal::Filter<T>::
+constructRangeCommonbandKaiserFilter(const double subBandCenterFrequency,
+                             const double subBandBandwidth,
+                             const double rangeSamplingFrequency,
+                             const int fft_size,
+                             const double beta,
+                             std::valarray<std::complex<T>>& filter1D)
+{
+
+    isce3::signal::Signal<T> signal;
+    signal.forwardRangeFFT(filter1D, filter1D, fft_size, 1);
+
+    std::valarray<std::complex<T>> kaiser;
+    std::valarray<std::complex<T>> shiftedKaiser;
+    _design_shaped_lowpass_filter(subBandBandwidth, rangeSamplingFrequency, beta, kaiser);
+
+    // Turn into bandpass filter
+    _lowpass2bandpass(kaiser, subBandCenterFrequency, shiftedKaiser);
+
+    // Zero padding the filter on sides
+    const int sizeOfKaiser = shiftedKaiser.size();
+    const int startInd = (fft_size - sizeOfKaiser) / 2;
+    const std::complex<T> maxVal = std::abs(shiftedKaiser).max();
+
+    if (startInd <= sizeOfKaiser) {
+        std::cout << "FFT size is less than the window size\n";
+        throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+            "FFT size is less than the window size");
+    }
+
+    // Zero padding the filter
+    for (size_t ind = startInd; ind < startInd + sizeOfKaiser; ind ++) {
+        filter1D[ind] = shiftedKaiser[ind - startInd] / maxVal;
+    }
+    // Transform to frequency domain
+    signal.forward(filter1D, filter1D);
 }
 
 /**

@@ -89,6 +89,25 @@ class isce3::signal::Filter {
                              double beta,
                              std::valarray<std::complex<T>>& _filter1D);
 
+        /** Construct the range common band filter*/
+        void constructRangeCommonbandFilter(const double rangeSamplingFrequency,
+                                        const double subBandCenterFrequency,
+                                        const double subBandBandwidths,
+                                        std::valarray<std::complex<T>> &signal,
+                                        std::valarray<std::complex<T>> &spectrum,
+                                        size_t ncols,
+                                        size_t nrows,
+                                        const std::string filterType,
+                                        const double windowParameter);
+
+        /** Construct a kaiser common band range band-pass filter for one band*/
+        void constructRangeCommonbandKaiserFilter(const double subBandCenterFrequency,
+                             const double subBandBandwidth,
+                             const double rangeSamplingFrequency,
+                             const int fft_size,
+                             const double beta,
+                             std::valarray<std::complex<T>>& filter1D);
+
         /** Construct azimuth common band filter*/
         double constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
                             const isce3::core::LUT1d<double> & secDoppler,
