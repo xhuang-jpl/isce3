@@ -11,6 +11,8 @@
 
 #include <cmath>
 #include <valarray>
+#include <algorithm>
+#include <numeric>
 
 #include <isce3/core/Constants.h>
 #include <isce3/io/Raster.h>

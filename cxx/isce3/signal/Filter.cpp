@@ -305,6 +305,8 @@ constructRangeCommonbandKaiserFilter(const double subBandCenterFrequency,
                              std::valarray<std::complex<T>>& filter1D)
 {
 
+    if (filter1D.size() <= 0) filter1D.resize(fft_size);
+
     isce3::signal::Signal<T> signal;
     signal.forwardRangeFFT(filter1D, filter1D, fft_size, 1);
 
@@ -318,7 +320,16 @@ constructRangeCommonbandKaiserFilter(const double subBandCenterFrequency,
     // Zero padding the filter on sides
     const int sizeOfKaiser = shiftedKaiser.size();
     const int startInd = (fft_size - sizeOfKaiser) / 2;
-    const std::complex<T> maxVal = std::abs(shiftedKaiser).max();
+
+    // Determine the maximum absolute value to normalize the filter
+    auto maxVal = std::accumulate (std::begin(shiftedKaiser), std::end(shiftedKaiser), *std::begin(shiftedKaiser),
+        [](const std::complex<T>& a ,const std::complex<T>& b)
+        {
+            auto abs_a = std::abs(a);
+            auto abs_b = std::abs(b);
+            return std::max(abs_a, abs_b);
+        }
+    );
 
     if (startInd <= sizeOfKaiser) {
         std::cout << "FFT size is less than the window size\n";
