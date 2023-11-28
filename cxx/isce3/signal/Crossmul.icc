@@ -17,7 +17,7 @@
 *   @param[in] secSlcDoppler 2D Doppler polynomial for secondary SLC
 */
 void isce3::signal::Crossmul::
-doppler(isce3::core::LUT1d<double> refSlcDoppler, isce3::core::LUT1d<double> secSlcDoppler)
+doppler(isce3::core::LUT2d<double> refSlcDoppler, isce3::core::LUT2d<double> secSlcDoppler)
 {
 
     _refDoppler = refSlcDoppler;

@@ -390,10 +390,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
         // For NISAR, use a standard Kaiser window in frequency domain to
         // compensate the windowing effects in range direction
         // TODO: This function is sensor dependent
-        // TODO: Need to confirm with Brian about the implementation
-        // rangeFilter.constructRangeCommonbandKaiserFilter(0.0, _rangeSamplingFrequency,
-        //                                                  _rangeSamplingFrequency,
-        //                                                  fft_size, 1.6, originalRangeFilter);
         originalRangeFilter.resize(fft_size);
         std::valarray<double> subBandCenterFrequencies{0.0};
         std::valarray<double> subBandBandwidths{_rangeSamplingFrequency};
@@ -497,7 +493,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                     geometryIfgramConj[line*fft_size + col] = std::conj(geometryIfgram[line*fft_size + col]);
 
                     // revert the original windowing effects along the slant range direction
-                    if (originalRangeFilter.size() > 0 && std::abs(originalRangeFilter[col]) > 1e-8) {
+                    if (originalRangeFilter.size() > 0) {
                         refSpectrum[line*fft_size + col] /= originalRangeFilter[col];
                         secSpectrum[line*fft_size + col] /= originalRangeFilter[col];
                     }

@@ -48,12 +48,11 @@ TEST(Crossmul, RunCrossmul)
     isce3::product::RadarGridProduct product(file);
 
     // get the Doppler polynomial for refernce SLC
-    isce3::core::LUT1d<double> dop1 =
-        avgLUT2dToLUT1d<double>(product.metadata().procInfo().dopplerCentroid('A'));
+    isce3::core::LUT2d<double> dop1 = product.metadata().procInfo().dopplerCentroid('A');
 
     // Since this test careates an interferogram between the refernce SLC and itself,
     // the second Doppler is the same as the first
-    isce3::core::LUT1d<double> dop2 = dop1;
+    isce3::core::LUT2d<double> dop2 = dop1;
 
     //instantiate the Crossmul class
     isce3::signal::Crossmul crsmul;
@@ -123,12 +122,11 @@ TEST(Crossmul, RunCrossmulMLook)
     isce3::product::RadarGridProduct product(file);
 
     // get the Doppler polynomial for refernce SLC
-    isce3::core::LUT1d<double> dop1 =
-        avgLUT2dToLUT1d<double>(product.metadata().procInfo().dopplerCentroid('A'));
+    isce3::core::LUT2d<double> dop1 = product.metadata().procInfo().dopplerCentroid('A');
 
     // Since this test careates an interferogram between the refernce SLC and itself,
     // the second Doppler is the same as the first
-    isce3::core::LUT1d<double> dop2 = dop1;
+    isce3::core::LUT2d<double> dop2 = dop1;
 
     //instantiate the Crossmul class
     isce3::signal::Crossmul crsmul;

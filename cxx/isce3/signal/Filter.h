@@ -17,6 +17,9 @@
 #include <isce3/core/Constants.h>
 #include <isce3/io/Raster.h>
 #include <isce3/core/LUT1d.h>
+#include <isce3/core/LUT2d.h>
+#include <isce3/core/forward.h>
+
 #include <isce3/math/Bessel.h>
 #include <isce3/math/Sinc.h>
 #include "Signal.h"
@@ -111,8 +114,8 @@ class isce3::signal::Filter {
                              std::valarray<std::complex<T>>& filter1D);
 
         /** Construct azimuth common band filter*/
-        double constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
-                            const isce3::core::LUT1d<double> & secDoppler,
+        double constructAzimuthCommonbandFilter(const isce3::core::LUT2d<double> & refDoppler,
+                            const isce3::core::LUT2d<double> & secDoppler,
                             std::valarray<double> &rangeOffsets,
                             double bandwidth,
                             double prf,
@@ -124,8 +127,8 @@ class isce3::signal::Filter {
                             std::string filterType);
 
         /** Construct azimuth common band cosine filter with the doppler centroid compensation*/
-        double constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDoppler,
-                                const isce3::core::LUT1d<double> & secDoppler,
+        double constructAzimuthCommonbandCosineFilter(const isce3::core::LUT2d<double> & refDoppler,
+                                const isce3::core::LUT2d<double> & secDoppler,
                                 std::valarray<double> &rangeOffsets,
                                 double bandwidth,
                                 double prf,
@@ -136,8 +139,8 @@ class isce3::signal::Filter {
                                 size_t nrows);
 
         /** Construct azimuth common band kaiser filter with the doppler centroid compensation*/
-        double constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDoppler,
-                                const isce3::core::LUT1d<double> & secDoppler,
+        double constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT2d<double> & refDoppler,
+                                const isce3::core::LUT2d<double> & secDoppler,
                                 std::valarray<double> &rangeOffsets,
                                 double bandwidth,
                                 double prf,

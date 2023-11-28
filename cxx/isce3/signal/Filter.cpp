@@ -179,7 +179,7 @@ isce3::signal::Filter<T>::constructRangeCommonbandFilter(const double rangeSampl
                             windowParameter,
                             _filter1D);
     } else {
-        std::cout << filterType << " filter has not been implemented" << std::endl;
+        std::cout << filterType << "filter has not been implemented" << std::endl;
     }
 
     //construct a block of the filter
@@ -401,8 +401,8 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
 }
 
 /**
-* @param[in] refDoppler Doppler LUT1d of the reference SLC
-* @param[in] secDoppler Doppler LUT1d of the secondary SLC
+* @param[in] refDoppler Doppler LUT2d of the reference SLC
+* @param[in] secDoppler Doppler LUT2d of the secondary SLC
 * @param[in] rangeOffsets Range pixel offsets between secondary and reference SLC (i.e., secondary - reference)
 * @param[in] bandwidth common bandwidth in azimuth
 * @param[in] prf pulse repetition frequency
@@ -415,8 +415,8 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
 template <class T>
 double
 isce3::signal::Filter<T>::
-constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
-                    const isce3::core::LUT1d<double> & secDoppler,
+constructAzimuthCommonbandFilter(const isce3::core::LUT2d<double> & refDoppler,
+                    const isce3::core::LUT2d<double> & secDoppler,
                     std::valarray<double> &rangeOffsets,
                     double bandwidth,
                     double prf,
@@ -451,8 +451,8 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
 }
 
 /**
-* @param[in] refDoppler Doppler LUT1d of the reference SLC
-* @param[in] secDoppler Doppler LUT1d of the secondary SLC
+* @param[in] refDoppler Doppler LUT2d of the reference SLC
+* @param[in] secDoppler Doppler LUT2d of the secondary SLC
 * @param[in] rangeOffsets Range pixel offsets between secondary and reference SLC (i.e., secondary - reference)
 * @param[in] bandwidth common bandwidth in azimuth
 * @param[in] prf pulse repetition frequency
@@ -465,8 +465,8 @@ constructAzimuthCommonbandFilter(const isce3::core::LUT1d<double> & refDoppler,
 template <class T>
 double
 isce3::signal::Filter<T>::
-constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDoppler,
-                        const isce3::core::LUT1d<double> & secDoppler,
+constructAzimuthCommonbandCosineFilter(const isce3::core::LUT2d<double> & refDoppler,
+                        const isce3::core::LUT2d<double> & secDoppler,
                         std::valarray<double> &rangeOffsets,
                         double bandwidth,
                         double prf,
@@ -500,8 +500,8 @@ constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDop
         // I think we need the range offsets here to restore the fDC
         // for the secondary doppler since it is the resampled RSLC
         // middle frequency for the reference SLC
-        double refFreq = refDoppler.eval(j);
-        double secFreq = secDoppler.eval(j + rangeOffsets[j]);
+        double refFreq = refDoppler.eval(0,j);
+        double secFreq = secDoppler.eval(0, j + rangeOffsets[j]);
 
         double fmid =  0.5 * (refFreq + secFreq);
         double fshift = std::abs(refFreq - secFreq);
@@ -551,8 +551,8 @@ constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDop
 }
 
 /**
-* @param[in] refDoppler Doppler LUT1d of the reference SLC
-* @param[in] secDoppler Doppler LUT1d of the secondary SLC
+* @param[in] refDoppler Doppler LUT2d of the reference SLC
+* @param[in] secDoppler Doppler LUT2d of the secondary SLC
 * @param[in] rangeOffsets Range pixel offsets between secondary and reference SLC (i.e., secondary - reference)
 * @param[in] bandwidth common bandwidth in azimuth
 * @param[in] prf pulse repetition frequency
@@ -565,8 +565,8 @@ constructAzimuthCommonbandCosineFilter(const isce3::core::LUT1d<double> & refDop
 template <class T>
 double
 isce3::signal::Filter<T>::
-constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDoppler,
-                        const isce3::core::LUT1d<double> & secDoppler,
+constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT2d<double> & refDoppler,
+                        const isce3::core::LUT2d<double> & secDoppler,
                         std::valarray<double> &rangeOffsets,
                         double bandwidth,
                         double prf,
@@ -593,8 +593,8 @@ constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT1d<double> & refDop
         // Compute center frequency of common band
         // the range offsets here are to restore the fDC
         // for the secondary doppler since it has been resampled
-        double refFreq = refDoppler.eval(j);
-        double secFreq = secDoppler.eval(j + rangeOffsets[j]);
+        double refFreq = refDoppler.eval(0.0,j);
+        double secFreq = secDoppler.eval(0.0,j + rangeOffsets[j]);
 
         double fmid =  0.5 * (refFreq + secFreq);
         double fshift = std::abs(refFreq - secFreq);

@@ -4,6 +4,8 @@
 
 #include <complex>
 #include <isce3/core/LUT1d.h>
+#include <isce3/core/LUT2d.h>
+#include <isce3/core/forward.h>
 #include <isce3/io/forward.h>
 
 /** \brief Intereferogram generation by cross-multiplication of reference and secondary SLCs.
@@ -34,20 +36,20 @@ class isce3::signal::Crossmul {
                     isce3::io::Raster* rngOffsetRaster = nullptr);
 
         /** Set doppler LUTs for reference and secondary SLCs*/
-        inline void doppler(isce3::core::LUT1d<double>,
-                            isce3::core::LUT1d<double>);
+        inline void doppler(isce3::core::LUT2d<double>,
+                            isce3::core::LUT2d<double>);
 
         /** Set dopplers LUT for reference SLC */
-        inline void refDoppler(isce3::core::LUT1d<double> refDopp) { _refDoppler = refDopp; }
+        inline void refDoppler(isce3::core::LUT2d<double> refDopp) { _refDoppler = refDopp; }
 
         /** Get doppler LUT for reference SLC */
-        inline const isce3::core::LUT1d<double> & refDoppler() const { return _refDoppler; }
+        inline const isce3::core::LUT2d<double> & refDoppler() const { return _refDoppler; }
 
         /** Set dopplers LUT for secondary SLC */
-        inline void secDoppler(isce3::core::LUT1d<double> secDopp) { _secDoppler = secDopp; }
+        inline void secDoppler(isce3::core::LUT2d<double> secDopp) { _secDoppler = secDopp; }
 
         /** Get doppler LUT for secondary SLC */
-        inline const isce3::core::LUT1d<double> & secDoppler() const { return _secDoppler; }
+        inline const isce3::core::LUT2d<double> & secDoppler() const { return _secDoppler; }
 
         /** Set range pixel spacing, in meters */
         inline void rangePixelSpacing(double rgPxlSpacing) { _rangePixelSpacing = rgPxlSpacing; }
@@ -190,10 +192,10 @@ class isce3::signal::Crossmul {
 
     private:
         //Doppler LUT for the refernce SLC
-        isce3::core::LUT1d<double> _refDoppler;
+        isce3::core::LUT2d<double> _refDoppler;
 
         //Doppler LUT for the secondary SLC
-        isce3::core::LUT1d<double> _secDoppler;
+        isce3::core::LUT2d<double> _secDoppler;
 
         // range pixel spacing in meters
         double _rangePixelSpacing;
