@@ -102,10 +102,9 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
             crossmul_dir = scratch_path / f'crossmul/freq{freq}'
             crossmul_dir.mkdir(parents=True, exist_ok=True)
             # get 2d doppler, discard azimuth dependency, and set crossmul dopplers
-            ref_dopp = isce3.core.avg_lut2d_to_lut1d(
-                ref_slc.getDopplerCentroid(frequency=freq))
-            sec_dopp = isce3.core.avg_lut2d_to_lut1d(
-                sec_slc.getDopplerCentroid(frequency=freq))
+            ref_dopp = ref_slc.getDopplerCentroid(frequency=freq)
+            sec_dopp = sec_slc.getDopplerCentroid(frequency=freq)
+
             crossmul.set_dopplers(ref_dopp, sec_dopp)
 
             freq_group_path = f'{RIFGGroupsPaths().SwathsPath}/frequency{freq}'

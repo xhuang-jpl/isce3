@@ -147,8 +147,8 @@ azimuthLooks(int azLks) {
 }
 
 void isce3::cuda::signal::gpuCrossmul::
-doppler(isce3::core::LUT1d<double> refDoppler,
-        isce3::core::LUT1d<double> secDoppler)
+doppler(isce3::core::LUT2d<double> refDoppler,
+        isce3::core::LUT2d<double> secDoppler)
 {
     _refDoppler = refDoppler;
     _secDoppler = secDoppler;

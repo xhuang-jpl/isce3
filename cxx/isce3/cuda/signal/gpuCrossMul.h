@@ -2,9 +2,12 @@
 
 #include "forward.h"
 #include <isce3/io/forward.h> // Raster
+#include <isce3/core/forward.h>
 
 #include <isce3/core/Common.h>
 #include <isce3/core/LUT1d.h>
+#include <isce3/core/LUT2d.h>
+
 #include <thrust/complex.h>
 
 class isce3::cuda::signal::gpuCrossmul {
@@ -30,20 +33,20 @@ class isce3::cuda::signal::gpuCrossmul {
                 isce3::io::Raster* rngOffsetRaster = nullptr) const;
 
         /** Set doppler LUTs for reference and secondary SLCs*/
-        void doppler(isce3::core::LUT1d<double> refDoppler,
-                isce3::core::LUT1d<double> secDoppler);
+        void doppler(isce3::core::LUT2d<double> refDoppler,
+                isce3::core::LUT2d<double> secDoppler);
 
         /** Set reference doppler */
-        inline void refDoppler(isce3::core::LUT1d<double> refDopp) {_refDoppler = refDopp;};
+        inline void refDoppler(isce3::core::LUT2d<double> refDopp) {_refDoppler = refDopp;};
 
         /** Get reference doppler */
-        inline const isce3::core::LUT1d<double> & refDoppler() const {return _refDoppler;};
+        inline const isce3::core::LUT2d<double> & refDoppler() const {return _refDoppler;};
 
         /** Set secondary doppler */
-        inline void secDoppler(isce3::core::LUT1d<double> secDopp) {_secDoppler = secDopp;};
+        inline void secDoppler(isce3::core::LUT2d<double> secDopp) {_secDoppler = secDopp;};
 
         /** Get secondary doppler */
-        inline const isce3::core::LUT1d<double> & secDoppler() const {return _secDoppler;};
+        inline const isce3::core::LUT2d<double> & secDoppler() const {return _secDoppler;};
 
         /** Set range pixel spacing */
         inline void rangePixelSpacing(double rngPxl) {_rangePixelSpacing = rngPxl;};
@@ -86,10 +89,10 @@ class isce3::cuda::signal::gpuCrossmul {
 
     private:
         //Doppler LUT for the refernce SLC
-        isce3::core::LUT1d<double> _refDoppler;
+        isce3::core::LUT2d<double> _refDoppler;
 
         //Doppler LUT for the secondary SLC
-        isce3::core::LUT1d<double> _secDoppler;
+        isce3::core::LUT2d<double> _secDoppler;
 
         // range pixel spacing
         double _rangePixelSpacing;
