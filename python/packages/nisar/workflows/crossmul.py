@@ -130,10 +130,14 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
             # enable/disable flatten accordingly
             if flatten or do_common_range_band_filter or do_common_azimuth_band_filter:
                 # set frequency dependent range offset raster
-                flatten_raster = isce3.io.Raster(
+                range_offsets_raster = isce3.io.Raster(
                     f'{flatten_path}/geo2rdr/freq{freq}/range.off')
+                if do_common_azimuth_band_filter:
+                    azimuth_offsets_raster = isce3.io.Raster(
+                        f'{flatten_path}/geo2rdr/freq{freq}/azimuth.off')
             else:
-                flatten_raster = None
+                range_offsets_raster = None
+                azimuth_offsets_raster = None
 
             for pol in pol_list:
                 output_dir = crossmul_dir / f'{pol}'
@@ -190,7 +194,9 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
 
                 # Compute multilooked interferogram and coherence raster
                 crossmul.crossmul(ref_slc_raster, sec_slc_raster, ifg_raster,
-                                  coh_raster, flatten_raster)
+                                  coh_raster,
+                                  range_offsets_raster,
+                                  azimuth_offsets_raster)
 
                 # populate the new bandwidth along azimuth and range after the common band filter
                 # if there is no common band filter applied, the bandwith will remain the same with

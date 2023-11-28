@@ -159,12 +159,62 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     return (_rangeBandwidth - frequencyShift);
 }
 
+/**
+* @param[in] refDoppler 2d LUT doppler centroid frequency for reference
+* @param[in] secDoppler 2d LUT doppler centroid frequency for secondary
+* @param[in] rngOffsetRaster range offset product pointer
+* @param[out] refDopplerCentroids blockLength number of rows
+* @param[out] secDopplerCentroids blockLength number of rows
+*/
+void
+isce3::signal::Crossmul::_compute_DoppCentroids(const isce3::core::LUT2d<double> & refDoppler,
+                                    const isce3::core::LUT2d<double> & secDoppler,
+                                    isce3::io::Raster* rngOffsetRaster,
+                                    isce3::io::Raster* aziOffsetRaster,
+                                    std::valarray<double> &refDopplerCentroids,
+                                    std::valarray<double> &secDopplerCentroids)
+{
+    const size_t nrows = rngOffsetRaster->width();
+    const size_t ncols = rngOffsetRaster->length();
+
+    if (refDopplerCentroids.size() <= 0) {
+        refDopplerCentroids.resize(ncols);
+        refDopplerCentroids = 0.0;
+    }
+    if (secDopplerCentroids.size() <= 0) {
+        secDopplerCentroids.resize(ncols);
+        secDopplerCentroids = 0.0;
+    }
+
+    std::valarray<double> rangeOffsets(ncols);
+    std::valarray<double> azimuthOffsets(ncols);
+
+    // Compute the doppler centroids for the reference and secondary images
+    for (size_t row = 0; row < nrows; row++) {
+        rngOffsetRaster->getLine(rangeOffsets, row);
+        aziOffsetRaster->getLine(azimuthOffsets, row);
+
+        // TODO: Add OpenMP here?
+        for (size_t col = 0; col < ncols; col++) {
+            refDopplerCentroids[col] += refDoppler.eval(double(row), double(col));
+            secDopplerCentroids[col] += secDoppler.eval(double(row) + azimuthOffsets[col],
+                                                        double(col) + rangeOffsets[col]);
+        }
+    }
+
+    // Using the avergae doppler centroid for each column to avoid the artifacts when
+    // process block by block
+    refDopplerCentroids /= nrows;
+    secDopplerCentroids /= nrows;
+}
+
 void isce3::signal::Crossmul::
 crossmul(isce3::io::Raster& refSlcRaster,
         isce3::io::Raster& secSlcRaster,
         isce3::io::Raster& ifgRaster,
         isce3::io::Raster& coherenceRaster,
-        isce3::io::Raster* rngOffsetRaster)
+        isce3::io::Raster* rngOffsetRaster,
+        isce3::io::Raster* aziOffsetRaster)
 {
     // setting local lines per block to avoid modifying class member
     size_t linesPerBlock = _linesPerBlock;
@@ -374,10 +424,25 @@ crossmul(isce3::io::Raster& refSlcRaster,
     // retrieve the original filter to revert the range windowing effects
     std::valarray<std::complex<float>> originalRangeFilter;
 
+    // Declare valarray for range and azimuth doppler centroids used by filter
+    std::valarray<double> refDoppCentroids;
+    std::valarray<double> secDoppCentroids;
+
     if (_doCommonAzimuthBandFilter) {
         // Allocate storage for azimuth spectrum
         refAzimuthSpectrum.resize(spectrumSize);
         secAzimuthSpectrum.resize(spectrumSize);
+
+        // Compute the mean doppler centroid of each slant range for
+        // the reference and secondary images for each slant range
+        refDoppCentroids.resize(fft_size); refDoppCentroids = 0.0;
+        secDoppCentroids.resize(fft_size); secDoppCentroids = 0.0;
+
+        _compute_DoppCentroids(_refDoppler, _secDoppler,
+                               rngOffsetRaster,
+                               aziOffsetRaster,
+                               refDoppCentroids,
+                               secDoppCentroids);
     }
 
     if (_doCommonRangeBandFilter) {

@@ -212,7 +212,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
         isce3::io::Raster& secSlcRaster,
         isce3::io::Raster& ifgRaster,
         isce3::io::Raster& coherenceRaster,
-        isce3::io::Raster* rngOffsetRaster) const
+        isce3::io::Raster* rngOffsetRaster,
+        isce3::io::Raster* aziOffsetRaster) const
 {
     // set flatten flag based range offset raster ptr value
     bool flatten = rngOffsetRaster ? true : false;

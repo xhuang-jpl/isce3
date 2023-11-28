@@ -30,7 +30,8 @@ class isce3::cuda::signal::gpuCrossmul {
                 isce3::io::Raster& secSlcRaster,
                 isce3::io::Raster& ifgRaster,
                 isce3::io::Raster& coherenceRaster,
-                isce3::io::Raster* rngOffsetRaster = nullptr) const;
+                isce3::io::Raster* rngOffsetRaster = nullptr,
+                isce3::io::Raster* aziOffsetRaster = nullptr) const;
 
         /** Set doppler LUTs for reference and secondary SLCs*/
         void doppler(isce3::core::LUT2d<double> refDoppler,

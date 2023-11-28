@@ -30,7 +30,8 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
                 py::arg("sec_slc"),
                 py::arg("interferogram"),
                 py::arg("coherence"),
-                py::arg("range_offset") = nullptr, R"(
+                py::arg("range_offset") = nullptr,
+                py::arg("azimuth_offset") = nullptr, R"(
     Crossmultiply reference and secondary SLCs to generate interferogram and coherence products.
 
     Parameters
@@ -44,7 +45,8 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
     coherence: Raster
         Output coherence raster
     interferogram: Raster
-        Optional range offset raster usef for flattening
+        Optional range offset raster usef for flattening and common band filter
+        Optional range offset raster usef for azimuth common band filter
                 )")
         .def("set_dopplers", &Crossmul::doppler,
                 py::arg("ref_doppler"),

@@ -27,13 +27,15 @@ class isce3::signal::Crossmul {
          * \param[out] ifgRaster    output interferogram raster
          * \param[out] coherenceRaster  output coherence raster
          * \param[in]  rngOffsetRaster  optional pointer to range offset raster
-         *                              if provided, interferogram will be flattened
+         * \param[in]  aziOffsetRaster  optional pointer to azimuth offset raster
+         *
          */
         void crossmul(isce3::io::Raster& refSlcRaster,
                     isce3::io::Raster& secSlcRaster,
                     isce3::io::Raster& ifgRaster,
                     isce3::io::Raster& coherence,
-                    isce3::io::Raster* rngOffsetRaster = nullptr);
+                    isce3::io::Raster* rngOffsetRaster = nullptr,
+                    isce3::io::Raster* aziOffsetRaster = nullptr);
 
         /** Set doppler LUTs for reference and secondary SLCs*/
         inline void doppler(isce3::core::LUT2d<double>,
@@ -191,6 +193,13 @@ class isce3::signal::Crossmul {
                 size_t ncols);
 
     private:
+        void _compute_DoppCentroids(const isce3::core::LUT2d<double> & refDoppler,
+                                    const isce3::core::LUT2d<double> & secDoppler,
+                                    isce3::io::Raster* rngOffsetRaster,
+                                    isce3::io::Raster* aziOffsetRaster,
+                                    std::valarray<double> &refDopplerCentroids,
+                                    std::valarray<double> &secDopplerCentroids);
+
         //Doppler LUT for the refernce SLC
         isce3::core::LUT2d<double> _refDoppler;
 
