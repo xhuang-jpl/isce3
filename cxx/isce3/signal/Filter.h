@@ -114,9 +114,8 @@ class isce3::signal::Filter {
                              std::valarray<std::complex<T>>& filter1D);
 
         /** Construct azimuth common band filter*/
-        double constructAzimuthCommonbandFilter(const isce3::core::LUT2d<double> & refDoppler,
-                            const isce3::core::LUT2d<double> & secDoppler,
-                            std::valarray<double> &rangeOffsets,
+        double constructAzimuthCommonbandFilter(const std::valarray<double> & refDoppler,
+                            const std::valarray<double> & secDoppler,
                             double bandwidth,
                             double prf,
                             double beta,
@@ -127,9 +126,8 @@ class isce3::signal::Filter {
                             std::string filterType);
 
         /** Construct azimuth common band cosine filter with the doppler centroid compensation*/
-        double constructAzimuthCommonbandCosineFilter(const isce3::core::LUT2d<double> & refDoppler,
-                                const isce3::core::LUT2d<double> & secDoppler,
-                                std::valarray<double> &rangeOffsets,
+        double constructAzimuthCommonbandCosineFilter(const std::valarray<double> & refDoppler,
+                                const std::valarray<double> & secDoppler,
                                 double bandwidth,
                                 double prf,
                                 double beta,
@@ -139,9 +137,8 @@ class isce3::signal::Filter {
                                 size_t nrows);
 
         /** Construct azimuth common band kaiser filter with the doppler centroid compensation*/
-        double constructAzimuthCommonbandKaiserFilter(const isce3::core::LUT2d<double> & refDoppler,
-                                const isce3::core::LUT2d<double> & secDoppler,
-                                std::valarray<double> &rangeOffsets,
+        double constructAzimuthCommonbandKaiserFilter(const std::valarray<double> & refDoppler,
+                                const std::valarray<double> & secDoppler,
                                 double bandwidth,
                                 double prf,
                                 double beta,

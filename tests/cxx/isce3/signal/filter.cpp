@@ -24,8 +24,6 @@ TEST(Filter, constructAzimuthCommonbandFilter)
 
     std::valarray<std::complex<float>> refSlc(ncols*blockRows);
     std::valarray<std::complex<float>> refSpectrum(nfft*blockRows);
-    std::valarray<double> rangeOffsets(nfft*blockRows);
-    rangeOffsets = 0.0;
 
     // Get some metadata from an existing HDF5 file
     std::string h5file(TESTDATA_DIR "envisat.h5");
@@ -38,8 +36,12 @@ TEST(Filter, constructAzimuthCommonbandFilter)
     const isce3::product::Swath & swath = product.swath('A');
 
     // Get the Doppler polynomial and use it for both refernce and secondary SLCs
-    auto dop1 = product.metadata().procInfo().dopplerCentroid('A');
-    auto dop2 = dop1;
+    std::valarray<double> dop1(nfft);
+    std::valarray<double> dop2(nfft);
+
+    auto dop_lut2 = product.metadata().procInfo().dopplerCentroid('A');
+    dop1 = dop_lut2.eval(0,0);
+    dop2 = dop1;
 
     // get pulase repetition frequency (prf)
     double prf = swath.nominalAcquisitionPRF();
@@ -54,7 +56,6 @@ TEST(Filter, constructAzimuthCommonbandFilter)
     isce3::signal::Filter<float> filter;
     filter.constructAzimuthCommonbandCosineFilter(dop1,
                                                   dop2,
-                                                  rangeOffsets,
                                                   commonAzimuthBandwidth,
                                                   prf,
                                                   beta,

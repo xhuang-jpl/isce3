@@ -589,7 +589,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
             std::string filterType = _windowType;
             // Construct azimuth common band filter for a block of data of the reference
             _processedAzimuthBandwidth += azimuthFilter.constructAzimuthCommonbandFilter(
-                        _refDoppler, _secDoppler, rngOffset,
+                        refDoppCentroids, secDoppCentroids,
                         _azimuthBandwidth,
                         _prf, _windowParameter, refSlc, refAzimuthSpectrum, fft_size,
                         linesPerBlock, filterType);
@@ -597,7 +597,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
             // Construct azimuth common band filter for a block of data of the secondary
             azimuthFilter.constructAzimuthCommonbandFilter(
-                    _refDoppler, _secDoppler, rngOffset,
+                    refDoppCentroids, secDoppCentroids,
                     _azimuthBandwidth,
                     _prf, _windowParameter, secSlc, secAzimuthSpectrum, fft_size,
                     linesPerBlock, filterType);
