@@ -314,38 +314,24 @@ constructRangeCommonbandKaiserFilter(const double subBandCenterFrequency,
     std::valarray<std::complex<T>> kaiser;
     _design_shaped_lowpass_filter(subBandBandwidth, rangeSamplingFrequency, beta, kaiser);
 
-    // Zero padding the filter on sides
     const int sizeOfKaiser = kaiser.size();
-    const int startInd = (fft_size - sizeOfKaiser) / 2;
-
-    if (startInd <= 0) {
+    const int halfSizeOfKaiser = (sizeOfKaiser - 1)/2;
+    if (fft_size < sizeOfKaiser) {
         std::cout << "FFT size is less than the window size\n";
         throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
             "FFT size is less than the window size");
     }
 
-    // Zero padding the filter
-    for (size_t ind = startInd; ind < startInd + sizeOfKaiser; ind ++) {
-        filter1D[ind] = kaiser[ind - startInd];
+    // Zero padding the filter on sides
+    for (size_t ind = halfSizeOfKaiser; ind < sizeOfKaiser; ind ++) {
+        filter1D[ind - halfSizeOfKaiser] = kaiser[ind];
+    }
+    for (size_t ind = 0; ind < halfSizeOfKaiser; ind ++) {
+        filter1D[fft_size - halfSizeOfKaiser + ind] = kaiser[ind];
     }
 
     // Transform to frequency domain
     signal.forward(filter1D, filter1D);
-
-    // Absolute value
-    filter1D = std::abs(filter1D);
-
-    // Determine the maximum absolute value to normalize the filter
-    auto maxVal = std::accumulate (std::begin(filter1D), std::end(filter1D), *std::begin(filter1D),
-        [](const std::complex<T>& a ,const std::complex<T>& b)
-        {
-            auto abs_a = std::abs(a);
-            auto abs_b = std::abs(b);
-            return std::max(abs_a, abs_b);
-        }
-    );
-
-    filter1D /= maxVal;
 }
 
 /**
