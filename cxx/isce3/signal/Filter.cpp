@@ -569,53 +569,62 @@ constructAzimuthCommonbandKaiserFilter(const std::valarray<double> & refDoppler,
                         size_t nrows)
 {
     _filter.resize(ncols*nrows);
-    _filter =  std::complex<T>(0.0, 0.0);
-    // we probably need to give next power of 2 ???
+    _filter = std::complex<T>(0.0, 0.0);
     int fft_size = nrows;
-    // Construct vector of frequencies
-    std::valarray<double> frequency(fft_size);
-    fftfreq(1.0/prf, frequency);
 
-    // bessel_i0 of beta
-    double bessel_i0_beta = isce3::math::bessel_i0(beta);
+    std::valarray<std::complex<T>> filter1D(fft_size);
+    isce3::signal::Signal<T> doppSignal;
+    doppSignal.forwardRangeFFT(filter1D, filter1D, fft_size, 1);
+
     double meanDopCenterFreq = 0.0;
     double meanDopCenterFreqShift = 0.0;
+
     // Loop over range bins
     for (int j = 0; j < ncols; ++j) {
-        // Compute center frequency of common band
-        // the range offsets here are to restore the fDC
-        // for the secondary doppler since it has been resampled
+        // Compute the mean doppler center frequency
         double refFreq = refDoppler[j];
         double secFreq = secDoppler[j];
 
         double fmid =  0.5 * (refFreq + secFreq);
         double fshift = std::abs(refFreq - secFreq);
 
+        std::valarray<std::complex<T>> kaiser;
+        _design_shaped_lowpass_filter(bandwidth - fshift, prf, beta, kaiser);
+
+        // Turn into the bandpass filter
+         _lowpass2bandpass(kaiser, fmid/prf, kaiser);
+
+        const int sizeOfKaiser = kaiser.size();
+        const int halfSizeOfKaiser = (sizeOfKaiser - 1)/2;
+        if (fft_size < sizeOfKaiser) {
+            std::cout << "FFT size is less than the window size\n";
+            throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+                "FFT size is less than the window size");
+        }
+        // Zero padding the filter on sides
+        filter1D = std::complex<T>(0.0, 0.0);
+        for (size_t ind = halfSizeOfKaiser; ind < sizeOfKaiser; ind ++) {
+            filter1D[ind - halfSizeOfKaiser] = kaiser[ind];
+        }
+        for (size_t ind = 0; ind < halfSizeOfKaiser; ind ++) {
+            filter1D[fft_size - halfSizeOfKaiser + ind] = kaiser[ind];
+        }
+
+        // Transform to frequency domain
+        doppSignal.forward(filter1D, filter1D);
+
         meanDopCenterFreqShift += fshift;
         meanDopCenterFreq += fmid;
 
         // Compute the filter centered at fmid
-        for (size_t i = 0; i < frequency.size(); ++i) {
-
-            double freq = frequency[i] - fmid;
-
-            // make it circular
-            if (freq > prf/2.0)  freq -= prf;
-            if (freq < -prf/2.0) freq += prf;
-
-            if (std::abs(freq) > 0.5 * (bandwidth - fshift)) {
-                _filter[i*ncols+j] = std::complex<T>(0.0,0.0);
-            }
-            else {
-                double tmp  = 2.0 * freq / prf;
-                double kaiserCoefficient = isce3::math::bessel_i0(beta * sqrt(1.0 - tmp * tmp));
-                _filter[i*ncols+j] = std::complex<T>(kaiserCoefficient/bessel_i0_beta, 0.0);
-            }
+        for (size_t i = 0; i < filter1D.size(); ++i) {
+            _filter[i*ncols+j] = filter1D[i];
         }
     }
 
     meanDopCenterFreq /= ncols;
     meanDopCenterFreqShift /= ncols;
+
     std::cout << " - mean doppler center freq (Hz):" << meanDopCenterFreq << std::endl;
     std::cout << " - mean doppler center freq shift (Hz):" << meanDopCenterFreqShift << std::endl;
 
@@ -831,7 +840,7 @@ isce3::signal::Filter<T>::_lowpass2bandpass(const std::valarray<std::complex<T>>
     if (shifted_kaiser_window.size() <= 0) shifted_kaiser_window.resize(kaiser_window.size());
     const int n = kaiser_window.size();
     for (size_t i = 0; i < n; i++) {
-        const double t = i - (n - 1) / 2.0;
+        const double t = (i - (n - 1) / 2.0);
         const double phase = 2.0 * M_PI * fc * t;
         const std::complex<T> ramp_phase(std::cos(phase), std::sin(phase));
         shifted_kaiser_window[i] = kaiser_window[i] * ramp_phase;

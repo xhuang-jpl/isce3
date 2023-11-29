@@ -174,8 +174,8 @@ isce3::signal::Crossmul::_compute_DoppCentroids(const isce3::core::LUT2d<double>
                                     std::valarray<double> &refDopplerCentroids,
                                     std::valarray<double> &secDopplerCentroids)
 {
-    const size_t nrows = rngOffsetRaster->width();
-    const size_t ncols = rngOffsetRaster->length();
+    const size_t ncols = rngOffsetRaster->width();
+    const size_t nrows = rngOffsetRaster->length();
 
     if (refDopplerCentroids.size() <= 0) {
         refDopplerCentroids.resize(ncols);
@@ -196,9 +196,19 @@ isce3::signal::Crossmul::_compute_DoppCentroids(const isce3::core::LUT2d<double>
 
         // TODO: Add OpenMP here?
         for (size_t col = 0; col < ncols; col++) {
-            refDopplerCentroids[col] += refDoppler.eval(double(row), double(col));
-            secDopplerCentroids[col] += secDoppler.eval(double(row) + azimuthOffsets[col],
-                                                        double(col) + rangeOffsets[col]);
+
+            // Convert the line/pixel to range doppler coordinates
+            double refX = col * rangePixelSpacing() + refStartRange();
+            double refY = row / prf() + refStartAzimuthTime();
+
+            double secX = (col + rangeOffsets[col]) * rangePixelSpacing() + secStartRange();
+            double secY = (row + azimuthOffsets[col]) / prf() + secStartAzimuthTime();
+
+            // Interpolate the doppler centroids
+            if (refDoppler.contains(refY, refX) && secDoppler.contains(secY, secX)) {
+                refDopplerCentroids[col] += refDoppler.eval(refY, refX);
+                secDopplerCentroids[col] += secDoppler.eval(secY, secX);
+            }
         }
     }
 
@@ -438,6 +448,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
         refDoppCentroids.resize(fft_size); refDoppCentroids = 0.0;
         secDoppCentroids.resize(fft_size); secDoppCentroids = 0.0;
 
+        std::cout << " - compute the doppler centroids\n";
         _compute_DoppCentroids(_refDoppler, _secDoppler,
                                rngOffsetRaster,
                                aziOffsetRaster,

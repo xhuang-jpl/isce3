@@ -81,6 +81,18 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
         .def_property("range_bandwidth",
                 py::overload_cast<>(&Crossmul::rangeBandwidth, py::const_),
                 py::overload_cast<double>(&Crossmul::rangeBandwidth))
+        .def_property("ref_start_range",
+                py::overload_cast<>(&Crossmul::refStartRange, py::const_),
+                py::overload_cast<double>(&Crossmul::refStartRange))
+        .def_property("ref_start_azimuth_time",
+                py::overload_cast<>(&Crossmul::refStartAzimuthTime, py::const_),
+                py::overload_cast<double>(&Crossmul::refStartAzimuthTime))
+        .def_property("sec_start_range",
+                py::overload_cast<>(&Crossmul::secStartRange, py::const_),
+                py::overload_cast<double>(&Crossmul::secStartRange))
+        .def_property("sec_start_azimuth_time",
+                py::overload_cast<>(&Crossmul::secStartAzimuthTime, py::const_),
+                py::overload_cast<double>(&Crossmul::secStartAzimuthTime))
         .def_property("azimuth_bandwidth",
                 py::overload_cast<>(&Crossmul::azimuthBandwidth, py::const_),
                 py::overload_cast<double>(&Crossmul::azimuthBandwidth))

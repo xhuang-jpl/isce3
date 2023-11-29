@@ -117,6 +117,9 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
             # CPU version
             # TODO: Add parameters to GPU implementation
             if not use_gpu:
+
+                sec_rdr_grid = sec_slc.getRadarGrid(freq)
+
                 # range sampling rate and bandwidth
                 crossmul.range_sampling_frequency = \
                     1.0 / (crossmul.range_pixel_spacing*2.0/isce3.core.speed_of_light)
@@ -127,6 +130,12 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
                     ref_slc.getSwathMetadata(freq).processed_azimuth_bandwidth
                 crossmul.prf = rdr_grid.prf
 
+                # start range and azimuth time for reference and secondary images
+                crossmul.ref_start_range = rdr_grid.starting_range
+                crossmul.sec_start_range = sec_rdr_grid.starting_range
+                crossmul.ref_start_azimuth_time = rdr_grid.sensing_start
+                crossmul.sec_start_azimuth_time = sec_rdr_grid.sensing_start
+
             # enable/disable flatten accordingly
             if flatten or do_common_range_band_filter or do_common_azimuth_band_filter:
                 # set frequency dependent range offset raster
@@ -135,6 +144,8 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
                 if do_common_azimuth_band_filter:
                     azimuth_offsets_raster = isce3.io.Raster(
                         f'{flatten_path}/geo2rdr/freq{freq}/azimuth.off')
+                else:
+                    azimuth_offsets_raster = None
             else:
                 range_offsets_raster = None
                 azimuth_offsets_raster = None

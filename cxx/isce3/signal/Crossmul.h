@@ -59,6 +59,22 @@ class isce3::signal::Crossmul {
         /** Get range pixel spacing, in meters */
         inline double rangePixelSpacing() const { return _rangePixelSpacing; }
 
+        /** Set start range for reference and secondary, in meters */
+        inline void refStartRange(double startRng) { _refStartRange = startRng; }
+        inline void secStartRange(double startRng) { _secStartRange = startRng; }
+
+        /** Get start range for reference and secondary , in meters */
+        inline double refStartRange() const { return _refStartRange; }
+        inline double secStartRange() const { return _secStartRange; }
+
+        /** Set start azimuth time for reference and secondary, in seconds */
+        inline void refStartAzimuthTime(double startAziTime) { _refStartAzimuthTime = startAziTime; }
+        inline void secStartAzimuthTime(double startAziTime) { _secStartAzimuthTime = startAziTime; }
+
+        /** Get start azimuth time for reference and secondary, in seconds */
+        inline double refStartAzimuthTime() const { return _refStartAzimuthTime; }
+        inline double secStartAzimuthTime() const { return _secStartAzimuthTime; }
+
         /** Set Wavelength, in meters*/
         inline void wavelength(double wvl) { _wavelength = wvl; }
 
@@ -208,6 +224,18 @@ class isce3::signal::Crossmul {
 
         // range pixel spacing in meters
         double _rangePixelSpacing;
+
+        // reference starting range
+        double _refStartRange;
+
+        // reference starting azimuth time
+        double _refStartAzimuthTime;
+
+        // secondary starting range
+        double _secStartRange;
+
+        // secondary starting azimuth time
+        double _secStartAzimuthTime;
 
         // radar wavelength in meters
         double _wavelength;
