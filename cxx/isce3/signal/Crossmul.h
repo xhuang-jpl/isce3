@@ -216,6 +216,15 @@ class isce3::signal::Crossmul {
                                     std::valarray<double> &refDopplerCentroids,
                                     std::valarray<double> &secDopplerCentroids);
 
+        int _maximum_kernel_size(std::valarray<double> &refDopplerCentroids,
+                                    std::valarray<double> &secDopplerCentroids,
+                                    const double bandwidth,
+                                    const double prf,
+                                    const double beta,
+                                    isce3::signal::Filter<float> &aziFilter,
+                                    const double stopatt = 40.0,
+                                    const double transition_width = 0.15);
+
         //Doppler LUT for the refernce SLC
         isce3::core::LUT2d<double> _refDoppler;
 

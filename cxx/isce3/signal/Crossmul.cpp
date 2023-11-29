@@ -160,6 +160,57 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 }
 
 /**
+* @param[in] refDopplerCentroids doppler centroid frequency for reference
+* @param[in] secDopplerCentroids doppler centroid frequency for secondary
+* @param[in] bandwidth bandwidth
+* @param[in] prf pule repeat frequency
+* @param[in] beta kaiser window parameter
+* @param[in] aziFilter azimuth filter
+
+*/
+int
+isce3::signal::Crossmul::_maximum_kernel_size(std::valarray<double> &refDopplerCentroids,
+                                    std::valarray<double> &secDopplerCentroids,
+                                    const double bandwidth,
+                                    const double prf,
+                                    const double beta,
+                                    isce3::signal::Filter<float> &aziFilter,
+                                    const double stopatt,
+                                    const double transition_width)
+{
+    int max_kernel_size = -1;
+
+    // Loop over columns to get the maximum kernel size
+   #pragma omp parallel for reduction(max:max_kernel_size)
+    for (size_t j = 0; j < refDopplerCentroids.size(); ++j) {
+        if (std::abs(refDopplerCentroids[j]) > 0 && std::abs(secDopplerCentroids[j]) > 0) {
+            double refFreq = refDopplerCentroids[j];
+            double secFreq = secDopplerCentroids[j];
+            double fshift = std::abs(refFreq - secFreq);
+
+            // Normalized bandwdith
+            const double bw = (bandwidth  - fshift)/ prf;
+
+            // Transition width is specified in terms of output bandwidth, so scale to
+            // get width at sample rate of filter.
+            const double tw = transition_width * bw;
+            if ((bw + tw / 2.0) > 1.0) {
+                std::cout << "Passband + transition cannot exceed Nyquist\n";
+                throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+                        "Passband + transition cannot exceed Nyquist");
+            }
+
+            int n = 0;
+            double beta = 0.0;
+            aziFilter._kaiserord(stopatt, tw, n, beta);
+            if (n > max_kernel_size) max_kernel_size = n;
+        }
+    }
+
+    return max_kernel_size;
+}
+
+/**
 * @param[in] refDoppler 2d LUT doppler centroid frequency for reference
 * @param[in] secDoppler 2d LUT doppler centroid frequency for secondary
 * @param[in] rngOffsetRaster range offset product pointer
@@ -188,13 +239,15 @@ isce3::signal::Crossmul::_compute_DoppCentroids(const isce3::core::LUT2d<double>
 
     std::valarray<double> rangeOffsets(ncols);
     std::valarray<double> azimuthOffsets(ncols);
+    std::valarray<int> validNumbers(ncols);
+    validNumbers = 0;
 
     // Compute the doppler centroids for the reference and secondary images
     for (size_t row = 0; row < nrows; row++) {
         rngOffsetRaster->getLine(rangeOffsets, row);
         aziOffsetRaster->getLine(azimuthOffsets, row);
 
-        // TODO: Add OpenMP here?
+        #pragma omp parallel for
         for (size_t col = 0; col < ncols; col++) {
 
             // Convert the line/pixel to range doppler coordinates
@@ -208,14 +261,20 @@ isce3::signal::Crossmul::_compute_DoppCentroids(const isce3::core::LUT2d<double>
             if (refDoppler.contains(refY, refX) && secDoppler.contains(secY, secX)) {
                 refDopplerCentroids[col] += refDoppler.eval(refY, refX);
                 secDopplerCentroids[col] += secDoppler.eval(secY, secX);
+                validNumbers[col]++;
             }
         }
     }
 
     // Using the avergae doppler centroid for each column to avoid the artifacts when
     // process block by block
-    refDopplerCentroids /= nrows;
-    secDopplerCentroids /= nrows;
+    #pragma omp parallel for
+     for (size_t col = 0; col < ncols; col++) {
+            if (validNumbers[col] > 0) {
+                refDopplerCentroids[col] /= validNumbers[col];
+                secDopplerCentroids[col] /= validNumbers[col];
+            }
+     }
 }
 
 void isce3::signal::Crossmul::
@@ -438,6 +497,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
     std::valarray<double> refDoppCentroids;
     std::valarray<double> secDoppCentroids;
 
+    size_t maxKernelSize = -1;
     if (_doCommonAzimuthBandFilter) {
         // Allocate storage for azimuth spectrum
         refAzimuthSpectrum.resize(spectrumSize);
@@ -454,6 +514,14 @@ crossmul(isce3::io::Raster& refSlcRaster,
                                aziOffsetRaster,
                                refDoppCentroids,
                                secDoppCentroids);
+
+       maxKernelSize = _maximum_kernel_size(refDoppCentroids,
+                                 secDoppCentroids,
+                                 _azimuthBandwidth,
+                                 _prf,
+                                 _windowParameter,
+                                 azimuthFilter);
+       std::cout << " - max kernel size = " << maxKernelSize << std::endl;
     }
 
     if (_doCommonRangeBandFilter) {
