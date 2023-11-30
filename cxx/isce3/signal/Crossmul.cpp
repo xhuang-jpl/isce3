@@ -350,6 +350,20 @@ crossmul(isce3::io::Raster& refSlcRaster,
        std::cout << " - max kernel size = " << maxKernelSize << std::endl;
     }
 
+    // to ensure the overlap size is an integer multiple number of azimuth looks.
+    size_t kernelSize = ((maxKernelSize + _azimuthLooks) / _azimuthLooks);
+
+    // Force the kernel size to be even
+    kernelSize = kernelSize ? (kernelSize%2 == 0) : kernelSize + 1;
+
+    // The overlap size will be even
+    const size_t overlapSize = kernelSize * _azimuthLooks;
+
+    // Re-compute the lines per block to account the overlaps between two blocks
+    linesPerBlock = (_linesPerBlock / _azimuthLooks) * _azimuthLooks;
+    _linesPerBlock = linesPerBlock + overlapSize;
+    linesPerBlock = _linesPerBlock;
+
     const auto output_rows = ifgRaster.length();
     const auto output_cols = ifgRaster.width();
     if (_multiLookEnabled) {
