@@ -285,8 +285,22 @@ crossmul(isce3::io::Raster& refSlcRaster,
         isce3::io::Raster* rngOffsetRaster,
         isce3::io::Raster* aziOffsetRaster)
 {
+
+    // number of threads
+    size_t nthreads = omp_thread_count();
+
     // setting local lines per block to avoid modifying class member
     size_t linesPerBlock = _linesPerBlock;
+
+    //filter objects which will be used for azimuth and range common band filtering
+    isce3::signal::Filter<float> azimuthFilter;
+    isce3::signal::Filter<float> rangeFilter;
+
+    //signal object for refSlc
+    isce3::signal::Signal<float> refSignal(nthreads);
+
+    //signal object for secSlc
+    isce3::signal::Signal<float> secSignal(nthreads);
 
     // check consistency of input/output raster shapes
     size_t nrows = refSlcRaster.length();
@@ -299,6 +313,42 @@ crossmul(isce3::io::Raster& refSlcRaster,
     if (ifgRaster.width() != coherenceRaster.width())
         throw isce3::except::LengthError(ISCE_SRCINFO(),
                 "interferogram and coherence rasters width do not match");
+
+    // Compute FFT size (power of 2)
+    size_t fft_size;
+    refSignal.nextPowerOfTwo(ncols, fft_size);
+
+    if (fft_size > INT_MAX)
+        throw isce3::except::LengthError(ISCE_SRCINFO(), "fft_size > INT_MAX");
+    if (_oversampleFactor * fft_size > INT_MAX)
+        throw isce3::except::LengthError(ISCE_SRCINFO(), "_oversampleFactor * fft_size > INT_MAX");
+
+    // Declare valarray for range and azimuth doppler centroids used by filter
+    std::valarray<double> refDoppCentroids;
+    std::valarray<double> secDoppCentroids;
+
+    size_t maxKernelSize = -1;
+    if (_doCommonAzimuthBandFilter) {
+        // Compute the mean doppler centroid of each slant range for
+        // the reference and secondary images for each slant range
+        refDoppCentroids.resize(fft_size); refDoppCentroids = 0.0;
+        secDoppCentroids.resize(fft_size); secDoppCentroids = 0.0;
+
+        std::cout << " - compute the doppler centroids\n";
+        _compute_DoppCentroids(_refDoppler, _secDoppler,
+                               rngOffsetRaster,
+                               aziOffsetRaster,
+                               refDoppCentroids,
+                               secDoppCentroids);
+
+       maxKernelSize = _maximum_kernel_size(refDoppCentroids,
+                                 secDoppCentroids,
+                                 _azimuthBandwidth,
+                                 _prf,
+                                 _windowParameter,
+                                 azimuthFilter);
+       std::cout << " - max kernel size = " << maxKernelSize << std::endl;
+    }
 
     const auto output_rows = ifgRaster.length();
     const auto output_cols = ifgRaster.width();
@@ -328,13 +378,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
                     "full resolution input/output raster widths do not match");
     }
 
-    size_t nthreads = omp_thread_count();
-
-    //signal object for refSlc
-    isce3::signal::Signal<float> refSignal(nthreads);
-
-    //signal object for secSlc
-    isce3::signal::Signal<float> secSignal(nthreads);
 
     //signal object for geometryIfgram
     isce3::signal::Signal<float> geometryIfgramSignal(nthreads);
@@ -359,15 +402,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
     looksObj.colsLooks(_rangeLooks);
     looksObj.nrowsLooked(linesPerBlockMLooked);
     looksObj.ncolsLooked(ncolsMultiLooked);
-
-    // Compute FFT size (power of 2)
-    size_t fft_size;
-    refSignal.nextPowerOfTwo(ncols, fft_size);
-
-    if (fft_size > INT_MAX)
-        throw isce3::except::LengthError(ISCE_SRCINFO(), "fft_size > INT_MAX");
-    if (_oversampleFactor * fft_size > INT_MAX)
-        throw isce3::except::LengthError(ISCE_SRCINFO(), "_oversampleFactor * fft_size > INT_MAX");
 
     // number of blocks to process
     size_t nblocks = nrows / linesPerBlock;
@@ -479,10 +513,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
     lookdownShiftImpact(_oversampleFactor,  fft_size,
                         linesPerBlock, shiftImpact);
 
-    //filter objects which will be used for azimuth and range common band filtering
-    isce3::signal::Filter<float> azimuthFilter;
-    isce3::signal::Filter<float> rangeFilter;
-
     // Declare valarray for range frequencies used by filter
     std::valarray<double> rangeFrequencies;
 
@@ -493,35 +523,10 @@ crossmul(isce3::io::Raster& refSlcRaster,
     // retrieve the original filter to revert the range windowing effects
     std::valarray<std::complex<float>> originalRangeFilter;
 
-    // Declare valarray for range and azimuth doppler centroids used by filter
-    std::valarray<double> refDoppCentroids;
-    std::valarray<double> secDoppCentroids;
-
-    size_t maxKernelSize = -1;
     if (_doCommonAzimuthBandFilter) {
         // Allocate storage for azimuth spectrum
         refAzimuthSpectrum.resize(spectrumSize);
         secAzimuthSpectrum.resize(spectrumSize);
-
-        // Compute the mean doppler centroid of each slant range for
-        // the reference and secondary images for each slant range
-        refDoppCentroids.resize(fft_size); refDoppCentroids = 0.0;
-        secDoppCentroids.resize(fft_size); secDoppCentroids = 0.0;
-
-        std::cout << " - compute the doppler centroids\n";
-        _compute_DoppCentroids(_refDoppler, _secDoppler,
-                               rngOffsetRaster,
-                               aziOffsetRaster,
-                               refDoppCentroids,
-                               secDoppCentroids);
-
-       maxKernelSize = _maximum_kernel_size(refDoppCentroids,
-                                 secDoppCentroids,
-                                 _azimuthBandwidth,
-                                 _prf,
-                                 _windowParameter,
-                                 azimuthFilter);
-       std::cout << " - max kernel size = " << maxKernelSize << std::endl;
     }
 
     if (_doCommonRangeBandFilter) {
