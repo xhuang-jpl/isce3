@@ -327,7 +327,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
     std::valarray<double> refDoppCentroids;
     std::valarray<double> secDoppCentroids;
 
-    size_t maxKernelSize = -1;
+    int maxKernelSize = 0;
     if (_doCommonAzimuthBandFilter) {
         // Compute the mean doppler centroid of each slant range for
         // the reference and secondary images for each slant range
@@ -351,13 +351,13 @@ crossmul(isce3::io::Raster& refSlcRaster,
     }
 
     // to ensure the overlap size is an integer multiple number of azimuth looks.
-    size_t kernelSize = ((maxKernelSize + _azimuthLooks) / _azimuthLooks);
+    maxKernelSize = (maxKernelSize + _azimuthLooks) / _azimuthLooks;
 
     // Force the kernel size to be even
-    kernelSize = kernelSize ? (kernelSize%2 == 0) : kernelSize + 1;
+    maxKernelSize = (maxKernelSize%2 == 0) ? maxKernelSize : maxKernelSize + 1;
 
     // The overlap size will be even
-    const size_t overlapSize = kernelSize * _azimuthLooks;
+    const int overlapSize = maxKernelSize * _azimuthLooks;
 
     // Re-compute the lines per block to account the overlaps between two blocks
     linesPerBlock = (_linesPerBlock / _azimuthLooks) * _azimuthLooks;
@@ -418,10 +418,10 @@ crossmul(isce3::io::Raster& refSlcRaster,
     looksObj.ncolsLooked(ncolsMultiLooked);
 
     // number of blocks to process
-    size_t nblocks = nrows / linesPerBlock;
+    size_t nblocks = nrows / (linesPerBlock - overlapSize);
     if (nblocks == 0) {
         nblocks = 1;
-    } else if (nrows % (nblocks * linesPerBlock) != 0) {
+    } else if (nrows % (nblocks * (linesPerBlock - overlapSize)) != 0) {
         nblocks += 1;
     }
 
@@ -590,7 +590,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
     for (size_t block = 0; block < nblocks; ++block) {
         std::cout << "block: " << block << std::endl;
         // start row for this block
-        const auto rowStart = block * linesPerBlock;
+        const auto rowStart = block * (linesPerBlock - overlapSize);
 
         //number of lines of data in this block. blockRowsData<= linesPerBlock
         //Note that linesPerBlock is fixed number of lines
@@ -758,8 +758,26 @@ crossmul(isce3::io::Raster& refSlcRaster,
             looksObj.ncols(ncols);
             looksObj.colsLooks(_rangeLooks);
             looksObj.multilook(ifgram, ifgramMultiLooked);
-            ifgRaster.setBlock(ifgramMultiLooked, 0, rowStart/_azimuthLooks,
-                        ncols/_rangeLooks, blockRowsData/_azimuthLooks);
+
+            unsigned long rowNewStart = 0;
+            std::slice dataSlice = std::slice(0,ncolsMultiLooked * (linesPerBlock - overlapSize/2) / _azimuthLooks, 1);
+            if (block > 0) {
+                rowNewStart = (rowStart + overlapSize/2)/_azimuthLooks;
+                if (block != (nblocks - 1)) {
+                    dataSlice = std::slice((overlapSize/2)/_azimuthLooks*ncolsMultiLooked,
+                                    ncolsMultiLooked * (blockRowsData - overlapSize) / _azimuthLooks, 1);
+                } else {
+                    dataSlice = std::slice((overlapSize/2)/_azimuthLooks*ncolsMultiLooked,
+                                    ncolsMultiLooked * (blockRowsData - overlapSize/2) / _azimuthLooks, 1);
+                }
+            }
+
+             // set the block of interferogram
+            std::valarray<std::complex<float>> ifgramSlice = ifgramMultiLooked[dataSlice];
+            std::cout << ifgramSlice.size() << "," << ifgramMultiLooked.size() << std::endl;
+
+            ifgRaster.setBlock(ifgramSlice, 0, rowNewStart,
+                                ncols/_rangeLooks,ifgramSlice.size()/(ncols/_rangeLooks));
 
             // multilook SLC to power for coherence computation
             // refPowerLooked = average(abs(refSlc)^2)
@@ -783,18 +801,32 @@ crossmul(isce3::io::Raster& refSlcRaster,
             }
 
             // set coherence raster
-            coherenceRaster.setBlock(coherence, 0, rowStart/_azimuthLooks,
-                    ncols/_rangeLooks, blockRowsData/_azimuthLooks);
+            std::valarray<float> coherenceSlice =coherence[dataSlice];
+            coherenceRaster.setBlock(coherenceSlice, 0, rowNewStart,
+                    ncols/_rangeLooks,coherenceSlice.size()/(ncols/_rangeLooks));
         } else {
+
+            unsigned long rowNewStart = 0;
+            std::slice dataSlice = std::slice(0, linesPerBlock - overlapSize/2, 1);
+            if (block > 0) {
+                rowNewStart = rowStart + overlapSize/2;
+                if (block != (nblocks - 1)) {
+                    dataSlice = std::slice((overlapSize/2)*ncols,blockRowsData - overlapSize, 1);
+                } else {
+                    dataSlice = std::slice((overlapSize/2)*ncols,blockRowsData - overlapSize/2, 1);
+                }
+            }
+
             // set the block of interferogram
-            ifgRaster.setBlock(ifgram, 0, rowStart, ncols, blockRowsData);
+            std::valarray<std::complex<float>> ifgramSlice =ifgram[dataSlice];
+            ifgRaster.setBlock(ifgram, 0, rowNewStart, ncols, ifgramSlice.size()/ncols);
 
             // fill coherence with ones (no need to compute result)
             coherence = 1.0;
-
             // set the block of coherence
-            coherenceRaster.setBlock(coherence, 0, rowStart, ncols,
-                                     blockRowsData);
+            std::valarray<float> coherenceSlice =coherence[dataSlice];
+            coherenceRaster.setBlock(coherence, 0, rowNewStart, ncols,
+                                     coherenceSlice.size()/ncols);
         }
     }
 
