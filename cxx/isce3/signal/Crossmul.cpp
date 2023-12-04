@@ -128,27 +128,17 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     rngFilter.constructRangeCommonbandFilter(_rangeSamplingFrequency,
                                     filterCenterFrequency,
                                     filterBandwidth,
-                                    refSlc,
-                                    refSpectrum,
                                     ncols,
                                     blockLength,
                                     _windowType,
                                     _windowParameter);
 
     // low pass filter the ref  slc
+    rngFilter.InitCommonRangeFilter(refSlc,refSpectrum, ncols,  blockLength);
     rngFilter.filter(refSlc, refSpectrum);
 
-    // low band pass the sec slc
-    rngFilter.constructRangeCommonbandFilter(_rangeSamplingFrequency,
-                                    filterCenterFrequency,
-                                    filterBandwidth,
-                                    secSlc,
-                                    secSpectrum,
-                                    ncols,
-                                    blockLength,
-                                    _windowType,
-                                    _windowParameter);
-
+    // low pass filter the sec  slc
+    rngFilter.InitCommonRangeFilter(secSlc,secSpectrum, ncols,  blockLength);
     rngFilter.filter(secSlc, secSpectrum);
 
     // restore the original phase without the geometry phase
@@ -187,17 +177,14 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     double processedAzimuthBandwidth = azimuthFilter.constructAzimuthCommonbandFilter(
                 refDoppCentroids, secDoppCentroids,
                 _azimuthBandwidth,
-                _prf, _windowParameter, refSlc, refAzimuthSpectrum, ncols,
+                _prf, _windowParameter, ncols,
                 blockRows, filterType);
+
+    azimuthFilter.initiateAzimuthFilter(refSlc, refAzimuthSpectrum, ncols, blockRows);
     azimuthFilter.filter(refSlc, refAzimuthSpectrum);
 
     // Construct azimuth common band filter for a block of data of the secondary
-    azimuthFilter.constructAzimuthCommonbandFilter(
-            refDoppCentroids, secDoppCentroids,
-            _azimuthBandwidth,
-            _prf, _windowParameter, secSlc, secAzimuthSpectrum, ncols,
-            blockRows, filterType);
-
+    azimuthFilter.initiateAzimuthFilter(secSlc, secAzimuthSpectrum, ncols, blockRows);
     azimuthFilter.filter(secSlc, secAzimuthSpectrum);
 
     return processedAzimuthBandwidth;

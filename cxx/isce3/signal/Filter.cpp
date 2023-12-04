@@ -139,6 +139,41 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
 }
 
 /**
+ * @param[in] signal a block of data to filter
+ * @param[in] spectrum a block of spectrum, which is internally used for FFT computations
+ * @param[in] ncols number of columns of the block of data
+ * @param[in] nrows number of rows of the block of data
+*/
+template <class T>
+void
+isce3::signal::Filter<T>::InitCommonRangeFilter(std::valarray<std::complex<T>> &signal,
+                          std::valarray<std::complex<T>> &spectrum,
+                          size_t ncols,
+                          size_t nrows)
+{
+    _signal.forwardRangeFFT(signal, spectrum, ncols, nrows);
+    _signal.inverseRangeFFT(spectrum, signal, ncols, nrows);
+}
+
+/**
+ * @param[in] signal a block of data to filter
+ * @param[in] spectrum a block of spectrum, which is internally used for FFT computations
+ * @param[in] ncols number of columns of the block of data
+ * @param[in] nrows number of rows of the block of data
+*/
+template <class T>
+void
+isce3::signal::Filter<T>::InitCommonAzimuthFilter(std::valarray<std::complex<T>> &signal,
+                          std::valarray<std::complex<T>> &spectrum,
+                          size_t ncols,
+                          size_t nrows)
+{
+    _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
+    _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);
+}
+
+
+/**
  * @param[in] rangeSamplingFrequency range sampling frequency
  * @param[in] subBandCenterFrequency a vector of center frequencies for each band
  * @param[in] subBandBandwidth a vector of bandwidths for each band
@@ -155,15 +190,11 @@ void
 isce3::signal::Filter<T>::constructRangeCommonbandFilter(const double rangeSamplingFrequency,
                                         const double subBandCenterFrequency,
                                         const double subBandBandwidth,
-                                        std::valarray<std::complex<T>> &signal,
-                                        std::valarray<std::complex<T>> &spectrum,
                                         size_t ncols,
                                         size_t nrows,
                                         const std::string filterType,
                                         const double windowParameter)
 {
-    _signal.forwardRangeFFT(signal, spectrum, ncols, nrows);
-    _signal.inverseRangeFFT(spectrum, signal, ncols, nrows);
 
     int fft_size = ncols;
 
@@ -419,8 +450,6 @@ constructAzimuthCommonbandFilter(const std::valarray<double> & refDoppler,
                     double bandwidth,
                     double prf,
                     double beta,
-                    std::valarray<std::complex<T>> &signal,
-                    std::valarray<std::complex<T>> &spectrum,
                     size_t ncols,
                     size_t nrows,
                     std::string filterType)
@@ -430,7 +459,7 @@ constructAzimuthCommonbandFilter(const std::valarray<double> & refDoppler,
                             refDoppler,
                             secDoppler,
                             bandwidth,
-                            prf, beta, signal, spectrum,
+                            prf, beta,
                             ncols, nrows);
 
     } else if (filterType=="kaiser"){
@@ -438,7 +467,7 @@ constructAzimuthCommonbandFilter(const std::valarray<double> & refDoppler,
                             refDoppler,
                             secDoppler,
                             bandwidth,
-                            prf, beta, signal, spectrum,
+                            prf, beta,
                             ncols, nrows);
     } else{
          std::cout << filterType << " filter has not been implemented" << std::endl;
@@ -465,8 +494,6 @@ constructAzimuthCommonbandCosineFilter(const std::valarray<double> & refDoppler,
                         double bandwidth,
                         double prf,
                         double beta,
-                        std::valarray<std::complex<T>> &signal,
-                        std::valarray<std::complex<T>> &spectrum,
                         size_t ncols,
                         size_t nrows)
 {
@@ -538,9 +565,6 @@ constructAzimuthCommonbandCosineFilter(const std::valarray<double> & refDoppler,
     std::cout << " - mean doppler center freq:" << meanDopCenterFreq << std::endl;
     std::cout << " - mean doppler center freq shift:" << meanDopCenterFreqShift << std::endl;
 
-    _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
-    _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);
-
     return (bandwidth - meanDopCenterFreqShift);
 }
 
@@ -563,8 +587,6 @@ constructAzimuthCommonbandKaiserFilter(const std::valarray<double> & refDoppler,
                         double bandwidth,
                         double prf,
                         double beta,
-                        std::valarray<std::complex<T>> &signal,
-                        std::valarray<std::complex<T>> &spectrum,
                         size_t ncols,
                         size_t nrows)
 {
@@ -627,9 +649,6 @@ constructAzimuthCommonbandKaiserFilter(const std::valarray<double> & refDoppler,
 
     std::cout << " - mean doppler center freq (Hz):" << meanDopCenterFreq << std::endl;
     std::cout << " - mean doppler center freq shift (Hz):" << meanDopCenterFreqShift << std::endl;
-
-    _signal.forwardAzimuthFFT(signal, spectrum, ncols, nrows);
-    _signal.inverseAzimuthFFT(spectrum, signal, ncols, nrows);
 
     return (bandwidth - meanDopCenterFreqShift);
 }

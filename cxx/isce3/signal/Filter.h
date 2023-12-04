@@ -94,12 +94,15 @@ class isce3::signal::Filter {
                              double beta,
                              std::valarray<std::complex<T>>& _filter1D);
 
+        /** Initialize the range FFT filter*/
+        void InitCommonRangeFilter(std::valarray<std::complex<T>> &signal,
+                                   std::valarray<std::complex<T>> &spectrum,
+                                   size_t ncols, size_t nrows);
+
         /** Construct the range common band filter*/
         void constructRangeCommonbandFilter(const double rangeSamplingFrequency,
                                         const double subBandCenterFrequency,
                                         const double subBandBandwidths,
-                                        std::valarray<std::complex<T>> &signal,
-                                        std::valarray<std::complex<T>> &spectrum,
                                         size_t ncols,
                                         size_t nrows,
                                         const std::string filterType,
@@ -113,14 +116,17 @@ class isce3::signal::Filter {
                              const double beta,
                              std::valarray<std::complex<T>>& filter1D);
 
+        /** Initialize the azimuth common FFT filter*/
+        void InitCommonAzimuthFilter(std::valarray<std::complex<T>> &signal,
+                                     std::valarray<std::complex<T>> &spectrum,
+                                     size_t ncols, size_t nrows);
+
         /** Construct azimuth common band filter*/
         double constructAzimuthCommonbandFilter(const std::valarray<double> & refDoppler,
                             const std::valarray<double> & secDoppler,
                             double bandwidth,
                             double prf,
                             double beta,
-                            std::valarray<std::complex<T>> &signal,
-                            std::valarray<std::complex<T>> &spectrum,
                             size_t ncols,
                             size_t nrows,
                             std::string filterType);
@@ -131,8 +137,6 @@ class isce3::signal::Filter {
                                 double bandwidth,
                                 double prf,
                                 double beta,
-                                std::valarray<std::complex<T>> &signal,
-                                std::valarray<std::complex<T>> &spectrum,
                                 size_t ncols,
                                 size_t nrows);
 
@@ -142,8 +146,6 @@ class isce3::signal::Filter {
                                 double bandwidth,
                                 double prf,
                                 double beta,
-                                std::valarray<std::complex<T>> &signal,
-                                std::valarray<std::complex<T>> &spectrum,
                                 size_t ncols,
                                 size_t nrows);
 

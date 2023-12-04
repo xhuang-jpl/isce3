@@ -59,7 +59,6 @@ TEST(Filter, constructAzimuthCommonbandFilter)
                                                   commonAzimuthBandwidth,
                                                   prf,
                                                   beta,
-                                                  refSlc, refSpectrum,
                                                   ncols, blockRows);
     filter.writeFilter(ncols, blockRows);
 
