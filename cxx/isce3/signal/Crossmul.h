@@ -248,22 +248,22 @@ class isce3::signal::Crossmul {
         isce3::core::LUT2d<double> _secDoppler;
 
         // range pixel spacing in meters
-        double _rangePixelSpacing;
+        double _rangePixelSpacing = 0.0;
 
         // reference starting range
-        double _refStartRange;
+        double _refStartRange = 0.0;
 
         // reference starting azimuth time
-        double _refStartAzimuthTime;
+        double _refStartAzimuthTime = 0.0;
 
         // secondary starting range
-        double _secStartRange;
+        double _secStartRange = 0.0;
 
         // secondary starting azimuth time
-        double _secStartAzimuthTime;
+        double _secStartAzimuthTime = 0.0;
 
         // radar wavelength in meters
-        double _wavelength;
+        double _wavelength = 0.0;
 
         // number of range looks
         int _rangeLooks = 1;
@@ -280,10 +280,10 @@ class isce3::signal::Crossmul {
         bool _doCommonAzimuthBandFilter = false;
 
         // Azimuth  bandwidth in Hz
-        double _azimuthBandwidth;
+        double _azimuthBandwidth = 0.0;
 
         // Processed azimuth bandwidth after the common band filtering in Hz
-        double _processedAzimuthBandwidth;
+        double _processedAzimuthBandwidth = 0.0;
 
         // Window type
         std::string _windowType = "kaiser";
@@ -295,16 +295,16 @@ class isce3::signal::Crossmul {
         bool _doCommonRangeBandFilter = false;
 
         //pulse repetition frequency, in Hz
-        double _prf;
+        double _prf = 0.0;
 
         // range samping frequency, in Hz
-        double _rangeSamplingFrequency;
+        double _rangeSamplingFrequency = 0.0;
 
         // range signal bandwidth in Hz
-        double _rangeBandwidth;
+        double _rangeBandwidth = 0.0;
 
         // Processed range bandwidth after the common band filtering in Hz
-        double _processedRangeBandwidth;
+        double _processedRangeBandwidth = 0.0;
 
         // number of lines per block
         size_t _linesPerBlock = 1024;

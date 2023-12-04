@@ -359,6 +359,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
     std::valarray<double> secDoppCentroids;
     int maxKernelSize = 0;
     int overlapSize = 0;
+    int halfOverlapSize = 0;
 
     if (_doCommonAzimuthBandFilter) {
         // Compute the mean doppler centroid of each slant range for
@@ -389,7 +390,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
         // The overlap size will be even
         overlapSize = maxKernelSize * _azimuthLooks;
-
+        halfOverlapSize = overlapSize / 2;
         // Re-compute the lines per block to account the overlaps between two blocks
         linesPerBlock = (_linesPerBlock / _azimuthLooks) * _azimuthLooks;
         _linesPerBlock = linesPerBlock + overlapSize;
@@ -776,18 +777,18 @@ crossmul(isce3::io::Raster& refSlcRaster,
             looksObj.multilook(ifgram, ifgramMultiLooked);
 
             size_t rowNewStart = 0;
-            size_t nrowsMultiLooked = (linesPerBlock - overlapSize/2) / _azimuthLooks;
+            size_t nrowsMultiLooked = (linesPerBlock - halfOverlapSize) / _azimuthLooks;
             // The first block
             std::slice dataSlice = std::slice(0,ncolsMultiLooked * nrowsMultiLooked, 1);
             if (block > 0) {
-                rowNewStart = (rowStart + overlapSize/2)/_azimuthLooks;
+                rowNewStart = (rowStart + halfOverlapSize)/_azimuthLooks;
                 if (block != (nblocks - 1)) {
                     nrowsMultiLooked = (blockRowsData - overlapSize) / _azimuthLooks;
-                    dataSlice = std::slice((overlapSize/2)/_azimuthLooks*ncolsMultiLooked,
+                    dataSlice = std::slice(halfOverlapSize/_azimuthLooks*ncolsMultiLooked,
                                     ncolsMultiLooked * nrowsMultiLooked, 1);
                 } else { // The last block
-                    nrowsMultiLooked = (blockRowsData - overlapSize/2) / _azimuthLooks;
-                    dataSlice = std::slice((overlapSize/2)/_azimuthLooks*ncolsMultiLooked,
+                    nrowsMultiLooked = (blockRowsData - halfOverlapSize) / _azimuthLooks;
+                    dataSlice = std::slice(halfOverlapSize/_azimuthLooks*ncolsMultiLooked,
                                     ncolsMultiLooked * nrowsMultiLooked, 1);
                 }
             }
@@ -824,16 +825,16 @@ crossmul(isce3::io::Raster& refSlcRaster,
         } else {
 
             size_t rowNewStart = 0;
-            size_t nrowsValid = linesPerBlock - overlapSize/2;
+            size_t nrowsValid = linesPerBlock - halfOverlapSize;
             std::slice dataSlice = std::slice(0, nrowsValid, 1);
             if (block > 0) {
-                rowNewStart = rowStart + overlapSize/2;
+                rowNewStart = rowStart + halfOverlapSize;
                 if (block != (nblocks - 1)) {
                     nrowsValid = blockRowsData - overlapSize;
-                    dataSlice = std::slice((overlapSize/2)*ncols,nrowsValid, 1);
+                    dataSlice = std::slice(halfOverlapSize*ncols,nrowsValid, 1);
                 } else { // the last block
-                    nrowsValid = blockRowsData - overlapSize/2;
-                    dataSlice = std::slice((overlapSize/2)*ncols,nrowsValid, 1);
+                    nrowsValid = blockRowsData - halfOverlapSize;
+                    dataSlice = std::slice(halfOverlapSize*ncols,nrowsValid, 1);
                 }
             }
 
