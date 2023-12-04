@@ -160,6 +160,50 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 }
 
 /**
+* @param[in, out] refSlc a block of the reference SLC to be filtered
+* @param[in, out] secSlc a block of second SLC to be filtered
+* @param[in] refDoppCentroids reference doppler centroid
+* @param[in] secDoppCentroids secondary doppler centroid
+* @param[in, out] refAzimuthSpectrum spectrum of the reference after filtering
+* @param[in, out] secAzimuthSpectrum spectrum of the secondary after filtering
+* @param[in] azimuthFilter a filter object
+* @param[in] blockLength number of rows
+* @param[in] ncols number of columns
+*/
+double isce3::signal::Crossmul::
+azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
+                std::valarray<std::complex<float>> &secSlc,
+                const std::valarray<double> &refDoppCentroids,
+                const std::valarray<double> &secDoppCentroids,
+                std::valarray<std::complex<float>> &refAzimuthSpectrum,
+                std::valarray<std::complex<float>> &secAzimuthSpectrum,
+                isce3::signal::Filter<float> &azimuthFilter,
+                size_t blockRows,
+                size_t ncols)
+{
+    std::string filterType = _windowType;
+
+    // Construct azimuth common band filter for a block of data of the reference
+    double processedAzimuthBandwidth = azimuthFilter.constructAzimuthCommonbandFilter(
+                refDoppCentroids, secDoppCentroids,
+                _azimuthBandwidth,
+                _prf, _windowParameter, refSlc, refAzimuthSpectrum, ncols,
+                blockRows, filterType);
+    azimuthFilter.filter(refSlc, refAzimuthSpectrum);
+
+    // Construct azimuth common band filter for a block of data of the secondary
+    azimuthFilter.constructAzimuthCommonbandFilter(
+            refDoppCentroids, secDoppCentroids,
+            _azimuthBandwidth,
+            _prf, _windowParameter, secSlc, secAzimuthSpectrum, ncols,
+            blockRows, filterType);
+
+    azimuthFilter.filter(secSlc, secAzimuthSpectrum);
+
+    return processedAzimuthBandwidth;
+}
+
+/**
 * @param[in] refDopplerCentroids doppler centroid frequency for reference
 * @param[in] secDopplerCentroids doppler centroid frequency for secondary
 * @param[in] bandwidth bandwidth
@@ -178,7 +222,7 @@ isce3::signal::Crossmul::_maximum_kernel_size(std::valarray<double> &refDopplerC
                                     const double stopatt,
                                     const double transition_width)
 {
-    int max_kernel_size = -1;
+    int max_kernel_size = 0;
 
     // Loop over columns to get the maximum kernel size
    #pragma omp parallel for reduction(max:max_kernel_size)
@@ -326,8 +370,9 @@ crossmul(isce3::io::Raster& refSlcRaster,
     // Declare valarray for range and azimuth doppler centroids used by filter
     std::valarray<double> refDoppCentroids;
     std::valarray<double> secDoppCentroids;
-
     int maxKernelSize = 0;
+    int overlapSize = 0;
+
     if (_doCommonAzimuthBandFilter) {
         // Compute the mean doppler centroid of each slant range for
         // the reference and secondary images for each slant range
@@ -348,21 +393,23 @@ crossmul(isce3::io::Raster& refSlcRaster,
                                  _windowParameter,
                                  azimuthFilter);
        std::cout << " - max kernel size = " << maxKernelSize << std::endl;
+
+        // to ensure the overlap size is an integer multiple number of azimuth looks.
+        maxKernelSize = (maxKernelSize + _azimuthLooks) / _azimuthLooks;
+
+        // Force the kernel size to be even
+        maxKernelSize = (maxKernelSize%2 == 0) ? maxKernelSize : maxKernelSize + 1;
+
+        // The overlap size will be even
+        overlapSize = maxKernelSize * _azimuthLooks;
+
+        // Re-compute the lines per block to account the overlaps between two blocks
+        linesPerBlock = (_linesPerBlock / _azimuthLooks) * _azimuthLooks;
+        _linesPerBlock = linesPerBlock + overlapSize;
+
+        // The lines per block will be multiple times of the azimuth looks
+        linesPerBlock = _linesPerBlock;
     }
-
-    // to ensure the overlap size is an integer multiple number of azimuth looks.
-    maxKernelSize = (maxKernelSize + _azimuthLooks) / _azimuthLooks;
-
-    // Force the kernel size to be even
-    maxKernelSize = (maxKernelSize%2 == 0) ? maxKernelSize : maxKernelSize + 1;
-
-    // The overlap size will be even
-    const int overlapSize = maxKernelSize * _azimuthLooks;
-
-    // Re-compute the lines per block to account the overlaps between two blocks
-    linesPerBlock = (_linesPerBlock / _azimuthLooks) * _azimuthLooks;
-    _linesPerBlock = linesPerBlock + overlapSize;
-    linesPerBlock = _linesPerBlock;
 
     const auto output_rows = ifgRaster.length();
     const auto output_cols = ifgRaster.width();
@@ -622,8 +669,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
         }
 
         // load the range offsets that are required by flattening,
-        // common range and azimuth filters
-        if (_doFlatten || _doCommonAzimuthBandFilter || _doCommonRangeBandFilter) {
+        // common range filters
+        if (_doFlatten || _doCommonRangeBandFilter) {
             std::valarray<double> offsetLine(ncols);
             for (size_t line = 0; line < blockRowsData; ++line) {
                 rngOffsetRaster->getLine(offsetLine, rowStart + line);
@@ -679,28 +726,11 @@ crossmul(isce3::io::Raster& refSlcRaster,
         }
 
         //common azimuth band-pass filter the reference and secondary SLCs
-        //refering to ESA InSAR tutorial-part B (https://www.esa.int/esapub/tm/tm19/TM-19_ptB.pdf on page 20 and 21)
-        //TODO: since there is no windowing is applied in azimuth, no need to revert
-        //the windowing effects, and the antenna pattern coefficients are not stored in the
-        //SLC yet, will wait for the implementation and revert the attena pattern then
         if (_doCommonAzimuthBandFilter) {
-            std::string filterType = _windowType;
-            // Construct azimuth common band filter for a block of data of the reference
-            _processedAzimuthBandwidth += azimuthFilter.constructAzimuthCommonbandFilter(
-                        refDoppCentroids, secDoppCentroids,
-                        _azimuthBandwidth,
-                        _prf, _windowParameter, refSlc, refAzimuthSpectrum, fft_size,
-                        linesPerBlock, filterType);
-            azimuthFilter.filter(refSlc, refAzimuthSpectrum);
-
-            // Construct azimuth common band filter for a block of data of the secondary
-            azimuthFilter.constructAzimuthCommonbandFilter(
-                    refDoppCentroids, secDoppCentroids,
-                    _azimuthBandwidth,
-                    _prf, _windowParameter, secSlc, secAzimuthSpectrum, fft_size,
-                    linesPerBlock, filterType);
-
-            azimuthFilter.filter(secSlc, secAzimuthSpectrum);
+             _processedAzimuthBandwidth += azimuthCommonBandFilter(refSlc, secSlc,
+                                    refDoppCentroids, secDoppCentroids,
+                                    refAzimuthSpectrum, secAzimuthSpectrum,
+                                    azimuthFilter, linesPerBlock, fft_size);
         }
 
         // upsample the reference and secondary SLCs
@@ -759,25 +789,26 @@ crossmul(isce3::io::Raster& refSlcRaster,
             looksObj.colsLooks(_rangeLooks);
             looksObj.multilook(ifgram, ifgramMultiLooked);
 
-            unsigned long rowNewStart = 0;
-            std::slice dataSlice = std::slice(0,ncolsMultiLooked * (linesPerBlock - overlapSize/2) / _azimuthLooks, 1);
+            size_t rowNewStart = 0;
+            size_t nrowsMultiLooked = (linesPerBlock - overlapSize/2) / _azimuthLooks;
+            // The first block
+            std::slice dataSlice = std::slice(0,ncolsMultiLooked * nrowsMultiLooked, 1);
             if (block > 0) {
                 rowNewStart = (rowStart + overlapSize/2)/_azimuthLooks;
                 if (block != (nblocks - 1)) {
+                    nrowsMultiLooked = (blockRowsData - overlapSize) / _azimuthLooks;
                     dataSlice = std::slice((overlapSize/2)/_azimuthLooks*ncolsMultiLooked,
-                                    ncolsMultiLooked * (blockRowsData - overlapSize) / _azimuthLooks, 1);
-                } else {
+                                    ncolsMultiLooked * nrowsMultiLooked, 1);
+                } else { // The last block
+                    nrowsMultiLooked = (blockRowsData - overlapSize/2) / _azimuthLooks;
                     dataSlice = std::slice((overlapSize/2)/_azimuthLooks*ncolsMultiLooked,
-                                    ncolsMultiLooked * (blockRowsData - overlapSize/2) / _azimuthLooks, 1);
+                                    ncolsMultiLooked * nrowsMultiLooked, 1);
                 }
             }
-
              // set the block of interferogram
-            std::valarray<std::complex<float>> ifgramSlice = ifgramMultiLooked[dataSlice];
-            std::cout << ifgramSlice.size() << "," << ifgramMultiLooked.size() << std::endl;
-
+            std::valarray<std::complex<float>> ifgramSlice= ifgramMultiLooked[dataSlice];
             ifgRaster.setBlock(ifgramSlice, 0, rowNewStart,
-                                ncols/_rangeLooks,ifgramSlice.size()/(ncols/_rangeLooks));
+                               ncolsMultiLooked, nrowsMultiLooked);
 
             // multilook SLC to power for coherence computation
             // refPowerLooked = average(abs(refSlc)^2)
@@ -801,32 +832,35 @@ crossmul(isce3::io::Raster& refSlcRaster,
             }
 
             // set coherence raster
-            std::valarray<float> coherenceSlice =coherence[dataSlice];
+            std::valarray<float> coherenceSlice = coherence[dataSlice];
             coherenceRaster.setBlock(coherenceSlice, 0, rowNewStart,
-                    ncols/_rangeLooks,coherenceSlice.size()/(ncols/_rangeLooks));
+                                    ncolsMultiLooked,nrowsMultiLooked);
         } else {
 
-            unsigned long rowNewStart = 0;
-            std::slice dataSlice = std::slice(0, linesPerBlock - overlapSize/2, 1);
+            size_t rowNewStart = 0;
+            size_t nrowsValid = linesPerBlock - overlapSize/2;
+            std::slice dataSlice = std::slice(0, nrowsValid, 1);
             if (block > 0) {
                 rowNewStart = rowStart + overlapSize/2;
                 if (block != (nblocks - 1)) {
-                    dataSlice = std::slice((overlapSize/2)*ncols,blockRowsData - overlapSize, 1);
-                } else {
-                    dataSlice = std::slice((overlapSize/2)*ncols,blockRowsData - overlapSize/2, 1);
+                    nrowsValid = blockRowsData - overlapSize;
+                    dataSlice = std::slice((overlapSize/2)*ncols,nrowsValid, 1);
+                } else { // the last block
+                    nrowsValid = blockRowsData - overlapSize/2;
+                    dataSlice = std::slice((overlapSize/2)*ncols,nrowsValid, 1);
                 }
             }
 
+            std::valarray<std::complex<float>> ifgramSlice= ifgram[dataSlice];
             // set the block of interferogram
-            std::valarray<std::complex<float>> ifgramSlice =ifgram[dataSlice];
-            ifgRaster.setBlock(ifgram, 0, rowNewStart, ncols, ifgramSlice.size()/ncols);
+            ifgRaster.setBlock(ifgramSlice, 0, rowNewStart, ncols, nrowsValid);
 
             // fill coherence with ones (no need to compute result)
             coherence = 1.0;
             // set the block of coherence
-            std::valarray<float> coherenceSlice =coherence[dataSlice];
-            coherenceRaster.setBlock(coherence, 0, rowNewStart, ncols,
-                                     coherenceSlice.size()/ncols);
+            std::valarray<float> coherenceSlice = coherence[dataSlice];
+            coherenceRaster.setBlock(coherenceSlice, 0, rowNewStart, ncols,
+                                     nrowsValid);
         }
     }
 
