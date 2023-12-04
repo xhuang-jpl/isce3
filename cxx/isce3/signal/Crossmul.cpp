@@ -620,7 +620,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
     // loop over all blocks
     std::cout << "nblocks : " << nblocks << std::endl;
-
     for (size_t block = 0; block < nblocks; ++block) {
         std::cout << "block: " << block << std::endl;
         // start row for this block
