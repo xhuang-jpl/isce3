@@ -173,17 +173,18 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 {
     std::string filterType = _windowType;
 
-    // Construct azimuth common band filter for a block of data of the reference
+    // Construct azimuth common bandpass filter for both reference and secondary
     double processedAzimuthBandwidth = azimuthFilter.constructAzimuthCommonbandFilter(
                 refDoppCentroids, secDoppCentroids,
                 _azimuthBandwidth,
                 _prf, _windowParameter, ncols,
                 blockRows, filterType);
 
+    // Filter a block of data of the reference
     azimuthFilter.initiateAzimuthFilter(refSlc, refAzimuthSpectrum, ncols, blockRows);
     azimuthFilter.filter(refSlc, refAzimuthSpectrum);
 
-    // Construct azimuth common band filter for a block of data of the secondary
+    // Filter a block of data of the secondary
     azimuthFilter.initiateAzimuthFilter(secSlc, secAzimuthSpectrum, ncols, blockRows);
     azimuthFilter.filter(secSlc, secAzimuthSpectrum);
 
@@ -391,7 +392,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
         // The overlap size will be even
         overlapSize = maxKernelSize * _azimuthLooks;
         halfOverlapSize = overlapSize / 2;
-        // Re-compute the lines per block to account the overlaps between two blocks
+
+        // Compute the lines per block to account for the overlaps between two blocks
         linesPerBlock = (_linesPerBlock / _azimuthLooks) * _azimuthLooks;
         _linesPerBlock = linesPerBlock + overlapSize;
 
@@ -712,7 +714,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                         rangeFrequencies, rangeFilter, linesPerBlock, fft_size);
         }
 
-        //common azimuth band-pass filter the reference and secondary SLCs
+        // Apply the azimuth common band-pass filter to the reference and secondary SLCs
         if (_doCommonAzimuthBandFilter) {
              _processedAzimuthBandwidth += azimuthCommonBandFilter(refSlc, secSlc,
                                     refDoppCentroids, secDoppCentroids,
@@ -824,6 +826,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                                     ncolsMultiLooked,nrowsMultiLooked);
         } else {
 
+            // The first block
             size_t rowNewStart = 0;
             size_t nrowsValid = linesPerBlock - halfOverlapSize;
             std::slice dataSlice = std::slice(0, nrowsValid, 1);
