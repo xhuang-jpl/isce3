@@ -732,9 +732,8 @@ writeFilter(size_t ncols, size_t nrows)
 }
 
 template <class T>
-void
-isce3::signal::Filter<T>::_kaiserord(const double ripple, const double width,
-                                        int &n, double &beta)
+std::tuple<int, double>
+isce3::signal::Filter<T>::_kaiserord(const double ripple, const double width)
 {
     const double A = std::abs(ripple);  // in case somebody is confused as to what's meant
     if (A < 8) {
@@ -750,8 +749,7 @@ isce3::signal::Filter<T>::_kaiserord(const double ripple, const double width,
     // order, so we have to add 1 to get the number of taps.
     const double numtaps = (A - 7.95) / 2.285 / (M_PI * width) + 1;
 
-    n = int(std::ceil(numtaps));
-    beta = _kaiser_beta(A);
+    return std::make_tuple(int(std::ceil(numtaps)), _kaiser_beta(A));
 }
 
 template <class T>
@@ -778,7 +776,7 @@ isce3::signal::Filter<T>::_kaiser_design(const double stopatt,
                             double &beta,
                             std::valarray<double> &t)
 {
-    _kaiserord(stopatt, transition_width, n, beta);
+    std::tie(n, beta) = _kaiserord(stopatt, transition_width);
     if (force_odd_len && (n % 2 == 0)) n += 1;
 
     if (t.size() <= 0) t.resize(n);

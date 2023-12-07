@@ -232,9 +232,7 @@ isce3::signal::Crossmul::_maximum_kernel_size(std::valarray<double> &refDopplerC
                         "Passband + transition cannot exceed Nyquist");
             }
 
-            int n = 0;
-            double beta = 0.0;
-            aziFilter._kaiserord(stopatt, tw, n, beta);
+            auto [n, _] = aziFilter._kaiserord(stopatt, tw);
             if (n > max_kernel_size) max_kernel_size = n;
         }
     }

@@ -162,11 +162,9 @@ class isce3::signal::Filter {
         /** Determine the filter window parameters for the Kaiser window method
          * @param[in] ripple Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
          * @param[in] width Width of transition region, normalized so that 1 corresponds to pi radians / sample.
-         * @param[out] n the length of the Kaiser window.
-         * @param[out] beta the beta parameter for the Kaiser window
+         * @return the length and the beta of the Kaiser window.
          */
-        void _kaiserord(const double ripple, const double width,
-                        int &n, double &beta);
+        std::tuple<int, double> _kaiserord(const double ripple, const double width);
 
         /** Compute the Kaiser parameter `beta`, given the attenuation 'ripple`
         * @param[in] ripple The desired attenuation in the stopband and maximum ripple in the passband, in dB.
