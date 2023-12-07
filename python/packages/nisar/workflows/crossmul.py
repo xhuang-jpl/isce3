@@ -69,7 +69,7 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
         crossmul = isce3.cuda.signal.Crossmul()
 
         if do_common_range_band_filter or do_common_azimuth_band_filter:
-            raise NotImplementedError("Common band filers have not been implemented for GPU")
+            raise NotImplementedError("Common band filters have not been implemented for GPU")
     else:
         crossmul = isce3.signal.Crossmul()
         # do common range band filter

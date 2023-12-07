@@ -26,8 +26,8 @@ class isce3::signal::Crossmul {
          * \param[in]  secSlcRaster input raster of secondary SLC
          * \param[out] ifgRaster    output interferogram raster
          * \param[out] coherenceRaster  output coherence raster
-         * \param[in]  rngOffsetRaster  optional pointer to range offset raster
-         * \param[in]  aziOffsetRaster  optional pointer to azimuth offset raster
+         * \param[in]  rngOffsetRaster  optional pointer to range offset raster, in pixels
+         * \param[in]  aziOffsetRaster  optional pointer to azimuth offset raster, in pixels
          *
          */
         void crossmul(isce3::io::Raster& refSlcRaster,
