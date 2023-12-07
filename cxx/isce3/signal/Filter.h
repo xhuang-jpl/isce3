@@ -94,11 +94,6 @@ class isce3::signal::Filter {
                              double beta,
                              std::valarray<std::complex<T>>& _filter1D);
 
-        /** Initialize the range FFT filter*/
-        void InitCommonRangeFilter(std::valarray<std::complex<T>> &signal,
-                                   std::valarray<std::complex<T>> &spectrum,
-                                   size_t ncols, size_t nrows);
-
         /** Construct the range common band filter*/
         void constructRangeCommonbandFilter(const double rangeSamplingFrequency,
                                         const double subBandCenterFrequency,
@@ -115,11 +110,6 @@ class isce3::signal::Filter {
                              const int fft_size,
                              const double beta,
                              std::valarray<std::complex<T>>& filter1D);
-
-        /** Initialize the azimuth common FFT filter*/
-        void InitCommonAzimuthFilter(std::valarray<std::complex<T>> &signal,
-                                     std::valarray<std::complex<T>> &spectrum,
-                                     size_t ncols, size_t nrows);
 
         /** Construct azimuth common band filter*/
         double constructAzimuthCommonbandFilter(const std::valarray<double> & refDoppler,

@@ -134,11 +134,11 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                                     _windowParameter);
 
     // low pass filter the ref  slc
-    rngFilter.InitCommonRangeFilter(refSlc,refSpectrum, ncols,  blockLength);
+    rngFilter.initiateRangeFilter(refSlc,refSpectrum, ncols,  blockLength);
     rngFilter.filter(refSlc, refSpectrum);
 
     // low pass filter the sec  slc
-    rngFilter.InitCommonRangeFilter(secSlc,secSpectrum, ncols,  blockLength);
+    rngFilter.initiateRangeFilter(secSlc,secSpectrum, ncols,  blockLength);
     rngFilter.filter(secSlc, secSpectrum);
 
     // restore the original phase without the geometry phase
