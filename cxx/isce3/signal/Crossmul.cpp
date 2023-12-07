@@ -125,7 +125,7 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 
     // Contruct the low pass filter for this block. This filter is
     // common for both SLCs
-    rngFilter.constructRangeCommonbandFilter(_rangeSamplingFrequency,
+    rngFilter.constructRangeCommonBandFilter(_rangeSamplingFrequency,
                                     filterCenterFrequency,
                                     filterBandwidth,
                                     ncols,
@@ -174,7 +174,7 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     std::string filterType = _windowType;
 
     // Construct azimuth common bandpass filter for both reference and secondary
-    double processedAzimuthBandwidth = azimuthFilter.constructAzimuthCommonbandFilter(
+    double processedAzimuthBandwidth = azimuthFilter.constructAzimuthCommonBandFilter(
                 refDoppCentroids, secDoppCentroids,
                 _azimuthBandwidth,
                 _prf, _windowParameter, ncols,

@@ -14,7 +14,7 @@
 #include <isce3/signal/Filter.h>
 #include <isce3/signal/Signal.h>
 
-TEST(Filter, constructAzimuthCommonbandFilter)
+TEST(Filter, constructAzimuthCommonBandFilter)
 {
     //This test constructs a common azimuth band filter.
 
@@ -54,7 +54,7 @@ TEST(Filter, constructAzimuthCommonbandFilter)
     double commonAzimuthBandwidth = 1000.0;
 
     isce3::signal::Filter<float> filter;
-    filter.constructAzimuthCommonbandCosineFilter(dop1,
+    filter.constructAzimuthCommonBandCosineFilter(dop1,
                                                   dop2,
                                                   commonAzimuthBandwidth,
                                                   prf,

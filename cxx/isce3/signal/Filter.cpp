@@ -152,12 +152,12 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
  */
 template <class T>
 void
-isce3::signal::Filter<T>::constructRangeCommonbandFilter(const double rangeSamplingFrequency,
+isce3::signal::Filter<T>::constructRangeCommonBandFilter(const double rangeSamplingFrequency,
                                         const double subBandCenterFrequency,
                                         const double subBandBandwidth,
                                         size_t ncols,
                                         size_t nrows,
-                                        const std::string filterType,
+                                        const std::string& filterType,
                                         const double windowParameter)
 {
 
@@ -168,7 +168,7 @@ isce3::signal::Filter<T>::constructRangeCommonbandFilter(const double rangeSampl
     _filter1D = std::complex<T>(0.0,0.0);
 
     if (filterType=="kaiser"){
-        constructRangeCommonbandKaiserFilter(subBandCenterFrequency,
+        constructRangeCommonBandKaiserFilter(subBandCenterFrequency,
                             subBandBandwidth,
                             rangeSamplingFrequency,
                             fft_size,
@@ -294,7 +294,7 @@ constructRangeBandpassCosine(std::valarray<double> subBandCenterFrequencies,
 template <class T>
 void
 isce3::signal::Filter<T>::
-constructRangeCommonbandKaiserFilter(const double subBandCenterFrequency,
+constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
                              const double subBandBandwidth,
                              const double rangeSamplingFrequency,
                              const int fft_size,
@@ -410,17 +410,17 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
 template <class T>
 double
 isce3::signal::Filter<T>::
-constructAzimuthCommonbandFilter(const std::valarray<double> & refDoppler,
+constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                     const std::valarray<double> & secDoppler,
                     double bandwidth,
                     double prf,
                     double beta,
                     size_t ncols,
                     size_t nrows,
-                    std::string filterType)
+                    std::string& filterType)
 {
     if (filterType=="cosine"){
-        return constructAzimuthCommonbandCosineFilter(
+        return constructAzimuthCommonBandCosineFilter(
                             refDoppler,
                             secDoppler,
                             bandwidth,
@@ -428,7 +428,7 @@ constructAzimuthCommonbandFilter(const std::valarray<double> & refDoppler,
                             ncols, nrows);
 
     } else if (filterType=="kaiser"){
-        return constructAzimuthCommonbandKaiserFilter(
+        return constructAzimuthCommonBandKaiserFilter(
                             refDoppler,
                             secDoppler,
                             bandwidth,
@@ -454,7 +454,7 @@ constructAzimuthCommonbandFilter(const std::valarray<double> & refDoppler,
 template <class T>
 double
 isce3::signal::Filter<T>::
-constructAzimuthCommonbandCosineFilter(const std::valarray<double> & refDoppler,
+constructAzimuthCommonBandCosineFilter(const std::valarray<double> & refDoppler,
                         const std::valarray<double> & secDoppler,
                         double bandwidth,
                         double prf,
@@ -547,7 +547,7 @@ constructAzimuthCommonbandCosineFilter(const std::valarray<double> & refDoppler,
 template <class T>
 double
 isce3::signal::Filter<T>::
-constructAzimuthCommonbandKaiserFilter(const std::valarray<double> & refDoppler,
+constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
                         const std::valarray<double> & secDoppler,
                         double bandwidth,
                         double prf,

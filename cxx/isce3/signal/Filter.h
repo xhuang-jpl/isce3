@@ -95,16 +95,16 @@ class isce3::signal::Filter {
                              std::valarray<std::complex<T>>& _filter1D);
 
         /** Construct the range common band filter*/
-        void constructRangeCommonbandFilter(const double rangeSamplingFrequency,
+        void constructRangeCommonBandFilter(const double rangeSamplingFrequency,
                                         const double subBandCenterFrequency,
-                                        const double subBandBandwidths,
+                                        const double subBandBandwidth,
                                         size_t ncols,
                                         size_t nrows,
-                                        const std::string filterType,
+                                        const std::string& filterType,
                                         const double windowParameter);
 
         /** Construct a kaiser common band range band-pass filter for one band*/
-        void constructRangeCommonbandKaiserFilter(const double subBandCenterFrequency,
+        void constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
                              const double subBandBandwidth,
                              const double rangeSamplingFrequency,
                              const int fft_size,
@@ -112,17 +112,17 @@ class isce3::signal::Filter {
                              std::valarray<std::complex<T>>& filter1D);
 
         /** Construct azimuth common band filter*/
-        double constructAzimuthCommonbandFilter(const std::valarray<double> & refDoppler,
+        double constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                             const std::valarray<double> & secDoppler,
                             double bandwidth,
                             double prf,
                             double beta,
                             size_t ncols,
                             size_t nrows,
-                            std::string filterType);
+                            std::string& filterType);
 
         /** Construct azimuth common band cosine filter with the doppler centroid compensation*/
-        double constructAzimuthCommonbandCosineFilter(const std::valarray<double> & refDoppler,
+        double constructAzimuthCommonBandCosineFilter(const std::valarray<double> & refDoppler,
                                 const std::valarray<double> & secDoppler,
                                 double bandwidth,
                                 double prf,
@@ -131,7 +131,7 @@ class isce3::signal::Filter {
                                 size_t nrows);
 
         /** Construct azimuth common band kaiser filter with the doppler centroid compensation*/
-        double constructAzimuthCommonbandKaiserFilter(const std::valarray<double> & refDoppler,
+        double constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
                                 const std::valarray<double> & secDoppler,
                                 double bandwidth,
                                 double prf,
