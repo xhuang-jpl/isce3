@@ -623,7 +623,7 @@ constructAzimuthCommonbandKaiserFilter(const std::valarray<double> & refDoppler,
             throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
                 "FFT size is less than the window size");
         }
-        // Zero padding the filter on sides
+        // Zero padding the filter in the middle
         filter1D = std::complex<T>(0.0, 0.0);
         for (size_t ind = halfSizeOfKaiser; ind < sizeOfKaiser; ind ++) {
             filter1D[ind - halfSizeOfKaiser] = kaiser[ind];
@@ -638,7 +638,7 @@ constructAzimuthCommonbandKaiserFilter(const std::valarray<double> & refDoppler,
         meanDopCenterFreqShift += fshift;
         meanDopCenterFreq += fmid;
 
-        // Compute the filter centered at fmid
+        // Copy the the filter centered at fmid
         for (size_t i = 0; i < filter1D.size(); ++i) {
             _filter[i*ncols+j] = filter1D[i];
         }
@@ -731,12 +731,6 @@ writeFilter(size_t ncols, size_t nrows)
 
 }
 
-/**
- * @param[in] ripple Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
- * @param[in] width Width of transition region, normalized so that 1 corresponds to pi radians / sample.
- * @param[out] n the length of the Kaiser window.
- * @param[out] beta the beta parameter for the Kaiser window
- */
 template <class T>
 void
 isce3::signal::Filter<T>::_kaiserord(const double ripple, const double width,
@@ -760,9 +754,6 @@ isce3::signal::Filter<T>::_kaiserord(const double ripple, const double width,
     beta = _kaiser_beta(A);
 }
 
-/**
- * @param[in] ripple The desired attenuation in the stopband and maximum ripple in the passband, in dB.
- */
 template <class T>
 double
 isce3::signal::Filter<T>::_kaiser_beta(const double ripple)
@@ -778,14 +769,6 @@ isce3::signal::Filter<T>::_kaiser_beta(const double ripple)
     }
 }
 
-/**
- * @param[in] stopatt Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
- * @param[in] transition_width Width of transition region, normalized so that 1 corresponds to pi radians / sample.
- * @param[in] force_odd_len  Force to be odd length
- * @param[out] n the length of the Kaiser window.
- * @param[out] beta the beta parameter for the Kaiser window
- * @param[out] t time samples for Kaiser filter design method
- */
 template <class T>
 void
 isce3::signal::Filter<T>::_kaiser_design(const double stopatt,
@@ -802,11 +785,6 @@ isce3::signal::Filter<T>::_kaiser_design(const double stopatt,
     for (size_t i = 0; i < t.size(); i++) t[i] = i - (n - 1) / 2.0;
 }
 
-/**
- * @param[in] t time samples for Kaiser filter design method
- * @param[in] beta the beta parameter for the Kaiser window
- * @param[out] irf time samples for Kaiser filter design method
- */
 template <class T>
 void
 isce3::signal::Filter<T>::_kaiser_irf(const std::valarray<double> &t,
@@ -823,11 +801,6 @@ isce3::signal::Filter<T>::_kaiser_irf(const std::valarray<double> &t,
     }
 }
 
-/**
- * @param[in] n the length of the Kaiser window.
- * @param[in] beta the beta parameter for the Kaiser window
- * @param[out] kaiser_window time samples for Kaiser filter design method
- */
 template <class T>
 void
 isce3::signal::Filter<T>::_kaiser(const int n,
@@ -845,11 +818,6 @@ isce3::signal::Filter<T>::_kaiser(const int n,
     }
 }
 
-/**
- * @param[in] kaiser_window the Kaiser window.
- * @param[in] fc the center frequency
- * @param[out] shifted_kaiser_window shifted kaiser window with center frequency fc
- */
 template <class T>
 void
 isce3::signal::Filter<T>::_lowpass2bandpass(const std::valarray<std::complex<T>> &kaiser_window,
@@ -866,15 +834,6 @@ isce3::signal::Filter<T>::_lowpass2bandpass(const std::valarray<std::complex<T>>
     }
 }
 
-/**
- * @param[in] bandwidth the signal bandwidth
- * @param[in] fs the sampling frequency
- * @param[in] beta the Kaiser window beta parameter.
- * @param[in] stopatt Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
- * @param[in] transition_width transition width [0-1]
- * @param[in] force_odd_len Force to be odd length
- * @param[out] kaiser_window low bandpass kaiser window
- */
 template <class T>
 void
 isce3::signal::Filter<T>::_design_shaped_lowpass_filter(const double bandwidth,

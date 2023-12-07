@@ -159,14 +159,29 @@ class isce3::signal::Filter {
         void writeFilter(size_t ncols, size_t nrows);
 
     public:
-        /** Determine the filter window parameters for the Kaiser window method*/
+        /** Determine the filter window parameters for the Kaiser window method
+         * @param[in] ripple Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
+         * @param[in] width Width of transition region, normalized so that 1 corresponds to pi radians / sample.
+         * @param[out] n the length of the Kaiser window.
+         * @param[out] beta the beta parameter for the Kaiser window
+         */
         void _kaiserord(const double ripple, const double width,
                         int &n, double &beta);
 
-        /** Compute the Kaiser parameter `beta`, given the attenuation 'ripple`*/
+        /** Compute the Kaiser parameter `beta`, given the attenuation 'ripple`
+        * @param[in] ripple The desired attenuation in the stopband and maximum ripple in the passband, in dB.
+        * @return beta
+        */
         double _kaiser_beta(const double ripple);
 
-        /** Return length, shape, and time samples for Kaiser filter design method*/
+        /** Return length, shape, and time samples for Kaiser filter design method
+         * @param[in] stopatt Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
+         * @param[in] transition_width Width of transition region, normalized so that 1 corresponds to pi radians / sample.
+         * @param[in] force_odd_len  Force to be odd length
+         * @param[out] n the length of the Kaiser window.
+         * @param[out] beta the beta parameter for the Kaiser window
+         * @param[out] t time samples for Kaiser filter design method
+         */
         void  _kaiser_design(const double stopatt,
                              const double transition_width,
                              const bool force_odd_len,
@@ -174,22 +189,42 @@ class isce3::signal::Filter {
                              double &beta,
                              std::valarray<double> &t);
 
-        /** Impulse response (Fourier transform) of Kaiser window*/
+        /** Impulse response (Fourier transform) of Kaiser window
+         * @param[in] t time samples for Kaiser filter design method
+         * @param[in] beta the beta parameter for the Kaiser window
+         * @param[out] irf time samples for Kaiser filter design method
+         */
         void  _kaiser_irf(const std::valarray<double> &t,
                           const double beta,
                           std::valarray<std::complex<T>> &irf);
 
-        /**  Kaiser window with length n*/
+        /**  Kaiser window with length n
+         * @param[in] n the length of the Kaiser window.
+         * @param[in] beta the beta parameter for the Kaiser window
+         * @param[out] kaiser_window time samples for Kaiser filter design method
+         */
         void  _kaiser(const int n,
                       const double beta,
                       std::valarray<std::complex<T>> &kaiser_window);
 
-        /**  Turn a low pass filter into a band pass filter by applying a phase ramp.*/
+        /**  Turn a low pass filter into a band pass filter by applying a phase ramp.
+         * @param[in] kaiser_window the Kaiser window.
+         * @param[in] fc the center frequency divded by sampling rate
+         * @param[out] shifted_kaiser_window shifted kaiser window with center frequency fc
+         */
         void  _lowpass2bandpass(const std::valarray<std::complex<T>> &kaiser_window,
                     const double fc,
                     std::valarray<std::complex<T>> &shifted_kaiser_window);
 
-        /**   Design a low pass filter having a passband shaped like a window using the Kaiser method*/
+        /**   Design a low pass filter having a passband shaped like a window using the Kaiser method
+         * @param[in] bandwidth the signal bandwidth
+         * @param[in] fs the sampling frequency
+         * @param[in] beta the Kaiser window beta parameter.
+         * @param[in] stopatt Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
+         * @param[in] transition_width transition width [0-1]
+         * @param[in] force_odd_len Force to be odd length
+         * @param[out] kaiser_window low bandpass kaiser window
+         */
         void  _design_shaped_lowpass_filter(const double bandwidth,
                                             const double fs,
                                             const double window_shape,
