@@ -103,7 +103,11 @@ class isce3::signal::Filter {
                                         const std::string& filterType,
                                         const double windowParameter);
 
-        /** Construct a kaiser common band range band-pass filter for one band*/
+        /** Construct a kaiser range band-pass filter for one band
+         * First constructs a time-domain FIR filter, then transforms to the frequency
+         * domain.
+         * Returns the frequency-domain filter coefficients.
+         */
         void constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
                              const double subBandBandwidth,
                              const double rangeSamplingFrequency,
@@ -130,7 +134,11 @@ class isce3::signal::Filter {
                                 size_t ncols,
                                 size_t nrows);
 
-        /** Construct azimuth common band kaiser filter with the doppler centroid compensation*/
+        /** Construct a kaiser range band-pass filter for one band
+         * First constructs a time-domain FIR filter, then transforms to the frequency
+         * domain.
+         * Returns the frequency-domain filter coefficients.
+         */
         double constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
                                 const std::valarray<double> & secDoppler,
                                 double bandwidth,
@@ -151,10 +159,10 @@ class isce3::signal::Filter {
     public:
         /** Determine the filter window parameters for the Kaiser window method
          * @param[in] ripple Upper bound for the deviation (in dB) of the magnitude of the filter's frequency response from that of the desired filter (not including frequencies in any transition intervals).
-         * @param[in] width Width of transition region, normalized so that 1 corresponds to pi radians / sample.
+         * @param[in] transition_width Width of transition region, normalized so that 1 corresponds to pi radians / sample.
          * @return the length and the beta of the Kaiser window.
          */
-        std::tuple<int, double> _kaiserord(const double ripple, const double width);
+        std::tuple<int, double> _kaiserord(const double ripple, const double transition_width);
 
         /** Compute the Kaiser parameter `beta`, given the attenuation 'ripple`
         * @param[in] ripple The desired attenuation in the stopband and maximum ripple in the passband, in dB.
@@ -189,20 +197,20 @@ class isce3::signal::Filter {
         /**  Kaiser window with length n
          * @param[in] n the length of the Kaiser window.
          * @param[in] beta the beta parameter for the Kaiser window
-         * @param[out] kaiser_window time samples for Kaiser filter design method
+         * @param[out] coeffs the Kaiser filter coefficients
          */
         void  _kaiser(const int n,
                       const double beta,
-                      std::valarray<std::complex<T>> &kaiser_window);
+                      std::valarray<std::complex<T>> &coeffs);
 
         /**  Turn a low pass filter into a band pass filter by applying a phase ramp.
-         * @param[in] kaiser_window the Kaiser window.
-         * @param[in] fc the center frequency divded by sampling rate
-         * @param[out] shifted_kaiser_window shifted kaiser window with center frequency fc
+         * @param[in] low_pass_filter low pass filter
+         * @param[in] fc the center frequency, in Hz divded by sampling rate, in Hz
+         * @param[out] band_pass_filter band pass filter
          */
-        void  _lowpass2bandpass(const std::valarray<std::complex<T>> &kaiser_window,
+        void  _lowpass2bandpass(const std::valarray<std::complex<T>> &low_pass_filter,
                     const double fc,
-                    std::valarray<std::complex<T>> &shifted_kaiser_window);
+                    std::valarray<std::complex<T>> &band_pass_filter);
 
         /**   Design a low pass filter having a passband shaped like a window using the Kaiser method
          * @param[in] bandwidth the signal bandwidth

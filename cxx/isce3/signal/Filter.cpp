@@ -179,7 +179,7 @@ isce3::signal::Filter<T>::constructRangeCommonBandFilter(const double rangeSampl
     }
 
     //construct a block of the filter
-    const std::complex<T> norm(fft_size, fft_size);
+    const std::complex<T> norm(fft_size, 0.0);
     for (size_t line = 0; line < nrows; line++ ){
         for (size_t col = 0; col < fft_size; col++ ){
             _filter[line*fft_size+col] = _filter1D[col] / norm;
@@ -190,7 +190,7 @@ isce3::signal::Filter<T>::constructRangeCommonBandFilter(const double rangeSampl
 /**
  * @param[in] subBandCenterFrequencies a vector of center frequencies for each band
  * @param[in] subBandBandwidths a vector of bandwidths for each band
- * @param[in] dt samplig rate of the signal
+ * @param[in] dt time interval of the signal
  * @param[in] fft_size length of the spectrum
  * @param[out] _filter1D one dimensional boxcar bandpass filter in frequency domain
  */
@@ -240,7 +240,7 @@ constructRangeBandpassBoxcar(std::valarray<double> subBandCenterFrequencies,
 /**
  * @param[in] subBandCenterFrequencies a vector of center frequencies for each band
  * @param[in] subBandBandwidths a vector of bandwidths for each band
- * @param[in] dt samplig rate of the signal
+ * @param[in] dt time interval of the signal
  * @param[in] frequency a vector of frequencies
  * @param[in] beta parameter for the raised cosine filter (0 <= beta <= 1)
  * @param[out] _filter1D one dimensional boxcar bandpass filter in frequency domain
@@ -284,12 +284,12 @@ constructRangeBandpassCosine(std::valarray<double> subBandCenterFrequencies,
 }
 
 /**
- * @param[in] subBandCenterFrequencies a vector of center frequencies for each band
- * @param[in] subBandBandwidths a vector of bandwidths for each band
- * @param[in] rangeSamplingFrequency samplig rate of the signal
+ * @param[in] subBandCenterFrequency the center frequency, in Hz
+ * @param[in] subBandBandwidth the bandwidth, in Hz
+ * @param[in] rangeSamplingFrequency sampling rate of the signal
  * @param[in] fft_size length of the spectrum
- * @param[in] beta parameter for the kaiser filter (normally set 2.5)
- * @param[out] filter1D one dimensional boxcar bandpass filter in frequency domain
+ * @param[in] beta parameter for the kaiser filter
+ * @param[out] filter1D one dimensional kaiser filter in frequency domain
  */
 template <class T>
 void
@@ -303,6 +303,7 @@ constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
 {
 
     if (filter1D.size() <= 0) filter1D.resize(fft_size);
+    filter1D = std::complex<T>(0.0, 0.0);
 
     isce3::signal::Signal<T> signal;
     signal.forwardRangeFFT(filter1D, filter1D, fft_size, 1);
@@ -318,7 +319,7 @@ constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
             "FFT size is less than the window size");
     }
 
-    // Zero padding the filter on sides
+    // Zero padding the filter in the middle
     for (size_t ind = halfSizeOfKaiser; ind < sizeOfKaiser; ind ++) {
         filter1D[ind - halfSizeOfKaiser] = kaiser[ind];
     }
@@ -333,11 +334,11 @@ constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
 /**
  * @param[in] subBandCenterFrequencies a vector of center frequencies for each band
  * @param[in] subBandBandwidths a vector of bandwidths for each band
- * @param[in] dt samplig rate of the signal
+ * @param[in] dt time interval of the signal
  * @param[in] fft_size length of the spectrum
  * @param[in] frequency a vector of frequencies
- * @param[in] beta parameter for the kaiser filter (normally set 2.5)
- * @param[out] _filter1D one dimensional boxcar bandpass filter in frequency domain
+ * @param[in] beta parameter for the kaiser filter
+ * @param[out] _filter1D one dimensional kaiser filter in frequency domain
  */
 template <class T>
 void
@@ -534,10 +535,10 @@ constructAzimuthCommonBandCosineFilter(const std::valarray<double> & refDoppler,
 }
 
 /**
-* @param[in] refDoppler Doppler Centroids of the reference SLC
-* @param[in] secDoppler Doppler Centroids of the secondary SLC
-* @param[in] bandwidth common bandwidth in azimuth
-* @param[in] prf pulse repetition frequency
+* @param[in] refDoppler Doppler Centroids, in Hz, of the reference SLC w.r.t slant range axis
+* @param[in] secDoppler Doppler Centroids, in Hz, of the secondary SLC w.r.t slant range axis
+* @param[in] bandwidth common bandwidth in azimuth, in Hz
+* @param[in] prf pulse repetition frequency, in Hz
 * @param[in] beta parameter for kaiser filter
 * @param[in] signal a block of data to filter
 * @param[in] spectrum of the block of data
@@ -698,7 +699,7 @@ writeFilter(size_t ncols, size_t nrows)
 
 template <class T>
 std::tuple<int, double>
-isce3::signal::Filter<T>::_kaiserord(const double ripple, const double width)
+isce3::signal::Filter<T>::_kaiserord(const double ripple, const double transition_width)
 {
     const double A = std::abs(ripple);  // in case somebody is confused as to what's meant
     if (A < 8) {
@@ -712,7 +713,7 @@ isce3::signal::Filter<T>::_kaiserord(const double ripple, const double width)
 
     // Kaiser's formula (as given in Oppenheim and Schafer) is for the filter
     // order, so we have to add 1 to get the number of taps.
-    const double numtaps = (A - 7.95) / 2.285 / (M_PI * width) + 1;
+    const double numtaps = (A - 7.95) / 2.285 / (M_PI * transition_width) + 1;
 
     return std::make_tuple(int(std::ceil(numtaps)), _kaiser_beta(A));
 }
@@ -768,32 +769,32 @@ template <class T>
 void
 isce3::signal::Filter<T>::_kaiser(const int n,
                      const double beta,
-                     std::valarray<std::complex<T>> &kaiser_window)
+                     std::valarray<std::complex<T>> &coeffs)
 {
     const double beta0 = isce3::math::bessel_i0(beta);
 
-    if (kaiser_window.size() <= 0) kaiser_window.resize(n);
+    if (coeffs.size() <= 0) coeffs.resize(n);
 
     for (size_t i = 0; i < n; i++) {
         const double t = i - (n - 1) / 2.0;
-        if (std::abs(t) <= n / 2.0) kaiser_window[i] = isce3::math::bessel_i0(
+        if (std::abs(t) <= n / 2.0) coeffs[i] = isce3::math::bessel_i0(
             beta * std::sqrt(1.0 - (2 * t / (n - 1)) * (2 * t / (n - 1)))) / beta0;
     }
 }
 
 template <class T>
 void
-isce3::signal::Filter<T>::_lowpass2bandpass(const std::valarray<std::complex<T>> &kaiser_window,
+isce3::signal::Filter<T>::_lowpass2bandpass(const std::valarray<std::complex<T>> &low_pass_filter,
                     const double fc,
-                    std::valarray<std::complex<T>> &shifted_kaiser_window)
+                    std::valarray<std::complex<T>> &band_pass_filter)
 {
-    if (shifted_kaiser_window.size() <= 0) shifted_kaiser_window.resize(kaiser_window.size());
-    const int n = kaiser_window.size();
+    if (band_pass_filter.size() <= 0) band_pass_filter.resize(low_pass_filter.size());
+    const int n = low_pass_filter.size();
     for (size_t i = 0; i < n; i++) {
         const double t = (i - (n - 1) / 2.0);
         const double phase = 2.0 * M_PI * fc * t;
         const std::complex<T> ramp_phase(std::cos(phase), std::sin(phase));
-        shifted_kaiser_window[i] = kaiser_window[i] * ramp_phase;
+        band_pass_filter[i] = low_pass_filter[i] * ramp_phase;
     }
 }
 
