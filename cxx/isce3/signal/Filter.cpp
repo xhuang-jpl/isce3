@@ -47,9 +47,9 @@ initiateAzimuthFilter(std::valarray<std::complex<T>> &signal,
 }
 
 /**
- * @param[in] rangeSamplingFrequency range sampling frequency
- * @param[in] subBandCenterFrequencies a vector of center frequencies for each band
- * @param[in] subBandBandwidths a vector of bandwidths for each band
+ * @param[in] rangeSamplingFrequency range sampling frequency, in Hz
+ * @param[in] subBandCenterFrequencies a vector of center frequencies for each band, in Hz
+ * @param[in] subBandBandwidths a vector of bandwidths for each band, in Hz
  * @param[in] signal a block of data to filter
  * @param[in] spectrum a block of spectrum, which is internally used for FFT computations
  * @param[in] ncols number of columns of the block of data
@@ -139,9 +139,9 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
 }
 
 /**
- * @param[in] rangeSamplingFrequency range sampling frequency
- * @param[in] subBandCenterFrequency a vector of center frequencies for each band
- * @param[in] subBandBandwidth a vector of bandwidths for each band
+ * @param[in] rangeSamplingFrequency range sampling frequency, in Hz
+ * @param[in] subBandCenterFrequency center frequency, in Hz
+ * @param[in] subBandBandwidth bandwidth, in Hz
  * @param[in, out] signal a block of data to filter
  * @param[in, out] spectrum a block of spectrum, which is internally used for FFT computations
  * @param[in] ncols number of columns of the block of data
@@ -398,11 +398,11 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
 }
 
 /**
-* @param[in] refDoppler Doppler Centroids of the reference SLC
-* @param[in] secDoppler Doppler Centroids of the secondary SLC
-* @param[in] bandwidth common bandwidth in azimuth
-* @param[in] prf pulse repetition frequency
-* @param[in] beta parameter for raised cosine filter (0.25) or for the kaiser filter (2.5)
+* @param[in] refDoppler Doppler Centroids, in Hz, of the reference SLC w.r.t slant range axis
+* @param[in] secDoppler Doppler Centroids, in Hz, of the secondary SLC w.r.t slant range axis
+* @param[in] bandwidth common bandwidth in azimuth, in Hz
+* @param[in] prf pulse repetition frequency, in Hz
+* @param[in] windowParameter window parameter of the filter
 * @param[in] signal a block of data to filter
 * @param[in] spectrum of the block of data
 * @param[in] ncols number of columns of the block of data
@@ -415,7 +415,7 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                     const std::valarray<double> & secDoppler,
                     double bandwidth,
                     double prf,
-                    double beta,
+                    double windowParameter,
                     size_t ncols,
                     size_t nrows,
                     std::string& filterType)
@@ -425,7 +425,7 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                             refDoppler,
                             secDoppler,
                             bandwidth,
-                            prf, beta,
+                            prf, windowParameter,
                             ncols, nrows);
 
     } else if (filterType=="kaiser"){
@@ -433,7 +433,7 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                             refDoppler,
                             secDoppler,
                             bandwidth,
-                            prf, beta,
+                            prf, windowParameter,
                             ncols, nrows);
     } else{
          std::cout << filterType << " filter has not been implemented" << std::endl;
@@ -442,10 +442,10 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
 }
 
 /**
-* @param[in] refDoppler Doppler Centroids of the reference SLC
-* @param[in] secDoppler Doppler Centroids of the secondary SLC
-* @param[in] bandwidth common bandwidth in azimuth
-* @param[in] prf pulse repetition frequency
+* @param[in] refDoppler Doppler Centroids, in Hz, of the reference SLC w.r.t slant range axis
+* @param[in] secDoppler Doppler Centroids, in Hz, of the secondary SLC w.r.t slant range axis
+* @param[in] bandwidth common bandwidth in azimuth, in Hz
+* @param[in] prf pulse repetition frequency, in Hz
 * @param[in] beta parameter for raised cosine filter
 * @param[in] signal a block of data to filter
 * @param[in] spectrum of the block of data

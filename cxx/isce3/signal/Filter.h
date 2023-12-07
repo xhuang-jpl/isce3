@@ -120,7 +120,7 @@ class isce3::signal::Filter {
                             const std::valarray<double> & secDoppler,
                             double bandwidth,
                             double prf,
-                            double beta,
+                            double windowParameter,
                             size_t ncols,
                             size_t nrows,
                             std::string& filterType);
