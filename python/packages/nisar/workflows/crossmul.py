@@ -120,9 +120,7 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
 
                 sec_rdr_grid = sec_slc.getRadarGrid(freq)
 
-                # range sampling rate and bandwidth
-                # crossmul.range_sampling_frequency = \
-                #     1.0 / (crossmul.range_pixel_spacing*2.0/isce3.core.speed_of_light)
+                # range bandwidth
                 crossmul.range_bandwidth = \
                     ref_slc.getSwathMetadata(freq).processed_range_bandwidth
                 # azimuth band width and PRF
@@ -211,7 +209,7 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
 
                 # populate the new bandwidth along azimuth and range after the common band filter
                 # if there is no common band filter applied, the bandwith will remain the same with
-                # the orignal SLC bandwith
+                # the orignal SLC bandwidth
                 # TODO: GPU
                 if not use_gpu:
                     processing_info_path = \

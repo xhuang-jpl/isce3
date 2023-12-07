@@ -150,7 +150,7 @@ class isce3::signal::Crossmul {
 
         /** Get pulse repetition frequency (PRF), in Hz */
         inline double prf() const { return _prf; }
-        
+
         /** Set the range bandwidth in Hz*/
         inline void rangeBandwidth(double rngBandwidth) { _rangeBandwidth = rngBandwidth; }
 
@@ -188,9 +188,7 @@ class isce3::signal::Crossmul {
         inline void getPeakIndex(std::valarray<float> data,
                                 size_t &peakIndex);
 
-        /** Range common band filtering and return the new bandwidth
-         The method is refering to the ESA InSAR tutorial part B.
-         (https://www.esa.int/esapub/tm/tm19/TM-19_ptB.pdf on page 19)
+        /** Range common band filtering block by block @insar2007product
         */
         double rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                 std::valarray<std::complex<float>> &secSlc,
@@ -203,8 +201,7 @@ class isce3::signal::Crossmul {
                 size_t blockRows,
                 size_t ncols);
 
-        /** Azimuth common band filtering and return the new bandwidth
-        //refering to ESA InSAR tutorial-part B (https://www.esa.int/esapub/tm/tm19/TM-19_ptB.pdf on page 20 and 21)
+        /** Azimuth common band filtering block by block @insar2007product
         //TODO: since there is no windowing is applied in azimuth, no need to revert
         //the windowing effects, and the antenna pattern coefficients are not stored in the
         //SLC yet, will wait for the implementation and revert the attena pattern then
