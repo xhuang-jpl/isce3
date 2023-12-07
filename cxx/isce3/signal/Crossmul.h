@@ -3,6 +3,7 @@
 #include "forward.h"
 
 #include <complex>
+#include <isce3/core/Constants.h>
 #include <isce3/core/LUT1d.h>
 #include <isce3/core/LUT2d.h>
 #include <isce3/core/forward.h>
@@ -149,13 +150,7 @@ class isce3::signal::Crossmul {
 
         /** Get pulse repetition frequency (PRF), in Hz */
         inline double prf() const { return _prf; }
-
-        /** Set range sampling frequency, in Hz */
-        inline void rangeSamplingFrequency(double rgSamplingFreq) { _rangeSamplingFrequency = rgSamplingFreq; }
-
-        /** Get range sampling frequency, in Hz*/
-        inline double rangeSamplingFrequency() const { return _rangeSamplingFrequency; }
-
+        
         /** Set the range bandwidth in Hz*/
         inline void rangeBandwidth(double rngBandwidth) { _rangeBandwidth = rngBandwidth; }
 

@@ -121,8 +121,8 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
                 sec_rdr_grid = sec_slc.getRadarGrid(freq)
 
                 # range sampling rate and bandwidth
-                crossmul.range_sampling_frequency = \
-                    1.0 / (crossmul.range_pixel_spacing*2.0/isce3.core.speed_of_light)
+                # crossmul.range_sampling_frequency = \
+                #     1.0 / (crossmul.range_pixel_spacing*2.0/isce3.core.speed_of_light)
                 crossmul.range_bandwidth = \
                     ref_slc.getSwathMetadata(freq).processed_range_bandwidth
                 # azimuth band width and PRF

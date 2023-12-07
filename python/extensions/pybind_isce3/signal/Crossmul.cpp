@@ -75,9 +75,6 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
         .def_property("do_flatten",
                 py::overload_cast<>(&Crossmul::doFlatten, py::const_),
                 py::overload_cast<bool>(&Crossmul::doFlatten))
-        .def_property("range_sampling_frequency",
-                py::overload_cast<>(&Crossmul::rangeSamplingFrequency, py::const_),
-                py::overload_cast<double>(&Crossmul::rangeSamplingFrequency))
         .def_property("range_bandwidth",
                 py::overload_cast<>(&Crossmul::rangeBandwidth, py::const_),
                 py::overload_cast<double>(&Crossmul::rangeBandwidth))

@@ -571,8 +571,11 @@ crossmul(isce3::io::Raster& refSlcRaster,
     std::valarray<std::complex<float>> refAzimuthSpectrum;
     std::valarray<std::complex<float>> secAzimuthSpectrum;
 
-    // retrieve the original filter to revert the range windowing effects
+    // Retrieve the original filter to revert the range windowing effects
     std::valarray<std::complex<float>> originalRangeFilter;
+
+    // Compute the range sampling frequency in Hz using the range pixel spacing
+    _rangeSamplingFrequency = 1.0 / (_rangePixelSpacing*2.0/isce3::core::speed_of_light);
 
     if (_doCommonAzimuthBandFilter) {
         // Allocate storage for azimuth spectrum
