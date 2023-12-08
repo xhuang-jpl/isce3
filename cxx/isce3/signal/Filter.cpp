@@ -320,8 +320,8 @@ constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
     int halfSizeOfKaiser = (sizeOfKaiser - 1)/2;
 
     if (maxFilterKernelSize < sizeOfKaiser) {
-        std::cout << "warning: kaiser kernel size is greater than maximum kernel size, the \n";
-
+        std::cout << "warning: kaiser kernel size is greater "
+                  << "than maximum kernel size, the filter will be chunked \n";
         // Chunk the kaiser filter when the kernel size is greater than maximum kernel size
         halfSizeOfKaiser = (maxFilterKernelSize - 1)/2;
         const int start = (sizeOfKaiser - maxFilterKernelSize)/2;
