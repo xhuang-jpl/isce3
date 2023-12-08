@@ -131,7 +131,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                                     ncols,
                                     blockLength,
                                     _windowType,
-                                    _windowParameter);
+                                    _windowParameter,
+                                    _maxFilterKernelSize);
 
     // low pass filter the ref  slc
     rngFilter.initiateRangeFilter(refSlc,refSpectrum, ncols,  blockLength);
@@ -344,14 +345,16 @@ crossmul(isce3::io::Raster& refSlcRaster,
         throw isce3::except::LengthError(ISCE_SRCINFO(),
                 "interferogram and coherence rasters width do not match");
 
-    // Compute FFT size (power of 2)
-    size_t fft_size;
-    refSignal.nextPowerOfTwo(ncols, fft_size);
+    // Compute FFT size (power of 2) and set up the maximum range window size
+    size_t fft_size = isce3::fft::nextFastPower(ncols + _maxFilterKernelSize);
 
     if (fft_size > INT_MAX)
         throw isce3::except::LengthError(ISCE_SRCINFO(), "fft_size > INT_MAX");
     if (_oversampleFactor * fft_size > INT_MAX)
         throw isce3::except::LengthError(ISCE_SRCINFO(), "_oversampleFactor * fft_size > INT_MAX");
+
+    // force the multilook to be true if azimuth or range looks > 1
+    _multiLookEnabled = ((_rangeLooks > 1) || (_azimuthLooks > 1)) ? true : false;
 
     // Declare valarray for range and azimuth doppler centroids used by filter
     std::valarray<double> refDoppCentroids;
@@ -379,7 +382,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                                  _prf,
                                  _windowParameter,
                                  azimuthFilter);
-       std::cout << " - max kernel size = " << maxKernelSize << std::endl;
+       std::cout << " - max azimuth window kernel size = " << maxKernelSize << std::endl;
 
         // to ensure the overlap size is an integer multiple number of azimuth looks.
         maxKernelSize = (maxKernelSize + _azimuthLooks) / _azimuthLooks;
@@ -590,15 +593,17 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
         // For NISAR, use a standard Kaiser window in frequency domain to
         // compensate the windowing effects in range direction
-        // TODO: This function is sensor dependent
-        originalRangeFilter.resize(fft_size);
-        std::valarray<double> subBandCenterFrequencies{0.0};
-        std::valarray<double> subBandBandwidths{_rangeSamplingFrequency};
-        rangeFilter.constructRangeBandpassKaiser(subBandCenterFrequencies,
-                                                subBandBandwidths,
-                                                1.0/_rangeSamplingFrequency,
-                                                fft_size, rangeFrequencies, 1.6,
-                                                originalRangeFilter);
+        // NOTE: This function is sensor dependent
+        if (_sensorType == "NISAR") {
+            originalRangeFilter.resize(fft_size);
+            std::valarray<double> subBandCenterFrequencies{0.0};
+            std::valarray<double> subBandBandwidths{_rangeSamplingFrequency};
+            rangeFilter.constructRangeBandpassKaiser(subBandCenterFrequencies,
+                                                    subBandBandwidths,
+                                                    1.0/_rangeSamplingFrequency,
+                                                    fft_size, rangeFrequencies, 1.6,
+                                                    originalRangeFilter);
+        }
 
         // Construct the FFTW plan for both geometryIfgram and its conjugation
         geometryIfgramSignal.forwardRangeFFT(geometryIfgram, refSpectrum,
@@ -773,13 +778,13 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
         // Take looks down (summing columns)
         if (_multiLookEnabled) {
-
             // mulitlook interferogram and set raster
             looksObj.ncols(ncols);
             looksObj.colsLooks(_rangeLooks);
             looksObj.multilook(ifgram, ifgramMultiLooked);
 
             size_t rowNewStart = 0;
+            // if there is only one block, the nrowsMultiLooked will be equal to blockRowsData
             size_t nrowsMultiLooked = (nblocks == 1) ? blockRowsData : blockRowsData - halfOverlapSize;
             nrowsMultiLooked /= _azimuthLooks;
 
@@ -830,6 +835,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
         } else {
             // The first block
             size_t rowNewStart = 0;
+            // if there is only one block, the nrowsValid will be equal to blockRowsData
             size_t nrowsValid = (nblocks == 1) ? blockRowsData : blockRowsData - halfOverlapSize;
             std::slice dataSlice = std::slice(0, nrowsValid * ncols, 1);
             if (block > 0) {

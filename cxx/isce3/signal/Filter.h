@@ -101,7 +101,8 @@ class isce3::signal::Filter {
                                         size_t ncols,
                                         size_t nrows,
                                         const std::string& filterType,
-                                        const double windowParameter);
+                                        const double windowParameter,
+                                        const int maxFilterKernelSize = 256);
 
         /** Construct a kaiser range band-pass filter for one band
          * First constructs a time-domain FIR filter, then transforms to the frequency
@@ -113,7 +114,8 @@ class isce3::signal::Filter {
                              const double rangeSamplingFrequency,
                              const int fft_size,
                              const double beta,
-                             std::valarray<std::complex<T>>& filter1D);
+                             std::valarray<std::complex<T>>& filter1D,
+                             const int maxFilterKernelSize = 256);
 
         /** Construct azimuth common band filter*/
         double constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,

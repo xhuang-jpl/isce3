@@ -148,6 +148,7 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
  * @param[in] nrows number of rows of the block of data
  * @param[in] filterType type of the band-pass filter
  * @param[in] windowParameter filter parameter
+ * @param[in] maxFilterKernelSize maximum kernel size of the FIR filter in time domain
 
  */
 template <class T>
@@ -158,7 +159,8 @@ isce3::signal::Filter<T>::constructRangeCommonBandFilter(const double rangeSampl
                                         size_t ncols,
                                         size_t nrows,
                                         const std::string& filterType,
-                                        const double windowParameter)
+                                        const double windowParameter,
+                                        const int maxFilterKernelSize)
 {
 
     int fft_size = ncols;
@@ -173,7 +175,8 @@ isce3::signal::Filter<T>::constructRangeCommonBandFilter(const double rangeSampl
                             rangeSamplingFrequency,
                             fft_size,
                             windowParameter,
-                            _filter1D);
+                            _filter1D,
+                            maxFilterKernelSize);
     } else {
         std::cout << filterType << "filter has not been implemented" << std::endl;
     }
@@ -290,6 +293,7 @@ constructRangeBandpassCosine(std::valarray<double> subBandCenterFrequencies,
  * @param[in] fft_size length of the spectrum
  * @param[in] beta parameter for the kaiser filter
  * @param[out] filter1D one dimensional kaiser filter in frequency domain
+ * @param[in] maxFilterKernelSize maximum kernel size of the FIR in the time domain
  */
 template <class T>
 void
@@ -299,7 +303,8 @@ constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
                              const double rangeSamplingFrequency,
                              const int fft_size,
                              const double beta,
-                             std::valarray<std::complex<T>>& filter1D)
+                             std::valarray<std::complex<T>>& filter1D,
+                             const int maxFilterKernelSize)
 {
 
     if (filter1D.size() <= 0) filter1D.resize(fft_size);
@@ -312,11 +317,20 @@ constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
     _design_shaped_lowpass_filter(subBandBandwidth, rangeSamplingFrequency, beta, kaiser);
 
     const int sizeOfKaiser = kaiser.size();
-    const int halfSizeOfKaiser = (sizeOfKaiser - 1)/2;
-    if (fft_size < sizeOfKaiser) {
-        std::cout << "FFT size is less than the window size\n";
-        throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
-            "FFT size is less than the window size");
+    int halfSizeOfKaiser = (sizeOfKaiser - 1)/2;
+
+    if (maxFilterKernelSize < sizeOfKaiser) {
+        std::cout << "warning: kaiser kernel size is greater than maximum kernel size, the \n";
+
+        // Chunk the kaiser filter when the kernel size is greater than maximum kernel size
+        halfSizeOfKaiser = (maxFilterKernelSize - 1)/2;
+        const int start = (sizeOfKaiser - maxFilterKernelSize)/2;
+        std::valarray<std::complex<T>> newkaiserFilter(maxFilterKernelSize);
+        for (size_t i = start; i < start + maxFilterKernelSize; i++) {
+            newkaiserFilter[i-start] = kaiser[i];
+        }
+        kaiser.resize(maxFilterKernelSize);
+        kaiser = newkaiserFilter;
     }
 
     // Zero padding the filter in the middle

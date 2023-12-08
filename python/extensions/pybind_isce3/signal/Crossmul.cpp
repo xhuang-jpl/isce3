@@ -63,6 +63,9 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
         .def_property("window_parameter",
                 py::overload_cast<>(&Crossmul::windowParameter, py::const_),
                 py::overload_cast<double>(&Crossmul::windowParameter))
+        .def_property("sensor_type",
+                py::overload_cast<>(&Crossmul::sensorType, py::const_),
+                py::overload_cast<std::string>(&Crossmul::sensorType))
         .def_property("window_type",
                 py::overload_cast<>(&Crossmul::windowType, py::const_),
                 py::overload_cast<std::string>(&Crossmul::windowType))

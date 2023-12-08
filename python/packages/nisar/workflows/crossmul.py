@@ -80,6 +80,8 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
             do_common_azimuth_band_filter
         # do the flatten
         crossmul.do_flatten = flatten
+        # sensor type
+        crossmul.sensor_type = 'RS2'
 
     crossmul.range_looks = rg_looks
     crossmul.az_looks = az_looks

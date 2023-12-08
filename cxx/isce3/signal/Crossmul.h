@@ -8,6 +8,7 @@
 #include <isce3/core/LUT2d.h>
 #include <isce3/core/forward.h>
 #include <isce3/io/forward.h>
+#include <isce3/fft/FFTUtil.h>
 
 /** \brief Intereferogram generation by cross-multiplication of reference and secondary SLCs.
  *
@@ -128,6 +129,12 @@ class isce3::signal::Crossmul {
 
         /** Set the window type */
         inline void windowType(std::string windowType) { _windowType = windowType; }
+
+        /** Get sensor type*/
+        inline std::string sensorType() const { return _sensorType; }
+
+        /** Set the sensor type */
+        inline void sensorType(std::string sensorType) { _sensorType = sensorType;}
 
         /** Set common range band filtering flag */
         inline void doCommonRangeBandFilter(bool doRgBandFilter) {
@@ -277,6 +284,9 @@ class isce3::signal::Crossmul {
         // Processed azimuth bandwidth after the common band filtering in Hz
         double _processedAzimuthBandwidth = 0.0;
 
+        // Sensor type
+        std::string _sensorType = "NISAR";
+
         // Window type
         std::string _windowType = "kaiser";
 
@@ -303,6 +313,9 @@ class isce3::signal::Crossmul {
 
         // upsampling factor
         size_t _oversampleFactor = 1;
+
+        // maximum filter kernel size over the range
+        int _maxFilterKernelSize = 256;
 };
 
 // Get inline implementations for Crossmul
