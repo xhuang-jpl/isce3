@@ -39,10 +39,6 @@ TEST(Filter, constructAzimuthCommonBandFilter)
     std::valarray<double> dop1(nfft);
     std::valarray<double> dop2(nfft);
 
-    auto dop_lut2 = product.metadata().procInfo().dopplerCentroid('A');
-    dop1 = dop_lut2.eval(0,0);
-    dop2 = dop1;
-
     // get pulase repetition frequency (prf)
     double prf = swath.nominalAcquisitionPRF();
     std::cout << "prf: " << std::setprecision(16)<< prf << std::endl;

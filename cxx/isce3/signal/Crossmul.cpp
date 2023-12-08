@@ -780,7 +780,9 @@ crossmul(isce3::io::Raster& refSlcRaster,
             looksObj.multilook(ifgram, ifgramMultiLooked);
 
             size_t rowNewStart = 0;
-            size_t nrowsMultiLooked = (linesPerBlock - halfOverlapSize) / _azimuthLooks;
+            size_t nrowsMultiLooked = (nblocks == 1) ? blockRowsData : blockRowsData - halfOverlapSize;
+            nrowsMultiLooked /= _azimuthLooks;
+
             // The first block
             std::slice dataSlice = std::slice(0,ncolsMultiLooked * nrowsMultiLooked, 1);
             if (block > 0) {
@@ -826,11 +828,10 @@ crossmul(isce3::io::Raster& refSlcRaster,
             coherenceRaster.setBlock(coherenceSlice, 0, rowNewStart,
                                     ncolsMultiLooked,nrowsMultiLooked);
         } else {
-
             // The first block
             size_t rowNewStart = 0;
-            size_t nrowsValid = linesPerBlock - halfOverlapSize;
-            std::slice dataSlice = std::slice(0, nrowsValid, 1);
+            size_t nrowsValid = (nblocks == 1) ? blockRowsData : blockRowsData - halfOverlapSize;
+            std::slice dataSlice = std::slice(0, nrowsValid * ncols, 1);
             if (block > 0) {
                 rowNewStart = rowStart + halfOverlapSize;
                 if (block != (nblocks - 1)) {
