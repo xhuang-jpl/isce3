@@ -178,11 +178,11 @@ isce3::signal::Filter<T>::constructRangeCommonBandFilter(const double rangeSampl
         std::cout << filterType << "filter has not been implemented" << std::endl;
     }
 
-    //construct a block of the filter
-    const std::complex<T> norm(fft_size, 0.0);
+    // construct a block of the filter, and normalize the transform to recovery the
+    // input signal
     for (size_t line = 0; line < nrows; line++ ){
         for (size_t col = 0; col < fft_size; col++ ){
-            _filter[line*fft_size+col] = _filter1D[col] / norm;
+            _filter[line*fft_size+col] = _filter1D[col] / static_cast<T>(fft_size);
         }
     }
 }
@@ -604,9 +604,11 @@ constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
         meanDopCenterFreqShift += fshift;
         meanDopCenterFreq += fmid;
 
-        // Copy the the filter centered at fmid
+        // Copy the the filter centered at fmid to a block filter
+        // and Normalize the transform the recovery the input signal via
+        // dividing by fft_size
         for (size_t i = 0; i < filter1D.size(); ++i) {
-            _filter[i*ncols+j] = filter1D[i];
+            _filter[i*ncols+j] = filter1D[i] / static_cast<T>(fft_size);
         }
     }
 
