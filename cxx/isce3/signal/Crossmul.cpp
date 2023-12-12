@@ -335,7 +335,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
         isce3::io::Raster* rngOffsetRaster,
         isce3::io::Raster* aziOffsetRaster)
 {
-
     pyre::journal::info_t info("isce.signal.Crossmul.crossmul");
     pyre::journal::debug_t debug("isce.signal.Crossmul.crossmul");
 

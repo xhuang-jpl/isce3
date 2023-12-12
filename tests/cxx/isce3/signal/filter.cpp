@@ -57,7 +57,6 @@ TEST(Filter, constructAzimuthCommonBandFilter)
                                                   beta,
                                                   ncols, blockRows);
     filter.writeFilter(ncols, blockRows);
-
 }
 
 TEST(Filter, constructBoxcarRangeBandpassFilter)
@@ -115,6 +114,30 @@ TEST(Filter, constructBoxcarRangeBandpassFilter)
 
     //filter.writeFilter(ncols, blockRows);
 
+}
+
+TEST(Filter, constructRangeCommonBandKaiserFilter)
+{
+    //This test constructs a kaiser common band range band-pass FIR filter.
+    int fft_size = 256;
+    std::valarray<std::complex<float>> kaiser;
+
+    double subBandCenterFrequency = 0.0;
+    double subBandBandwidth = 2.0e6;
+    // Assume range sampling frequency equals bandwidth for this test
+    double rangeSamplingFrequency = 1.2 * subBandBandwidth;
+
+    isce3::signal::Filter<float> filter;
+    filter.constructRangeCommonBandKaiserFilter(subBandCenterFrequency,
+                                                subBandBandwidth,
+                                                rangeSamplingFrequency,
+                                                fft_size,
+                                                1.6,
+                                                kaiser);
+
+    ASSERT_LT(std::abs(std::abs(kaiser[0]) - 0.768964), 1.0e-6);
+    ASSERT_LT(std::abs(std::abs(kaiser[127]) - 0.234426), 1.0e-6);
+    ASSERT_LT(std::abs(std::abs(kaiser[255]) - 0.768879), 1.0e-6);
 }
 
 int main(int argc, char * argv[]) {
