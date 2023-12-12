@@ -124,7 +124,7 @@ TEST(Filter, constructRangeCommonBandKaiserFilter)
 
     double subBandCenterFrequency = 0.0;
     double subBandBandwidth = 2.0e6;
-    // Assume range sampling frequency equals bandwidth for this test
+    // Assume range sampling frequency equals 1.2 times bandwidth for this test
     double rangeSamplingFrequency = 1.2 * subBandBandwidth;
 
     isce3::signal::Filter<float> filter;
