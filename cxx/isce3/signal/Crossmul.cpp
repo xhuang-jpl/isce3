@@ -376,7 +376,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
                             _minRangeSpectrumOverlapFraction *
                             rangeBandwidth()/_rangeSamplingFrequency * 0.15);
         _maxFilterKernelSize = n;
-
         debug << "max range filter kernel size: " << _maxFilterKernelSize << pyre::journal::endl;
     }
 

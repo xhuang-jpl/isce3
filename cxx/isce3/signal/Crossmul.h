@@ -194,8 +194,7 @@ class isce3::signal::Crossmul {
         inline void getPeakIndex(std::valarray<float> data,
                                 size_t &peakIndex);
 
-        /** Range common band filtering block by block @insar2007product
-        */
+        /** Range common band filtering block by block @insar2007product */
         double rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                 std::valarray<std::complex<float>> &secSlc,
                 const std::valarray<std::complex<float>> &geometryIfgram,
