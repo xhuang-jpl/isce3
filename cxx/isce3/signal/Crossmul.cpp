@@ -100,20 +100,19 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     // (slope-dependent) wavenumber. This shift in frequency domain is
     // achieved by removing/adding the geometrical phase (representing topography)
     // from/to reference and secondary SLCs in time domain.
-    refSlc *= geometryIfgramConj;
-    secSlc *= geometryIfgram;
+    #pragma omp parallel for
+    for (size_t i = 0; i < refSlc.size(); i++) {
+        refSlc[i] *= geometryIfgramConj[i];
+        secSlc[i] *= geometryIfgram[i];
+    }
 
-    // range frequency shift, in Hz
-    double frequencyShift = 0.0;
-
-    // determine the frequency shift based on the power spectral density of
+    // determine the frequency shift, in Hz based on the power spectral density of
     // the geometrical interferometric phase using an empirical approach
-    rangeFrequencyShift(refSpectrum,
-                        secSpectrum,
-                        rangeFrequencies,
-                        blockLength,
-                        ncols,
-                        frequencyShift);
+    double frequencyShift = computeRangeFrequencyShift(refSpectrum,
+                                                       secSpectrum,
+                                                       rangeFrequencies,
+                                                       blockLength,
+                                                       ncols);
 
     debug << "rangeFrequencyShift (MHz): "<< frequencyShift/1e6 << pyre::journal::endl;
     debug << "range bandwidth (MHz): " << _rangeBandwidth/1e6 << pyre::journal::endl;
@@ -158,8 +157,11 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 
     // restore the original phase without the geometry phase
     // in case other steps will use the original phase
-    refSlc *= geometryIfgram;
-    secSlc *= geometryIfgramConj;
+    #pragma omp parallel for
+    for (size_t i = 0; i < refSlc.size(); i++) {
+        refSlc[i] *= geometryIfgram[i];
+        secSlc[i] *= geometryIfgramConj[i];
+    }
 
     return filterBandwidth;
 }

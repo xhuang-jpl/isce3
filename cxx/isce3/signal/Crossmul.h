@@ -115,16 +115,16 @@ class isce3::signal::Crossmul {
         inline double processedAzimuthBandwidth() const {
             return _processedAzimuthBandwidth; }
 
-        /** Set window parameter for the azimuth common band filter
+        /** Set window parameter for the common band filter
          The meaning of this parameter depends on the `window_type`.
          For a raised-cosine window, it is the pedestal height of the window.
          For a Kaiser window, it is the beta parameter.*/
         inline void windowParameter(double windowParameter) { _windowParameter = windowParameter; }
 
-        /** Get window parameter for the azimuth common band filter */
+        /** Get window parameter for the common band filter */
         inline double windowParameter() const { return _windowParameter; }
 
-        /** Get window type for the azimuth common band filter */
+        /** Get window type for the common band filter */
         inline std::string windowType() const { return _windowType; }
 
         /** Set the window type */
@@ -184,12 +184,11 @@ class isce3::signal::Crossmul {
         inline bool multiLookEnabled() const { return _multiLookEnabled; }
 
         /** Compute the avergae frequency shift in range direction between two SLCs*/
-        inline void rangeFrequencyShift(std::valarray<std::complex<float>> &refAvgSpectrum,
+        inline double computeRangeFrequencyShift(std::valarray<std::complex<float>> &refAvgSpectrum,
                 std::valarray<std::complex<float>> &secAvgSpectrum,
                 std::valarray<double> &rangeFrequencies,
                 size_t linesPerBlockData,
-                size_t fft_size,
-                double &frequencyShift);
+                size_t fft_size);
 
         /** estimate the index of the maximum of a vector of data */
         inline void getPeakIndex(std::valarray<float> data,

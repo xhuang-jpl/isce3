@@ -65,19 +65,18 @@ azimuthLooks(int azimuthLooks)
 }
 
 /** @param[in] refSpectrum the spectrum of a block of a complex data
-@param[in] secSpectrum the spectrum of a block of complex data
-@param[in] rangeFrequencies the frequencies in range direction
-@param[in] linesPerBlock number of rows in refSpectrum and secSpectrum
-@param[in] fft_size number of columns in refSpectrum and secSpectrum
-@param[out] estimated frequency shift between refSpectrum and secSpectrum
+ @param[in] secSpectrum the spectrum of a block of complex data
+ @param[in] rangeFrequencies the frequencies in range direction
+ @param[in] linesPerBlock number of rows in refSpectrum and secSpectrum
+ @param[in] fft_size number of columns in refSpectrum and secSpectrum
+ @return estimated frequency shift between refSpectrum and secSpectrum
 */
-void isce3::signal::Crossmul::
-rangeFrequencyShift(std::valarray<std::complex<float>> &refSpectrum,
+double isce3::signal::Crossmul::
+computeRangeFrequencyShift(std::valarray<std::complex<float>> &refSpectrum,
                     std::valarray<std::complex<float>> &secSpectrum,
                     std::valarray<double> &rangeFrequencies,
                     size_t linesPerBlock,
-                    size_t fft_size,
-                    double &frequencyShift)
+                    size_t fft_size)
 {
 
     std::valarray<float> refAvgSpectrum(fft_size);
@@ -108,8 +107,6 @@ rangeFrequencyShift(std::valarray<std::complex<float>> &refSpectrum,
     // get the index of the max of secAvgSpectrum
     getPeakIndex(secAvgSpectrum, idx2);
 
-    //std::cout << "idx1, idx2, columns: "<< idx1 << " , " << idx2 << ", " << fft_size <<std::endl;
-
     // use the smallest idx to determine the frequency shift
     // this is because their peaks can lie at two sides if
     // the fftshift operation is not performed.
@@ -117,7 +114,7 @@ rangeFrequencyShift(std::valarray<std::complex<float>> &refSpectrum,
 
     // frequency shift is the difference of the two peaks
     // i.e., two times of the offset of the one peak
-    frequencyShift = 2.0 * rangeFrequencies[idx];
+    return 2.0 * rangeFrequencies[idx];
 }
 
 /**@param[in] data a vector to be evaluated for the index of its maximum

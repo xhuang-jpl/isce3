@@ -188,6 +188,7 @@ isce3::signal::Filter<T>::constructRangeCommonBandFilter(const double rangeSampl
     // construct a block of the filter, and normalize the transform to recovery the
     // input signal
     for (size_t line = 0; line < nrows; line++ ){
+        #pragma omp parallel for
         for (size_t col = 0; col < fft_size; col++ ){
             _filter[line*fft_size+col] = _filter1D[col] / static_cast<T>(fft_size);
         }
