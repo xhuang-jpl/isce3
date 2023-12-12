@@ -1,6 +1,5 @@
 {
     "files.associations": {
-        "valarray": "cpp",
         "any": "cpp",
         "array": "cpp",
         "atomic": "cpp",
@@ -63,6 +62,7 @@
         "cinttypes": "cpp",
         "typeindex": "cpp",
         "typeinfo": "cpp",
+        "valarray": "cpp",
         "variant": "cpp"
     }
 }

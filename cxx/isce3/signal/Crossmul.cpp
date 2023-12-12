@@ -3,6 +3,7 @@
 #include "Filter.h"
 #include "Looks.h"
 #include "Signal.h"
+#include <pyre/journal.h>
 
 /**
  * Compute the frequency response due to a subpixel shift introduced by
@@ -89,6 +90,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                         size_t blockLength,
                         size_t ncols)
 {
+    pyre::journal::debug_t debug("isce.signal.Crossmul.rangeCommonBandFilter");
+
     // size of the arrays
     size_t vectorLength = refSlc.size();
 
@@ -112,8 +115,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                         ncols,
                         frequencyShift);
 
-    std::cout << " - rangeFrequencyShift (MHz): "<< frequencyShift/1e6 << std::endl;
-    std::cout << " - range bandwidth (MHz): " << _rangeBandwidth/1e6 << std::endl;
+    debug << "rangeFrequencyShift (MHz): "<< frequencyShift/1e6 << pyre::journal::endl;
+    debug << "range bandwidth (MHz): " << _rangeBandwidth/1e6 << pyre::journal::endl;
 
     // Since the spectrum of the ref and sec SLCs are already aligned,
     // we design the low-pass filter as a band-pass at zero frequency with
@@ -124,8 +127,11 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     if (_windowType == "kaiser") {
         auto [n, _] = rngFilter._kaiserord(40, 0.15 * filterBandwidth/_rangeSamplingFrequency);
         if (n > _maxFilterKernelSize) {
-            std::cout << "Max filter length exceeded due to insufficient "
-                      << "spectral overlap (perpendicular baseline is too large)\n";
+            pyre::journal::error_t err(
+                "isce.signal.Crossmul.rangeCommonBandFilter");
+            err << "Max filter length exceeded due to insufficient "
+                  << "spectral overlap (perpendicular baseline is too large)"
+                  << pyre::journal::endl;
             throw isce3::except::LengthError(ISCE_SRCINFO(),
                         "Max filter length exceeded due to insufficient spectral overlap (perpendicular baseline is too large)");
         }
@@ -236,7 +242,10 @@ isce3::signal::Crossmul::_maximum_kernel_size(std::valarray<double> &refDopplerC
             // get width at sample rate of filter.
             const double tw = transition_width * bw;
             if ((bw + tw / 2.0) > 1.0) {
-                std::cout << "Passband + transition cannot exceed Nyquist\n";
+                pyre::journal::error_t err(
+                    "isce.signal.Crossmul._maximum_kernel_size");
+                err << "Passband + transition cannot exceed Nyquis "
+                      << pyre::journal::endl;
                 throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
                         "Passband + transition cannot exceed Nyquist");
             }
@@ -325,6 +334,9 @@ crossmul(isce3::io::Raster& refSlcRaster,
         isce3::io::Raster* aziOffsetRaster)
 {
 
+    pyre::journal::info_t info("isce.signal.Crossmul.crossmul");
+    pyre::journal::debug_t debug("isce.signal.Crossmul.crossmul");
+
     // number of threads
     size_t nthreads = omp_thread_count();
 
@@ -363,7 +375,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                             rangeBandwidth()/_rangeSamplingFrequency * 0.15);
         _maxFilterKernelSize = n;
 
-        std::cout << " - max range filter kernel size = " << _maxFilterKernelSize << std::endl;
+        debug << "max range filter kernel size: " << _maxFilterKernelSize << pyre::journal::endl;
     }
 
     // Compute FFT size (power of 2) and set up the maximum range window size
@@ -390,7 +402,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
         refDoppCentroids.resize(fft_size); refDoppCentroids = 0.0;
         secDoppCentroids.resize(fft_size); secDoppCentroids = 0.0;
 
-        std::cout << " - compute the doppler centroids\n";
+        info << "determine the max azimuth kernel size" << pyre::journal::newline;
         _compute_DoppCentroids(_refDoppler, _secDoppler,
                                rngOffsetRaster,
                                aziOffsetRaster,
@@ -403,7 +415,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                                  _prf,
                                  _windowParameter,
                                  azimuthFilter);
-       std::cout << " - max azimuth window kernel size = " << maxKernelSize << std::endl;
+        debug << "max azimuth window kernel size: " << _maxFilterKernelSize << pyre::journal::endl;
 
         // to ensure the overlap size is an integer multiple number of azimuth looks.
         maxKernelSize = (maxKernelSize + _azimuthLooks) / _azimuthLooks;
@@ -646,9 +658,11 @@ crossmul(isce3::io::Raster& refSlcRaster,
     }
 
     // loop over all blocks
-    std::cout << "nblocks : " << nblocks << std::endl;
+    std::cout << "nblocks: " << nblocks << std::endl;
+    info << "nblocks: " << nblocks <<  pyre::journal::newline;
     for (size_t block = 0; block < nblocks; ++block) {
         std::cout << "block: " << block << std::endl;
+        info << "block: " << block <<  pyre::journal::newline;
         // start row for this block
         const auto rowStart = block * (linesPerBlock - overlapSize);
 
@@ -694,9 +708,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
         // common range band-pass filtering
         if (_doCommonRangeBandFilter) {
             // Some diagnostic messages to make sure everything has been configured
-            // TODO use journal instead of cout
-            std::cout << " - range pixel spacing (m): " << _rangePixelSpacing << std::endl;
-            std::cout << " - wavelength (m): " << _wavelength << std::endl;
+            debug << "range pixel spacing (m): " << _rangePixelSpacing << pyre::journal::endl;
+            debug << "wavelength (m): " << _wavelength << pyre::journal::endl;
 
             refWindowSignal.forward(refSlc, refSpectrum);
             secWindowSignal.forward(secSlc, secSpectrum);

@@ -6,6 +6,7 @@
 //
 
 #include "Filter.h"
+#include <pyre/journal.h>
 
 /**
  * @param[in] signal a block of data to filter
@@ -178,7 +179,10 @@ isce3::signal::Filter<T>::constructRangeCommonBandFilter(const double rangeSampl
                             _filter1D,
                             maxFilterKernelSize);
     } else {
-        std::cout << filterType << "filter has not been implemented" << std::endl;
+        pyre::journal::error_t err(
+                "isce.signal.Filter.constructRangeCommonBandFilter");
+        err << filterType <<" filter has not been implemented"
+              << pyre::journal::endl;
     }
 
     // construct a block of the filter, and normalize the transform to recovery the
@@ -320,8 +324,11 @@ constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
     int halfSizeOfKaiser = (sizeOfKaiser - 1)/2;
 
     if (maxFilterKernelSize < sizeOfKaiser) {
-        std::cout << "error: kaiser kernel size is greater "
-                  << "than maximum kernel size\n";
+        pyre::journal::error_t err(
+                "isce.signal.Filter.constructRangeCommonBandKaiserFilter");
+        err << "kaiser kernel size " << sizeOfKaiser <<" is greater han maximum kernel size"
+              << maxFilterKernelSize
+              << pyre::journal::endl;
         throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
                         "kaiser kernel size is greater than maximum kernel size");
     }
@@ -563,6 +570,8 @@ constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
                         size_t ncols,
                         size_t nrows)
 {
+    pyre::journal::debug_t debug("isce.signal.Filter.constructAzimuthCommonBandKaiserFilter");
+
     _filter.resize(ncols*nrows);
     _filter = std::complex<T>(0.0, 0.0);
     int fft_size = nrows;
@@ -592,10 +601,14 @@ constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
         const int sizeOfKaiser = kaiser.size();
         const int halfSizeOfKaiser = (sizeOfKaiser - 1)/2;
         if (fft_size < sizeOfKaiser) {
-            std::cout << "FFT size is less than the window size\n";
-            throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+            pyre::journal::error_t err(
+                    "isce.signal.Filter.constructAzimuthCommonBandKaiserFilter");
+            err << "FFT size is less than the window size "
+                << pyre::journal::endl;
+            throw isce3::except::LengthError(ISCE_SRCINFO(),
                 "FFT size is less than the window size");
         }
+
         // Zero padding the filter in the middle
         filter1D = std::complex<T>(0.0, 0.0);
         for (size_t ind = halfSizeOfKaiser; ind < sizeOfKaiser; ind ++) {
@@ -622,8 +635,8 @@ constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
     meanDopCenterFreq /= ncols;
     meanDopCenterFreqShift /= ncols;
 
-    std::cout << " - mean doppler center freq (Hz):" << meanDopCenterFreq << std::endl;
-    std::cout << " - mean doppler center freq shift (Hz):" << meanDopCenterFreqShift << std::endl;
+    debug << " - mean doppler center freq (Hz):" << meanDopCenterFreq << pyre::journal::endl;
+    debug << " - mean doppler center freq shift (Hz):" << meanDopCenterFreqShift << pyre::journal::endl;
 
     return (bandwidth - meanDopCenterFreqShift);
 }
@@ -713,9 +726,11 @@ isce3::signal::Filter<T>::_kaiserord(const double ripple, const double transitio
     const double A = std::abs(ripple);  // in case somebody is confused as to what's meant
     if (A < 8) {
         // Formula for N is not valid in this range.
-        std::cout << "Requested maximum ripple attentuation " << A
-                  << " is too small for the Kaiser formula.\n";
-
+        pyre::journal::error_t err(
+                "isce.signal.Filter._kaiserord");
+        err << "Requested maximum ripple attentuation " << A
+            << " is too small for the Kaiser formula."
+            << pyre::journal::endl;
          throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
                 "Requested maximum ripple attentuation is too small for the Kaiser formula.");
     }
@@ -825,7 +840,10 @@ isce3::signal::Filter<T>::_design_shaped_lowpass_filter(const double bandwidth,
     const double tw = transition_width * bw;
 
     if ((bw + tw / 2.0) > 1.0) {
-        std::cout << "Passband + transition cannot exceed Nyquist\n";
+        pyre::journal::error_t err(
+                "isce.signal.Filter._design_shaped_lowpass_filter");
+        err << "Passband + transition cannot exceed Nyquist"
+            << pyre::journal::endl;
         throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
                 "Passband + transition cannot exceed Nyquist");
     }
