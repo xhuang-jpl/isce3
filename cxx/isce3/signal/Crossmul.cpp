@@ -123,6 +123,16 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 
     std::string filterType = _windowType;
 
+    if (_windowType == "kaiser") {
+        auto [n, _] = rngFilter._kaiserord(40, 0.15 * filterBandwidth/_rangeSamplingFrequency);
+        if (n > _maxFilterKernelSize) {
+            std::cout << "Max filter length exceeded due to insufficient "
+                      << "spectral overlap (perpendicular baseline is too large)\n";
+            throw isce3::except::LengthError(ISCE_SRCINFO(),
+                        "Max filter length exceeded due to insufficient spectral overlap (perpendicular baseline is too large)");
+        }
+    }
+
     // Contruct the low pass filter for this block. This filter is
     // common for both SLCs
     rngFilter.constructRangeCommonBandFilter(_rangeSamplingFrequency,
@@ -344,6 +354,19 @@ crossmul(isce3::io::Raster& refSlcRaster,
     if (ifgRaster.width() != coherenceRaster.width())
         throw isce3::except::LengthError(ISCE_SRCINFO(),
                 "interferogram and coherence rasters width do not match");
+
+    // Compute the range sampling frequency in Hz using the range pixel spacing
+    _rangeSamplingFrequency = 1.0 / (_rangePixelSpacing*2.0/isce3::core::speed_of_light);
+    if (_doCommonRangeBandFilter) {
+        // Determine the max range filter kernel size
+        // 40 is the ripple, 0.15 is the default transition width
+        auto [n, _] = rangeFilter._kaiserord(40.0,
+                            _minRangeSpectrumOverlapFraction *
+                            rangeBandwidth()/_rangeSamplingFrequency * 0.15);
+        _maxFilterKernelSize = n;
+
+        std::cout << " - max range filter kernel size = " << _maxFilterKernelSize << std::endl;
+    }
 
     // Compute FFT size (power of 2) and set up the maximum range window size
     size_t fft_size = isce3::fft::nextFastPower(ncols + _maxFilterKernelSize);
@@ -574,9 +597,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
     // Retrieve the original filter to revert the range windowing effects
     std::valarray<std::complex<float>> originalRangeFilter;
-
-    // Compute the range sampling frequency in Hz using the range pixel spacing
-    _rangeSamplingFrequency = 1.0 / (_rangePixelSpacing*2.0/isce3::core::speed_of_light);
 
     if (_doCommonAzimuthBandFilter) {
         // Allocate storage for azimuth spectrum

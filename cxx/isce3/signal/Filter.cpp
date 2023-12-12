@@ -320,17 +320,10 @@ constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
     int halfSizeOfKaiser = (sizeOfKaiser - 1)/2;
 
     if (maxFilterKernelSize < sizeOfKaiser) {
-        std::cout << "warning: kaiser kernel size is greater "
-                  << "than maximum kernel size, the filter will be chunked \n";
-        // Chunk the kaiser filter when the kernel size is greater than maximum kernel size
-        halfSizeOfKaiser = (maxFilterKernelSize - 1)/2;
-        const int start = (sizeOfKaiser - maxFilterKernelSize)/2;
-        std::valarray<std::complex<T>> newkaiserFilter(maxFilterKernelSize);
-        for (size_t i = start; i < start + maxFilterKernelSize; i++) {
-            newkaiserFilter[i-start] = kaiser[i];
-        }
-        kaiser.resize(maxFilterKernelSize);
-        kaiser = newkaiserFilter;
+        std::cout << "error: kaiser kernel size is greater "
+                  << "than maximum kernel size\n";
+        throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+                        "kaiser kernel size is greater than maximum kernel size");
     }
 
     // Zero padding the filter in the middle

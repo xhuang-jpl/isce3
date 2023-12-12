@@ -314,8 +314,17 @@ class isce3::signal::Crossmul {
         // upsampling factor
         size_t _oversampleFactor = 1;
 
+        // minimum range spectrum overlap fraction between reference and secondary RSLC
+        double _minRangeSpectrumOverlapFraction = 0.2;
+
         // maximum filter kernel size over the range
-        int _maxFilterKernelSize = 256;
+        // which corresponding to about 20% range spectrum overlap
+        // Using the function kaiserord(40,1/1.5*0.15*0.2)
+        // where 1/1.5 is the bandwidth/fs, 0.15 is the default transition width
+        // 0.2 is the minimum overlapped spetrum fraction
+        // between reference and secodnay RSLC, then _maxFilterKernelSize is about 225
+        // NOTE: this paramer is only used when the range common band filter is enabled.
+        int _maxFilterKernelSize = 0;
 };
 
 // Get inline implementations for Crossmul
