@@ -121,8 +121,6 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     const double filterCenterFrequency = 0.0;
     const double filterBandwidth = _rangeBandwidth - fabs(frequencyShift);
 
-    std::string filterType = _windowType;
-
     if (_windowType == "kaiser") {
         auto [n, _] = rngFilter._kaiserord(40, 0.15 * filterBandwidth/_rangeSamplingFrequency);
         if (n > _maxFilterKernelSize) {
@@ -157,7 +155,7 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     refSlc *= geometryIfgram;
     secSlc *= geometryIfgramConj;
 
-    return (_rangeBandwidth - frequencyShift);
+    return filterBandwidth;
 }
 
 /**
