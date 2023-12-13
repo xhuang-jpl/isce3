@@ -170,6 +170,7 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 * @param[in] azimuthFilter a filter object
 * @param[in] blockLength number of rows
 * @param[in] ncols number of columns
+* @return the processed azimuth bandwidth
 */
 double isce3::signal::Crossmul::
 azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
@@ -209,7 +210,7 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 * @param[in] prf pule repeat frequency
 * @param[in] beta kaiser window parameter
 * @param[in] aziFilter azimuth filter
-
+* @return the maximum azimuth filter kernel size
 */
 int
 isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double> &refDopplerCentroids,
