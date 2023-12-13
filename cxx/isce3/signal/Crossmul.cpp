@@ -319,10 +319,10 @@ isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> 
     // process block by block
     #pragma omp parallel for
      for (size_t col = 0; col < ncols; col++) {
-            if (validNumbers[col] > 0) {
-                refDopplerCentroids[col] /= validNumbers[col];
-                secDopplerCentroids[col] /= validNumbers[col];
-            }
+        if (validNumbers[col] > 0) {
+            refDopplerCentroids[col] /= validNumbers[col];
+            secDopplerCentroids[col] /= validNumbers[col];
+        }
      }
 }
 
