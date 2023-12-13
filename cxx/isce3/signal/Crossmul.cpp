@@ -391,7 +391,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
     // Declare valarray for range and azimuth doppler centroids used by filter
     std::valarray<double> refDoppCentroids;
     std::valarray<double> secDoppCentroids;
-    int maxKernelSize = 0;
+    int maxAzimuthFilterKernelSize = 0;
     int overlapSize = 0;
     int halfOverlapSize = 0;
 
@@ -408,22 +408,25 @@ crossmul(isce3::io::Raster& refSlcRaster,
                                refDoppCentroids,
                                secDoppCentroids);
 
-       maxKernelSize = _computeMaxAzimuthFilterKernelSize(refDoppCentroids,
+       maxAzimuthFilterKernelSize = _computeMaxAzimuthFilterKernelSize(refDoppCentroids,
                                  secDoppCentroids,
                                  _azimuthBandwidth,
                                  _prf,
                                  _windowParameter,
                                  azimuthFilter);
 
-        debug << "max azimuth window kernel size: " << maxKernelSize << pyre::journal::endl;
+        debug << "max azimuth window kernel size: " << maxAzimuthFilterKernelSize
+              << pyre::journal::endl;
         // to ensure the overlap size is an integer multiple number of azimuth looks.
-        maxKernelSize = (maxKernelSize + _azimuthLooks) / _azimuthLooks;
+        maxAzimuthFilterKernelSize = (maxAzimuthFilterKernelSize + _azimuthLooks) / _azimuthLooks;
 
         // Force the kernel size to be even
-        maxKernelSize = (maxKernelSize%2 == 0) ? maxKernelSize : maxKernelSize + 1;
+        maxAzimuthFilterKernelSize =
+                (maxAzimuthFilterKernelSize%2 == 0) ?
+                     maxAzimuthFilterKernelSize : maxAzimuthFilterKernelSize + 1;
 
         // The overlap size will be even
-        overlapSize = maxKernelSize * _azimuthLooks;
+        overlapSize = maxAzimuthFilterKernelSize * _azimuthLooks;
         halfOverlapSize = overlapSize / 2;
 
         // Compute the lines per block to account for the overlaps between two blocks
