@@ -100,11 +100,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     // (slope-dependent) wavenumber. This shift in frequency domain is
     // achieved by removing/adding the geometrical phase (representing topography)
     // from/to reference and secondary SLCs in time domain.
-    #pragma omp parallel for
-    for (size_t i = 0; i < refSlc.size(); i++) {
-        refSlc[i] *= geometryIfgramConj[i];
-        secSlc[i] *= geometryIfgram[i];
-    }
+    refSlc *= geometryIfgramConj;
+    secSlc *= geometryIfgram;
 
     // determine the frequency shift, in Hz based on the power spectral density of
     // the geometrical interferometric phase using an empirical approach
@@ -157,11 +154,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 
     // restore the original phase without the geometry phase
     // in case other steps will use the original phase
-    #pragma omp parallel for
-    for (size_t i = 0; i < refSlc.size(); i++) {
-        refSlc[i] *= geometryIfgram[i];
-        secSlc[i] *= geometryIfgramConj[i];
-    }
+    refSlc *= geometryIfgram;
+    secSlc *= geometryIfgramConj;
 
     return filterBandwidth;
 }
@@ -218,7 +212,7 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 
 */
 int
-isce3::signal::Crossmul::_maximum_kernel_size(std::valarray<double> &refDopplerCentroids,
+isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double> &refDopplerCentroids,
                                     std::valarray<double> &secDopplerCentroids,
                                     const double bandwidth,
                                     const double prf,
@@ -268,7 +262,7 @@ isce3::signal::Crossmul::_maximum_kernel_size(std::valarray<double> &refDopplerC
 * @param[out] secDopplerCentroids blockLength number of rows
 */
 void
-isce3::signal::Crossmul::_compute_DoppCentroids(const isce3::core::LUT2d<double> & refDoppler,
+isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> & refDoppler,
                                     const isce3::core::LUT2d<double> & secDoppler,
                                     isce3::io::Raster* rngOffsetRaster,
                                     isce3::io::Raster* aziOffsetRaster,
@@ -287,19 +281,24 @@ isce3::signal::Crossmul::_compute_DoppCentroids(const isce3::core::LUT2d<double>
         secDopplerCentroids = 0.0;
     }
 
-    std::valarray<double> rangeOffsets(ncols);
-    std::valarray<double> azimuthOffsets(ncols);
     std::valarray<int> validNumbers(ncols);
     validNumbers = 0;
 
     // Compute the doppler centroids for the reference and secondary images
+    #pragma omp parallel for
     for (size_t row = 0; row < nrows; row++) {
-        rngOffsetRaster->getLine(rangeOffsets, row);
-        aziOffsetRaster->getLine(azimuthOffsets, row);
+        // Private variables for each thread
+        std::valarray<double> rangeOffsets(ncols);
+        std::valarray<double> azimuthOffsets(ncols);
 
-        #pragma omp parallel for
+        // Read the data thread by thread
+        #pragma omp critical
+        {
+            rngOffsetRaster->getLine(rangeOffsets, row);
+            aziOffsetRaster->getLine(azimuthOffsets, row);
+        }
+
         for (size_t col = 0; col < ncols; col++) {
-
             // Convert the line/pixel to range doppler coordinates
             double refX = col * rangePixelSpacing() + refStartRange();
             double refY = row / prf() + refStartAzimuthTime();
@@ -403,20 +402,20 @@ crossmul(isce3::io::Raster& refSlcRaster,
         secDoppCentroids.resize(fft_size); secDoppCentroids = 0.0;
 
         info << "determine the max azimuth kernel size" << pyre::journal::newline;
-        _compute_DoppCentroids(_refDoppler, _secDoppler,
+        _computeDoppCentroids(_refDoppler, _secDoppler,
                                rngOffsetRaster,
                                aziOffsetRaster,
                                refDoppCentroids,
                                secDoppCentroids);
 
-       maxKernelSize = _maximum_kernel_size(refDoppCentroids,
+       maxKernelSize = _computeMaxAzimuthFilterKernelSize(refDoppCentroids,
                                  secDoppCentroids,
                                  _azimuthBandwidth,
                                  _prf,
                                  _windowParameter,
                                  azimuthFilter);
-        debug << "max azimuth window kernel size: " << _maxFilterKernelSize << pyre::journal::endl;
 
+        debug << "max azimuth window kernel size: " << maxKernelSize << pyre::journal::endl;
         // to ensure the overlap size is an integer multiple number of azimuth looks.
         maxKernelSize = (maxKernelSize + _azimuthLooks) / _azimuthLooks;
 

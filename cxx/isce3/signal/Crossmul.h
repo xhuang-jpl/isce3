@@ -222,14 +222,14 @@ class isce3::signal::Crossmul {
                 size_t ncols);
 
     private:
-        void _compute_DoppCentroids(const isce3::core::LUT2d<double> & refDoppler,
+        void _computeDoppCentroids(const isce3::core::LUT2d<double> & refDoppler,
                                     const isce3::core::LUT2d<double> & secDoppler,
                                     isce3::io::Raster* rngOffsetRaster,
                                     isce3::io::Raster* aziOffsetRaster,
                                     std::valarray<double> &refDopplerCentroids,
                                     std::valarray<double> &secDopplerCentroids);
 
-        int _maximum_kernel_size(std::valarray<double> &refDopplerCentroids,
+        int _computeMaxAzimuthFilterKernelSize(std::valarray<double> &refDopplerCentroids,
                                     std::valarray<double> &secDopplerCentroids,
                                     const double bandwidth,
                                     const double prf,

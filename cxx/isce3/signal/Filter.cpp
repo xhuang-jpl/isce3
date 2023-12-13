@@ -187,8 +187,8 @@ isce3::signal::Filter<T>::constructRangeCommonBandFilter(const double rangeSampl
 
     // construct a block of the filter, and normalize the transform to recovery the
     // input signal
+    #pragma omp parallel for
     for (size_t line = 0; line < nrows; line++ ){
-        #pragma omp parallel for
         for (size_t col = 0; col < fft_size; col++ ){
             _filter[line*fft_size+col] = _filter1D[col] / static_cast<T>(fft_size);
         }
@@ -451,8 +451,13 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                             prf, windowParameter,
                             ncols, nrows);
     } else{
-         std::cout << filterType << " filter has not been implemented" << std::endl;
-         return bandwidth;
+        std::string err_str = filterType + " filter has not been implemented";
+        pyre::journal::error_t err(
+            "isce.signal.Filter.constructAzimuthCommonBandFilter");
+        err << err_str << pyre::journal::endl;
+        throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+            err_str);
+        return bandwidth;
     }
 }
 
