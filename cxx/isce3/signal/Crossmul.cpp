@@ -103,8 +103,12 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     // (slope-dependent) wavenumber. This shift in frequency domain is
     // achieved by removing/adding the geometrical phase (representing topography)
     // from/to reference and secondary SLCs in time domain.
-    refSlc *= geometryIfgramConj;
-    secSlc *= geometryIfgram;
+    #pragma omp parallel for
+    for (size_t i = 0; i < refSlc.size(); i++) {
+        refSlc[i] *= geometryIfgramConj[i];
+        secSlc[i] *= geometryIfgram[i];
+    }
+
 
     // determine the frequency shift, in Hz based on the power spectral density of
     // the geometrical interferometric phase using an empirical approach
@@ -158,8 +162,11 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 
     // restore the original phase without the geometry phase
     // in case other steps will use the original phase
-    refSlc *= geometryIfgram;
-    secSlc *= geometryIfgramConj;
+    #pragma omp parallel for
+    for (size_t i = 0; i < refSlc.size(); i++) {
+        refSlc[i] *= geometryIfgram[i];
+        secSlc[i] *= geometryIfgramConj[i];
+    }
 
     return filterBandwidth;
 }
@@ -854,11 +861,11 @@ crossmul(isce3::io::Raster& refSlcRaster,
                 rowNewStart = (rowStart + halfOverlapSize)/_azimuthLooks;
                 if (block != (nblocks - 1)) {
                     nrowsMultiLooked = (blockRowsData - overlapSize) / _azimuthLooks;
-                    dataSlice = std::slice(halfOverlapSize/_azimuthLooks*ncolsMultiLooked,
+                    dataSlice = std::slice(halfOverlapSize/_azimuthLooks * ncolsMultiLooked,
                                     ncolsMultiLooked * nrowsMultiLooked, 1);
                 } else { // The last block
                     nrowsMultiLooked = (blockRowsData - halfOverlapSize) / _azimuthLooks;
-                    dataSlice = std::slice(halfOverlapSize/_azimuthLooks*ncolsMultiLooked,
+                    dataSlice = std::slice(halfOverlapSize/_azimuthLooks * ncolsMultiLooked,
                                     ncolsMultiLooked * nrowsMultiLooked, 1);
                 }
             }

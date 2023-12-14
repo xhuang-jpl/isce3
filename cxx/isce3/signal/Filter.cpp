@@ -450,7 +450,8 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                             prf, windowParameter,
                             ncols, nrows);
 
-    } else if (filterType=="kaiser"){
+    }
+    if (filterType=="kaiser"){
         // Kaiser filter is constructed in the time domain
         return constructAzimuthCommonBandKaiserFilter(
                             refDoppler,
@@ -458,14 +459,14 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                             bandwidth,
                             prf, windowParameter,
                             ncols, nrows);
-    } else{
-        std::string err_str = filterType + " filter has not been implemented";
-        pyre::journal::error_t err(
-            "isce.signal.Filter.constructAzimuthCommonBandFilter");
-        err << err_str << pyre::journal::endl;
-        throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
-            err_str);
     }
+    
+    std::string err_str = filterType + " filter has not been implemented";
+    pyre::journal::error_t err(
+        "isce.signal.Filter.constructAzimuthCommonBandFilter");
+    err << err_str << pyre::journal::endl;
+    throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+        err_str);
 }
 
 /**
