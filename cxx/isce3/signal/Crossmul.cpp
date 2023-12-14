@@ -208,11 +208,11 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 /**
 * @param[in] refDopplerCentroids doppler centroid frequency for reference
 * @param[in] secDopplerCentroids doppler centroid frequency for secondary
-* @param[in] bandwidth bandwidth
-* @param[in] prf pule repeat frequency
+* @param[in] bandwidth intput SLCs bandwidth
+* @param[in] prf pulse repeat frequency
 * @param[in] beta kaiser window parameter
 * @param[in] aziFilter azimuth filter
-* @return the maximum azimuth filter kernel size
+* @returns the maximum azimuth filter kernel size
 */
 int
 isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double> &refDopplerCentroids,
@@ -269,8 +269,8 @@ isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double
 * @param[in] refDoppler 2d LUT doppler centroid frequency for reference
 * @param[in] secDoppler 2d LUT doppler centroid frequency for secondary
 * @param[in] rngOffsetRaster range offset product pointer
-* @param[out] refDopplerCentroids blockLength number of rows
-* @param[out] secDopplerCentroids blockLength number of rows
+* @param[out] refDopplerCentroids azimuth mean reference doppler centroids
+* @param[out] secDopplerCentroids azimuth mean secondary doppler centroids
 */
 void
 isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> & refDoppler,

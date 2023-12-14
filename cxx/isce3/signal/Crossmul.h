@@ -314,7 +314,7 @@ class isce3::signal::Crossmul {
         // minimum range spectrum overlap fraction between reference and secondary RSLC
         double _minRangeSpectrumOverlapFraction = 0.2;
 
-        // ripple for the range FIR filter
+        // ripple for the FIR filter
         double _ripple = 40.0;
 
         // transition width
