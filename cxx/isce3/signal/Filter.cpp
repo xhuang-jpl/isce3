@@ -605,7 +605,10 @@ constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
     isce3::signal::Signal<T> doppSignal;
     doppSignal.forwardRangeFFT(filter1D, filter1D, fft_size, 1);
 
+    // azimuth mean doppler centroid frequency, in Hz
     double meanDopCenterFreq = 0.0;
+
+    // azimuth mean doppler center frequency shift, in Hz
     double meanDopCenterFreqShift = 0.0;
 
     // Loop over range bins
@@ -637,10 +640,11 @@ constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
         if (fft_size < sizeOfKaiser) {
             pyre::journal::error_t err(
                     "isce.signal.Filter.constructAzimuthCommonBandKaiserFilter");
-            err << "FFT size is less than the window size "
+            err << "FFT size " << fft_size <<" is less than the filter kernel size "
+                << sizeOfKaiser
                 << pyre::journal::endl;
             throw isce3::except::LengthError(ISCE_SRCINFO(),
-                "FFT size is less than the window size");
+                "FFT size is less than the filter kernel size");
         }
 
         // Zero padding the filter in the middle
@@ -659,7 +663,7 @@ constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
         meanDopCenterFreq += fmid;
 
         // Copy the the filter centered at fmid to a block filter
-        // and Normalize the transform the recovery the input signal via
+        // and normalize the transform to recovery the input signal via
         // dividing by fft_size
         for (size_t i = 0; i < filter1D.size(); ++i) {
             _filter[i*ncols+j] = filter1D[i] / static_cast<T>(fft_size);
