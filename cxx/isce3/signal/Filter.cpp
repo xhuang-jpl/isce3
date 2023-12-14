@@ -427,6 +427,7 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
 * @param[in] spectrum of the block of data
 * @param[in] ncols number of columns of the block of data
 * @param[in] nrows number of rows of the block of data
+* @return new bandwidth
 */
 template <class T>
 double
@@ -441,6 +442,7 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                     std::string& filterType)
 {
     if (filterType=="cosine"){
+        // Cosine filter is constructed in the frequency domain
         return constructAzimuthCommonBandCosineFilter(
                             refDoppler,
                             secDoppler,
@@ -449,6 +451,7 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                             ncols, nrows);
 
     } else if (filterType=="kaiser"){
+        // Kaiser filter is constructed in the time domain
         return constructAzimuthCommonBandKaiserFilter(
                             refDoppler,
                             secDoppler,
