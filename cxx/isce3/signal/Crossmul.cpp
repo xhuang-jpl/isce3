@@ -605,10 +605,13 @@ crossmul(isce3::io::Raster& refSlcRaster,
     // upsampled block of secondary SLC
     std::valarray<std::complex<float>> secSlcUpsampled;
 
-    // only resize valarrays and init FFT when oversampling
-    if (_oversampleFactor > 1) {
+    if ((_oversampleFactor > 1) || _doCommonRangeBandFilter) {
         refSpectrum.resize(spectrumSize);
         secSpectrum.resize(spectrumSize);
+    }
+
+    // only resize valarrays and init FFT when oversampling
+    if (_oversampleFactor > 1) {
 
         refSpectrumUpsampled.resize(spectrumUpsampleSize);
         secSpectrumUpsampled.resize(spectrumUpsampleSize);
@@ -651,9 +654,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
     if (_doCommonRangeBandFilter) {
         geometryIfgram.resize(spectrumSize);
-        refSpectrum.resize(spectrumSize);
-        secSpectrum.resize(spectrumSize);
-
         rangeFrequencies.resize(fft_size);
 
         // Compute the range frequency for each pixel
