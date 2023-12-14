@@ -26,6 +26,10 @@ TEST(Crossmul, RunCrossmul)
     //a raster object for the reference SLC
     isce3::io::Raster referenceSlc(TESTDATA_DIR "warped_envisat.slc.vrt");
 
+    //a raster object for the range and azimuth offsets
+    isce3::io::Raster aziOffsets(TESTDATA_DIR "envisat_offsets.tif");
+    isce3::io::Raster rngOffsets(TESTDATA_DIR "envisat_offsets.tif");
+
     // get the length and width of the SLC
     int width = referenceSlc.width();
     int length = referenceSlc.length();
@@ -48,7 +52,8 @@ TEST(Crossmul, RunCrossmul)
     isce3::product::RadarGridProduct product(file);
 
     // get the Doppler for refernce SLC
-    isce3::core::LUT2d<double> dop1 = product.metadata().procInfo().dopplerCentroid('A');
+    const char freq = 'A';
+    isce3::core::LUT2d<double> dop1 = product.metadata().procInfo().dopplerCentroid(freq);
 
     // Since this test careates an interferogram between the refernce SLC and itself,
     // the second Doppler is the same as the first
@@ -66,8 +71,34 @@ TEST(Crossmul, RunCrossmul)
     // set number of interferogram looks in azimuth
     crsmul.azimuthLooks(1);
 
+    // set the product information for the common band filtering and flattenning
+    const double wavelength = product.swath(freq).processedWavelength();
+    const double azimuthBandwidth = product.swath(freq).processedAzimuthBandwidth();
+    const double rangeBandwidth = product.swath(freq).processedRangeBandwidth();
+    const double prf = product.swath(freq).nominalAcquisitionPRF();
+    const double rngPixelSampling =  product.swath(freq).rangePixelSpacing();
+    const double startAzimuthTime = product.swath(freq).zeroDopplerTime()[0];
+    const double startSlantRange = product.swath(freq).slantRange()[0];
+
+    crsmul.wavelength(wavelength);
+    crsmul.prf(prf);
+    crsmul.rangePixelSpacing(rngPixelSampling);
+    crsmul.azimuthBandwidth(azimuthBandwidth);
+    crsmul.rangeBandwidth(rangeBandwidth);
+    crsmul.refStartRange(startSlantRange);
+    crsmul.secStartRange(startSlantRange);
+    crsmul.refStartAzimuthTime(startAzimuthTime);
+    crsmul.secStartAzimuthTime(startAzimuthTime);
+
+    // Enable the flattening and common band filtering
+    crsmul.doFlatten(true);
+    crsmul.doCommonRangeBandFilter(true);
+    crsmul.doCommonAzimuthBandFilter(true);
+
     // running crossmul
-    crsmul.crossmul(referenceSlc, referenceSlc, interferogram, coherence);
+    crsmul.crossmul(referenceSlc, referenceSlc,
+                    interferogram, coherence,
+                    &rngOffsets, &aziOffsets);
 
     // an array for the computed interferogram
     std::valarray<std::complex<float>> data(width*length);
@@ -96,6 +127,10 @@ TEST(Crossmul, RunCrossmulMLook)
     //a raster object for the reference SLC
     isce3::io::Raster referenceSlc(TESTDATA_DIR "warped_envisat.slc.vrt");
 
+    //a raster object for the range and azimuth offsets
+    isce3::io::Raster aziOffsets(TESTDATA_DIR "envisat_offsets.tif");
+    isce3::io::Raster rngOffsets(TESTDATA_DIR "envisat_offsets.tif");
+
     // define looks
     const int rngLooks = 3;
     const int azLooks = 13;
@@ -122,7 +157,8 @@ TEST(Crossmul, RunCrossmulMLook)
     isce3::product::RadarGridProduct product(file);
 
     // get the Doppler polynomial for refernce SLC
-    isce3::core::LUT2d<double> dop1 = product.metadata().procInfo().dopplerCentroid('A');
+    const char freq = 'A';
+    isce3::core::LUT2d<double> dop1 = product.metadata().procInfo().dopplerCentroid(freq);
 
     // Since this test careates an interferogram between the refernce SLC and itself,
     // the second Doppler is the same as the first
@@ -140,8 +176,34 @@ TEST(Crossmul, RunCrossmulMLook)
     // set number of interferogram looks in azimuth
     crsmul.azimuthLooks(azLooks);
 
+    // set the product information for the common band filtering and flattenning
+    const double wavelength = product.swath(freq).processedWavelength();
+    const double azimuthBandwidth = product.swath(freq).processedAzimuthBandwidth();
+    const double rangeBandwidth = product.swath(freq).processedRangeBandwidth();
+    const double prf = product.swath(freq).nominalAcquisitionPRF();
+    const double rngPixelSampling =  product.swath(freq).rangePixelSpacing();
+    const double startAzimuthTime = product.swath(freq).zeroDopplerTime()[0];
+    const double startSlantRange = product.swath(freq).slantRange()[0];
+
+    crsmul.wavelength(wavelength);
+    crsmul.prf(prf);
+    crsmul.rangePixelSpacing(rngPixelSampling);
+    crsmul.azimuthBandwidth(azimuthBandwidth);
+    crsmul.rangeBandwidth(rangeBandwidth);
+    crsmul.refStartRange(startSlantRange);
+    crsmul.secStartRange(startSlantRange);
+    crsmul.refStartAzimuthTime(startAzimuthTime);
+    crsmul.secStartAzimuthTime(startAzimuthTime);
+
+    // Enable the flattening and common band filtering
+    crsmul.doFlatten(true);
+    crsmul.doCommonRangeBandFilter(true);
+    crsmul.doCommonAzimuthBandFilter(true);
+
     // running crossmul
-    crsmul.crossmul(referenceSlc, referenceSlc, interferogram, coherence);
+    crsmul.crossmul(referenceSlc, referenceSlc,
+                    interferogram, coherence,
+                    &rngOffsets, &aziOffsets);
 
     // an array for the computed interferogram
     std::valarray<std::complex<float>> data(width*length);

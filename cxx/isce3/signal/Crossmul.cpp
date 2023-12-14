@@ -651,6 +651,9 @@ crossmul(isce3::io::Raster& refSlcRaster,
 
     if (_doCommonRangeBandFilter) {
         geometryIfgram.resize(spectrumSize);
+        refSpectrum.resize(spectrumSize);
+        secSpectrum.resize(spectrumSize);
+
         rangeFrequencies.resize(fft_size);
 
         // Compute the range frequency for each pixel
