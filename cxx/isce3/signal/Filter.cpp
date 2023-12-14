@@ -127,7 +127,12 @@ constructRangeBandpassFilter(double rangeSamplingFrequency,
                             beta,
                             _filter1D);
     } else {
-        std::cout << filterType << " filter has not been implemented" << std::endl;
+        std::string err_str = filterType + " filter has not been implemented";
+        pyre::journal::error_t err(
+            "isce.signal.Filter.constructRangeBandpassFilter");
+        err << err_str << pyre::journal::endl;
+        throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+            err_str);
     }
 
     //construct a block of the filter with normalization
@@ -457,7 +462,6 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
         err << err_str << pyre::journal::endl;
         throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
             err_str);
-        return bandwidth;
     }
 }
 
@@ -499,19 +503,27 @@ constructAzimuthCommonBandCosineFilter(const std::valarray<double> & refDoppler,
     std::valarray<double> frequency(fft_size);
     fftfreq(1.0/prf, frequency);
 
+    // mean doppler center frequency and
+    // dopper frequency shift between Reference and Secondary
     double meanDopCenterFreq = 0.0;
     double meanDopCenterFreqShift = 0.0;
+
     // Loop over range bins
     for (int j = 0; j < ncols; ++j) {
-        // Compute center frequency of common band
-        // I think we need the range offsets here to restore the fDC
-        // for the secondary doppler since it is the resampled RSLC
-        // middle frequency for the reference SLC
         double refFreq = refDoppler[j];
         double secFreq = secDoppler[j];
 
         double fmid =  0.5 * (refFreq + secFreq);
         double fshift = std::abs(refFreq - secFreq);
+
+        if (fshift > bandwidth) {
+            pyre::journal::error_t err(
+                    "isce.signal.Filter.constructAzimuthCommonBandCosineFilter");
+            err << "Bandwith is less than frequency shift"
+                << pyre::journal::endl;
+            throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+                "Bandwith is less than frequency shift");
+        }
 
         meanDopCenterFreqShift += fshift;
         meanDopCenterFreq += fmid;
@@ -567,6 +579,7 @@ constructAzimuthCommonBandCosineFilter(const std::valarray<double> & refDoppler,
 * @param[in] spectrum of the block of data
 * @param[in] ncols number of columns of the block of data
 * @param[in] nrows number of rows of the block of data
+* @returns common azimuth bandwidth
 */
 template <class T>
 double

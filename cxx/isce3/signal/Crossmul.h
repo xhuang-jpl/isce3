@@ -302,7 +302,7 @@ class isce3::signal::Crossmul {
         // range signal bandwidth in Hz
         double _rangeBandwidth = 0.0;
 
-        // Processed range bandwidth after the common band filtering in Hz
+        // Processed range bandwidth after the common band filtering, in Hz
         double _processedRangeBandwidth = 0.0;
 
         // number of lines per block
