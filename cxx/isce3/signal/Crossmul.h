@@ -228,10 +228,12 @@ class isce3::signal::Crossmul {
                                     isce3::io::Raster* rngOffsetRaster,
                                     isce3::io::Raster* aziOffsetRaster,
                                     std::valarray<double> &refDopplerCentroids,
-                                    std::valarray<double> &secDopplerCentroids);
+                                    std::valarray<double> &secDopplerCentroids,
+                                    std::valarray<int> &numOfValidDopplerCentroids);
 
         int _computeMaxAzimuthFilterKernelSize(std::valarray<double> &refDopplerCentroids,
                                     std::valarray<double> &secDopplerCentroids,
+                                    std::valarray<int> &numOfValidDopplerCentroids,
                                     const double bandwidth,
                                     const double prf,
                                     const double beta,

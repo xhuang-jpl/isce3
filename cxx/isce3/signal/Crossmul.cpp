@@ -208,6 +208,7 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 /**
 * @param[in] refDopplerCentroids doppler centroid frequency for reference
 * @param[in] secDopplerCentroids doppler centroid frequency for secondary
+* @param[in] numOfDopplerCentroids number of valid doppler centroids
 * @param[in] bandwidth intput SLCs bandwidth
 * @param[in] prf pulse repeat frequency
 * @param[in] beta kaiser window parameter
@@ -217,6 +218,7 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 int
 isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double> &refDopplerCentroids,
                                     std::valarray<double> &secDopplerCentroids,
+                                     std::valarray<int> &numOfValidDopplerCentroids,
                                     const double bandwidth,
                                     const double prf,
                                     const double beta,
@@ -227,7 +229,7 @@ isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double
     // Loop over columns to get the maximum kernel size
    #pragma omp parallel for reduction(max:max_kernel_size)
     for (size_t j = 0; j < refDopplerCentroids.size(); ++j) {
-        if (std::abs(refDopplerCentroids[j]) > 0 && std::abs(secDopplerCentroids[j]) > 0) {
+        if (numOfValidDopplerCentroids[j] > 0) {
             double refFreq = refDopplerCentroids[j];
             double secFreq = secDopplerCentroids[j];
             double fshift = std::abs(refFreq - secFreq);
@@ -251,7 +253,7 @@ isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double
             if ((bw + tw / 2.0) > 1.0) {
                 pyre::journal::error_t err(
                     "isce.signal.Crossmul._maximum_kernel_size");
-                err << "Passband + transition cannot exceed Nyquis "
+                err << "Passband + transition cannot exceed Nyquist"
                       << pyre::journal::endl;
                 throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
                         "Passband + transition cannot exceed Nyquist");
@@ -271,6 +273,8 @@ isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double
 * @param[in] rngOffsetRaster range offset product pointer
 * @param[out] refDopplerCentroids azimuth mean reference doppler centroids
 * @param[out] secDopplerCentroids azimuth mean secondary doppler centroids
+* @param[out] numOfValidDopplerCentroids number of valid doppler centroids
+
 */
 void
 isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> & refDoppler,
@@ -278,7 +282,8 @@ isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> 
                                     isce3::io::Raster* rngOffsetRaster,
                                     isce3::io::Raster* aziOffsetRaster,
                                     std::valarray<double> &refDopplerCentroids,
-                                    std::valarray<double> &secDopplerCentroids)
+                                    std::valarray<double> &secDopplerCentroids,
+                                    std::valarray<int> &numOfValidDopplerCentroids)
 {
     const size_t ncols = rngOffsetRaster->width();
     const size_t nrows = rngOffsetRaster->length();
@@ -291,9 +296,10 @@ isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> 
         secDopplerCentroids.resize(ncols);
         secDopplerCentroids = 0.0;
     }
-
-    std::valarray<int> validNumbers(ncols);
-    validNumbers = 0;
+    if (numOfValidDopplerCentroids.size() <= 0) {
+        numOfValidDopplerCentroids.resize(ncols);
+        numOfValidDopplerCentroids = 0;
+    }
 
     // Compute the doppler centroids for the reference and secondary images
     #pragma omp parallel for
@@ -321,7 +327,7 @@ isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> 
             if (refDoppler.contains(refY, refX) && secDoppler.contains(secY, secX)) {
                 refDopplerCentroids[col] += refDoppler.eval(refY, refX);
                 secDopplerCentroids[col] += secDoppler.eval(secY, secX);
-                validNumbers[col]++;
+                numOfValidDopplerCentroids[col]++;
             }
         }
     }
@@ -330,9 +336,9 @@ isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> 
     // process block by block
     #pragma omp parallel for
      for (size_t col = 0; col < ncols; col++) {
-        if (validNumbers[col] > 0) {
-            refDopplerCentroids[col] /= validNumbers[col];
-            secDopplerCentroids[col] /= validNumbers[col];
+        if (numOfValidDopplerCentroids[col] > 0) {
+            refDopplerCentroids[col] /= numOfValidDopplerCentroids[col];
+            secDopplerCentroids[col] /= numOfValidDopplerCentroids[col];
         }
      }
 }
@@ -405,6 +411,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
     // Declare valarray for range and azimuth doppler centroids used by filter
     std::valarray<double> refDoppCentroids;
     std::valarray<double> secDoppCentroids;
+    std::valarray<int> numOfValidDoppCentroids;
     int maxAzimuthFilterKernelSize = 0;
     int overlapSize = 0;
     int halfOverlapSize = 0;
@@ -414,16 +421,19 @@ crossmul(isce3::io::Raster& refSlcRaster,
         // the reference and secondary images for each slant range
         refDoppCentroids.resize(fft_size); refDoppCentroids = 0.0;
         secDoppCentroids.resize(fft_size); secDoppCentroids = 0.0;
+        numOfValidDoppCentroids.resize(fft_size); numOfValidDoppCentroids = 0;
 
         info << "determine the max azimuth kernel size" << pyre::journal::newline;
         _computeDoppCentroids(_refDoppler, _secDoppler,
                                rngOffsetRaster,
                                aziOffsetRaster,
                                refDoppCentroids,
-                               secDoppCentroids);
+                               secDoppCentroids,
+                               numOfValidDoppCentroids);
 
        maxAzimuthFilterKernelSize = _computeMaxAzimuthFilterKernelSize(refDoppCentroids,
                                  secDoppCentroids,
+                                 numOfValidDoppCentroids,
                                  _azimuthBandwidth,
                                  _prf,
                                  _windowParameter,
