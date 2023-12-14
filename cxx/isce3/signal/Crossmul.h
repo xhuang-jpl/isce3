@@ -282,7 +282,7 @@ class isce3::signal::Crossmul {
         double _processedAzimuthBandwidth = 0.0;
 
         // Sensor type
-        std::string _sensorType = "NISAR";
+        std::string _sensorType = "";
 
         // Window type
         std::string _windowType = "kaiser";

@@ -81,7 +81,8 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
         # do the flatten
         crossmul.do_flatten = flatten
         # sensor type
-        crossmul.sensor_type = 'RS2'
+        crossmul.sensor_type = \
+            ref_slc.identification.missionId
 
     crossmul.range_looks = rg_looks
     crossmul.az_looks = az_looks
