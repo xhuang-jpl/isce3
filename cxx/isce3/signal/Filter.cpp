@@ -415,7 +415,7 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
 /**
 * @param[in] refDoppler Doppler Centroids, in Hz, of the reference SLC w.r.t slant range axis
 * @param[in] secDoppler Doppler Centroids, in Hz, of the secondary SLC w.r.t slant range axis
-* @param[in] bandwidth common bandwidth in azimuth, in Hz
+* @param[in] bandwidth input bandwidth in azimuth, in Hz
 * @param[in] prf pulse repetition frequency, in Hz
 * @param[in] windowParameter window parameter of the filter
 * @param[in] signal a block of data to filter
@@ -464,7 +464,7 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
 /**
 * @param[in] refDoppler Doppler Centroids, in Hz, of the reference SLC w.r.t slant range axis
 * @param[in] secDoppler Doppler Centroids, in Hz, of the secondary SLC w.r.t slant range axis
-* @param[in] bandwidth common bandwidth in azimuth, in Hz
+* @param[in] bandwidth input bandwidth in azimuth, in Hz
 * @param[in] prf pulse repetition frequency, in Hz
 * @param[in] beta parameter for raised cosine filter
 * @param[in] signal a block of data to filter
@@ -519,7 +519,10 @@ constructAzimuthCommonBandCosineFilter(const std::valarray<double> & refDoppler,
         for (size_t i = 0; i < frequency.size(); ++i) {
 
             // Get the absolute value of shifted frequency
-            const double freq = std::abs(frequency[i] - fmid);
+            double freq = std::abs(frequency[i] - fmid);
+
+            // Wrap the frequency within the RPF
+            freq = freq - int(freq/prf) * prf;
 
             // Passband
             if (freq <= (0.5 * bandwidth - df)) {
@@ -557,7 +560,7 @@ constructAzimuthCommonBandCosineFilter(const std::valarray<double> & refDoppler,
 /**
 * @param[in] refDoppler Doppler Centroids, in Hz, of the reference SLC w.r.t slant range axis
 * @param[in] secDoppler Doppler Centroids, in Hz, of the secondary SLC w.r.t slant range axis
-* @param[in] bandwidth common bandwidth in azimuth, in Hz
+* @param[in] bandwidth input bandwidth in azimuth, in Hz
 * @param[in] prf pulse repetition frequency, in Hz
 * @param[in] beta parameter for kaiser filter
 * @param[in] signal a block of data to filter
@@ -597,6 +600,15 @@ constructAzimuthCommonBandKaiserFilter(const std::valarray<double> & refDoppler,
 
         double fmid =  0.5 * (refFreq + secFreq);
         double fshift = std::abs(refFreq - secFreq);
+
+        if (bandwidth < fshift) {
+            pyre::journal::error_t err(
+                    "isce.signal.Filter.constructAzimuthCommonBandKaiserFilter");
+            err << "Bandwith is less than frequency shift"
+                << pyre::journal::endl;
+            throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+                "Bandwith is less than frequency shift");
+        }
 
         std::valarray<std::complex<T>> kaiser;
         _design_shaped_lowpass_filter(bandwidth - fshift, prf, beta, kaiser);

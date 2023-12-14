@@ -77,6 +77,8 @@ size_t omp_thread_count() {
 * @param[in] rngFilter a filter object
 * @param[in] blockLength number of rows
 * @param[in] ncols number of columns
+* @param[in] maxRangeFilterKernelSize maximum range filter kernel size
+* @returns the common bandwidth
 */
 double isce3::signal::Crossmul::
 rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
@@ -88,7 +90,8 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                         std::valarray<double> &rangeFrequencies,
                         isce3::signal::Filter<float> &rngFilter,
                         size_t blockLength,
-                        size_t ncols)
+                        size_t ncols,
+                        const size_t maxRangeFilterKernelSize)
 {
     pyre::journal::debug_t debug("isce.signal.Crossmul.rangeCommonBandFilter");
 
@@ -121,8 +124,9 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
     const double filterBandwidth = _rangeBandwidth - fabs(frequencyShift);
 
     if (_windowType == "kaiser") {
-        auto [n, _] = rngFilter._kaiserord(40, 0.15 * filterBandwidth/_rangeSamplingFrequency);
-        if (n > _maxFilterKernelSize) {
+        auto [n, _] = rngFilter._kaiserord(_ripple,
+                                          _transitionWidth * filterBandwidth/_rangeSamplingFrequency);
+        if (n > maxRangeFilterKernelSize) {
             pyre::journal::error_t err(
                 "isce.signal.Crossmul.rangeCommonBandFilter");
             err << "Max filter length exceeded due to insufficient "
@@ -142,7 +146,7 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                                     blockLength,
                                     _windowType,
                                     _windowParameter,
-                                    _maxFilterKernelSize);
+                                    maxRangeFilterKernelSize);
 
     // low pass filter the ref  slc
     rngFilter.initiateRangeFilter(refSlc,refSpectrum, ncols,  blockLength);
@@ -170,7 +174,7 @@ rangeCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 * @param[in] azimuthFilter a filter object
 * @param[in] blockLength number of rows
 * @param[in] ncols number of columns
-* @return the processed azimuth bandwidth
+* @returns the common azimuth bandwidth
 */
 double isce3::signal::Crossmul::
 azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
@@ -183,14 +187,12 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
                 size_t blockRows,
                 size_t ncols)
 {
-    std::string filterType = _windowType;
-
     // Construct azimuth common bandpass filter for both reference and secondary
     double processedAzimuthBandwidth = azimuthFilter.constructAzimuthCommonBandFilter(
                 refDoppCentroids, secDoppCentroids,
                 _azimuthBandwidth,
                 _prf, _windowParameter, ncols,
-                blockRows, filterType);
+                blockRows, _windowType);
 
     // Filter a block of data of the reference
     azimuthFilter.initiateAzimuthFilter(refSlc, refAzimuthSpectrum, ncols, blockRows);
@@ -218,9 +220,7 @@ isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double
                                     const double bandwidth,
                                     const double prf,
                                     const double beta,
-                                    isce3::signal::Filter<float> &aziFilter,
-                                    const double stopatt,
-                                    const double transition_width)
+                                    isce3::signal::Filter<float> &aziFilter)
 {
     int max_kernel_size = 0;
 
@@ -232,12 +232,22 @@ isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double
             double secFreq = secDopplerCentroids[j];
             double fshift = std::abs(refFreq - secFreq);
 
+            // The bandwidth should be less than frequency shift
+            if (bandwidth < fshift) {
+                pyre::journal::error_t err(
+                    "isce.signal.Crossmul._computeMaxAzimuthFilterKernelSize");
+                err << "Bandwith is less than frequency shift"
+                    << pyre::journal::endl;
+                throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
+                    "Bandwith is less than frequency shift");
+            }
+
             // Normalized bandwdith
             const double bw = (bandwidth  - fshift)/ prf;
 
             // Transition width is specified in terms of output bandwidth, so scale to
             // get width at sample rate of filter.
-            const double tw = transition_width * bw;
+            const double tw = _transitionWidth * bw;
             if ((bw + tw / 2.0) > 1.0) {
                 pyre::journal::error_t err(
                     "isce.signal.Crossmul._maximum_kernel_size");
@@ -247,7 +257,7 @@ isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double
                         "Passband + transition cannot exceed Nyquist");
             }
 
-            auto [n, _] = aziFilter._kaiserord(stopatt, tw);
+            auto [n, _] = aziFilter._kaiserord(_ripple, tw);
             if (n > max_kernel_size) max_kernel_size = n;
         }
     }
@@ -366,20 +376,23 @@ crossmul(isce3::io::Raster& refSlcRaster,
         throw isce3::except::LengthError(ISCE_SRCINFO(),
                 "interferogram and coherence rasters width do not match");
 
+     // maximum range filter kernel size
+    size_t maxRangeFilterKernelSize = 256;
+
     // Compute the range sampling frequency in Hz using the range pixel spacing
     _rangeSamplingFrequency = 1.0 / (_rangePixelSpacing*2.0/isce3::core::speed_of_light);
     if (_doCommonRangeBandFilter) {
         // Determine the max range filter kernel size
         // 40 is the ripple, 0.15 is the default transition width
-        auto [n, _] = rangeFilter._kaiserord(40.0,
+        auto [n, _] = rangeFilter._kaiserord(_ripple,
                             _minRangeSpectrumOverlapFraction *
-                            rangeBandwidth()/_rangeSamplingFrequency * 0.15);
-        _maxFilterKernelSize = n;
-        debug << "max range filter kernel size: " << _maxFilterKernelSize << pyre::journal::endl;
+                            rangeBandwidth()/_rangeSamplingFrequency * _transitionWidth);
+        maxRangeFilterKernelSize = n;
+        debug << "max range filter kernel size: " << maxRangeFilterKernelSize << pyre::journal::endl;
     }
 
     // Compute FFT size (power of 2) and set up the maximum range window size
-    size_t fft_size = isce3::fft::nextFastPower(ncols + _maxFilterKernelSize);
+    size_t fft_size = isce3::fft::nextFastPower(ncols + maxRangeFilterKernelSize);
 
     if (fft_size > INT_MAX)
         throw isce3::except::LengthError(ISCE_SRCINFO(), "fft_size > INT_MAX");
@@ -751,7 +764,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
             // and the resultant refSlc and secSlc have no topo phase removal
             _processedRangeBandwidth += rangeCommonBandFilter(refSlc, secSlc, geometryIfgram,
                         geometryIfgramConj, refSpectrum, secSpectrum,
-                        rangeFrequencies, rangeFilter, linesPerBlock, fft_size);
+                        rangeFrequencies, rangeFilter, linesPerBlock, fft_size,
+                        maxRangeFilterKernelSize);
         }
 
         // Apply the azimuth common band-pass filter to the reference and secondary SLCs

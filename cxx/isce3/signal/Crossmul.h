@@ -204,7 +204,8 @@ class isce3::signal::Crossmul {
                 std::valarray<double> &rangeFrequencies,
                 isce3::signal::Filter<float> &rngFilter,
                 size_t blockRows,
-                size_t ncols);
+                size_t ncols,
+                const size_t maxRangeFilterKernelSize = 256);
 
         /** Azimuth common band filtering block by block @insar2007product
         //TODO: since there is no windowing is applied in azimuth, no need to revert
@@ -234,9 +235,7 @@ class isce3::signal::Crossmul {
                                     const double bandwidth,
                                     const double prf,
                                     const double beta,
-                                    isce3::signal::Filter<float> &aziFilter,
-                                    const double stopatt = 40.0,
-                                    const double transition_width = 0.15);
+                                    isce3::signal::Filter<float> &aziFilter);
 
         //Doppler LUT for the refernce SLC
         isce3::core::LUT2d<double> _refDoppler;
@@ -315,14 +314,11 @@ class isce3::signal::Crossmul {
         // minimum range spectrum overlap fraction between reference and secondary RSLC
         double _minRangeSpectrumOverlapFraction = 0.2;
 
-        // maximum filter kernel size over the range
-        // which corresponding to about 20% range spectrum overlap
-        // Using the function kaiserord(40,1/1.5*0.15*0.2)
-        // where 1/1.5 is the bandwidth/fs, 0.15 is the default transition width
-        // 0.2 is the minimum overlapped spetrum fraction
-        // between reference and secodnay RSLC, then _maxFilterKernelSize is about 225
-        // NOTE: this paramer is only used when the range common band filter is enabled.
-        int _maxFilterKernelSize = 0;
+        // ripple for the range FIR filter
+        double _ripple = 40.0;
+
+        // transition width
+        double _transitionWidth = 0.15;
 };
 
 // Get inline implementations for Crossmul
