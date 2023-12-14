@@ -522,6 +522,8 @@ crossmul(isce3::io::Raster& refSlcRaster,
     }
 
     // set up the processed azimuth and range bandwidth
+    // if common band filters are enabled, they will be the mean bandwidth of all data block
+    // otherwise, they are the original SLC bandwidths
     _processedAzimuthBandwidth = _doCommonAzimuthBandFilter ? 0.0 : _azimuthBandwidth;
     _processedRangeBandwidth = _doCommonRangeBandFilter ? 0.0 : _rangeBandwidth;
 
@@ -541,10 +543,11 @@ crossmul(isce3::io::Raster& refSlcRaster,
     std::valarray<double> rngOffset(spectrumSize);
 
     // InSAR phase due to topography
-    // geometryIfgram = (4*PI/wavelength)*(rangePixelSpacing)*(rngOffset)
     std::valarray<std::complex<float>> geometryIfgram;
 
     // complex conjugate of geometryIfgram
+    // both the flattening and range common band filtering will use
+    // this variable, so creating a buffer here
     std::valarray<std::complex<float>> geometryIfgramConj(spectrumSize);
 
     // upsampled interferogram
@@ -846,7 +849,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
             nrowsMultiLooked /= _azimuthLooks;
 
             // The first block
-            std::slice dataSlice = std::slice(0,ncolsMultiLooked * nrowsMultiLooked, 1);
+            std::slice dataSlice = std::slice(0, ncolsMultiLooked * nrowsMultiLooked, 1);
             if (block > 0) {
                 rowNewStart = (rowStart + halfOverlapSize)/_azimuthLooks;
                 if (block != (nblocks - 1)) {
@@ -899,10 +902,10 @@ crossmul(isce3::io::Raster& refSlcRaster,
                 rowNewStart = rowStart + halfOverlapSize;
                 if (block != (nblocks - 1)) {
                     nrowsValid = blockRowsData - overlapSize;
-                    dataSlice = std::slice(halfOverlapSize*ncols,nrowsValid, 1);
+                    dataSlice = std::slice(halfOverlapSize * ncols, nrowsValid, 1);
                 } else { // the last block
                     nrowsValid = blockRowsData - halfOverlapSize;
-                    dataSlice = std::slice(halfOverlapSize*ncols,nrowsValid, 1);
+                    dataSlice = std::slice(halfOverlapSize * ncols,nrowsValid, 1);
                 }
             }
 

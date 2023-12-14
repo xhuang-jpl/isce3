@@ -111,7 +111,10 @@ class isce3::signal::Crossmul {
         inline double azimuthBandwidth() const {
             return _azimuthBandwidth; }
 
-        /** Get processed azimuth bandwidth, in Hz */
+        /** Get processed azimuth bandwidth, in Hz.
+         * This is the average azimuth bandwidth after
+         * common-band filtering from among all blocks.
+         */
         inline double processedAzimuthBandwidth() const {
             return _processedAzimuthBandwidth; }
 
@@ -164,7 +167,10 @@ class isce3::signal::Crossmul {
         /** Get the range bandwidth, in Hz */
         inline double rangeBandwidth() const {return _rangeBandwidth; }
 
-        /** Get processed range bandwidth after common band filter*/
+        /** Get processed range bandwidth after common band filter
+         * This is the average range bandwidth after
+         * common-band filtering from among all blocks.
+        */
         inline double processedRangeBandwidth() const {
             return _processedRangeBandwidth; }
 

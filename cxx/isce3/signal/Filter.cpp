@@ -420,7 +420,7 @@ constructRangeBandpassKaiser(std::valarray<double> subBandCenterFrequencies,
 /**
 * @param[in] refDoppler Doppler Centroids, in Hz, of the reference SLC w.r.t slant range axis
 * @param[in] secDoppler Doppler Centroids, in Hz, of the secondary SLC w.r.t slant range axis
-* @param[in] bandwidth input bandwidth in azimuth, in Hz
+* @param[in] bandwidth  input bandwidth in azimuth of the pair of SLCs, in Hz
 * @param[in] prf pulse repetition frequency, in Hz
 * @param[in] windowParameter window parameter of the filter
 * @param[in] signal a block of data to filter
@@ -471,7 +471,7 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
 /**
 * @param[in] refDoppler Doppler Centroids, in Hz, of the reference SLC w.r.t slant range axis
 * @param[in] secDoppler Doppler Centroids, in Hz, of the secondary SLC w.r.t slant range axis
-* @param[in] bandwidth input bandwidth in azimuth, in Hz
+* @param[in] bandwidth  input bandwidth in azimuth of the pair of SLCs, in Hz
 * @param[in] prf pulse repetition frequency, in Hz
 * @param[in] beta parameter for raised cosine filter
 * @param[in] signal a block of data to filter
@@ -575,7 +575,7 @@ constructAzimuthCommonBandCosineFilter(const std::valarray<double> & refDoppler,
 /**
 * @param[in] refDoppler Doppler Centroids, in Hz, of the reference SLC w.r.t slant range axis
 * @param[in] secDoppler Doppler Centroids, in Hz, of the secondary SLC w.r.t slant range axis
-* @param[in] bandwidth input bandwidth in azimuth, in Hz
+* @param[in] bandwidth  input bandwidth in azimuth of the pair of SLCs, in Hz
 * @param[in] prf pulse repetition frequency, in Hz
 * @param[in] beta parameter for kaiser filter
 * @param[in] signal a block of data to filter

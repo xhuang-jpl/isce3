@@ -47,6 +47,10 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
     interferogram: Raster
         Optional range offset raster usef for flattening and common band filter
         Optional range offset raster usef for azimuth common band filter
+    range_bandwidth: float
+        range bandwidth of the reference SLC
+    azimuth_bandwidth: float
+        azimuth bandwidth of the reference SLC
                 )")
         .def("set_dopplers", &Crossmul::doppler,
                 py::arg("ref_doppler"),
