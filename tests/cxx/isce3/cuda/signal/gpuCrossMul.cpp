@@ -48,7 +48,7 @@ TEST(gpuCrossmul, Crossmul)
     // Create a product
     isce3::product::RadarGridProduct product(file);
 
-    // get the Doppler polynomial for refernce SLC
+    // get the Doppler for refernce SLC
     const isce3::core::LUT2d<double> dop1 =
         product.metadata().procInfo().dopplerCentroid('A');
 
@@ -59,7 +59,7 @@ TEST(gpuCrossmul, Crossmul)
     //instantiate the Crossmul class
     isce3::cuda::signal::gpuCrossmul crsmul;
 
-    // set Doppler polynomials for refernce and secondary SLCs
+    // set Doppler for refernce and secondary SLCs
     crsmul.doppler(dop1, dop2);
 
     // set number of interferogram looks in range
@@ -135,7 +135,7 @@ TEST(gpuCrossmul, MultilookCrossmul)
     //instantiate the Crossmul class
     isce3::cuda::signal::gpuCrossmul crsmul;
 
-    // set Doppler polynomials for refernce and secondary SLCs
+    // set Doppler for refernce and secondary SLCs
     crsmul.doppler(dop1, dop2);
 
     // set number of interferogram looks in range

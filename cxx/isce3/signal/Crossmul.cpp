@@ -389,7 +389,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
     _rangeSamplingFrequency = 1.0 / (_rangePixelSpacing*2.0/isce3::core::speed_of_light);
     if (_doCommonRangeBandFilter) {
         // Determine the max range filter kernel size
-        // 40 is the ripple, 0.15 is the default transition width
         auto [n, _] = rangeFilter._kaiserord(_ripple,
                             _minRangeSpectrumOverlapFraction *
                             rangeBandwidth()/_rangeSamplingFrequency * _transitionWidth);
