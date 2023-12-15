@@ -54,6 +54,7 @@ TEST(Crossmul, RunCrossmul)
     // get the Doppler for refernce SLC
     const char freq = 'A';
     isce3::core::LUT2d<double> dop1 = product.metadata().procInfo().dopplerCentroid(freq);
+    auto swath = product.swath(freq);
 
     // Since this test careates an interferogram between the refernce SLC and itself,
     // the second Doppler is the same as the first
@@ -72,13 +73,13 @@ TEST(Crossmul, RunCrossmul)
     crsmul.azimuthLooks(1);
 
     // set the product information for the common band filtering and flattenning
-    const double wavelength = product.swath(freq).processedWavelength();
-    const double azimuthBandwidth = product.swath(freq).processedAzimuthBandwidth();
-    const double rangeBandwidth = product.swath(freq).processedRangeBandwidth();
-    const double prf = product.swath(freq).nominalAcquisitionPRF();
-    const double rngPixelSampling =  product.swath(freq).rangePixelSpacing();
-    const double startAzimuthTime = product.swath(freq).zeroDopplerTime()[0];
-    const double startSlantRange = product.swath(freq).slantRange()[0];
+    const double wavelength = swath.processedWavelength();
+    const double azimuthBandwidth = swath.processedAzimuthBandwidth();
+    const double rangeBandwidth = swath.processedRangeBandwidth();
+    const double prf = swath.nominalAcquisitionPRF();
+    const double rngPixelSampling =  swath.rangePixelSpacing();
+    const double startAzimuthTime = swath.zeroDopplerTime()[0];
+    const double startSlantRange = swath.slantRange()[0];
 
     crsmul.wavelength(wavelength);
     crsmul.prf(prf);
@@ -159,6 +160,7 @@ TEST(Crossmul, RunCrossmulMLook)
     // get the Doppler polynomial for refernce SLC
     const char freq = 'A';
     isce3::core::LUT2d<double> dop1 = product.metadata().procInfo().dopplerCentroid(freq);
+    auto swath = product.swath(freq);
 
     // Since this test careates an interferogram between the refernce SLC and itself,
     // the second Doppler is the same as the first
@@ -177,13 +179,13 @@ TEST(Crossmul, RunCrossmulMLook)
     crsmul.azimuthLooks(azLooks);
 
     // set the product information for the common band filtering and flattenning
-    const double wavelength = product.swath(freq).processedWavelength();
-    const double azimuthBandwidth = product.swath(freq).processedAzimuthBandwidth();
-    const double rangeBandwidth = product.swath(freq).processedRangeBandwidth();
-    const double prf = product.swath(freq).nominalAcquisitionPRF();
-    const double rngPixelSampling =  product.swath(freq).rangePixelSpacing();
-    const double startAzimuthTime = product.swath(freq).zeroDopplerTime()[0];
-    const double startSlantRange = product.swath(freq).slantRange()[0];
+    const double wavelength = swath.processedWavelength();
+    const double azimuthBandwidth = swath.processedAzimuthBandwidth();
+    const double rangeBandwidth = swath.processedRangeBandwidth();
+    const double prf = swath.nominalAcquisitionPRF();
+    const double rngPixelSampling =  swath.rangePixelSpacing();
+    const double startAzimuthTime = swath.zeroDopplerTime()[0];
+    const double startSlantRange = swath.slantRange()[0];
 
     crsmul.wavelength(wavelength);
     crsmul.prf(prf);

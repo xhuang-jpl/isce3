@@ -226,7 +226,7 @@ class isce3::signal::Filter {
         void  _design_shaped_lowpass_filter(const double bandwidth,
                                             const double fs,
                                             const double window_shape,
-                                            std::valarray<std::complex<T>> &kaiser_window,
+                                            std::valarray<std::complex<T>> &coeffs,
                                             const double stopatt = 40.0,
                                             const double transition_width = 0.15,
                                             const bool force_odd_len = false);

@@ -212,7 +212,8 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
 
                 # populate the new bandwidth along azimuth and range after the common band filter
                 # if there is no common band filter applied, the bandwith will remain the same with
-                # the orignal SLC bandwidth
+                # the orignal SLC bandwidth.
+                # NOTE: Those bandwidths have already been in the dataset.
                 # TODO: GPU
                 if not use_gpu:
                     processing_info_path = \

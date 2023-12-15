@@ -99,7 +99,7 @@ TEST(Filter, constructBoxcarRangeBandpassFilter)
                                 blockRows,
                                 filterType);
 
-    //filter.writeFilter(ncols, blockRows);
+    filter.writeFilter(ncols, blockRows);
 
     // change the filter type to cosine
     filterType = "cosine";
@@ -112,8 +112,7 @@ TEST(Filter, constructBoxcarRangeBandpassFilter)
                                   blockRows,
                                   filterType);
 
-    //filter.writeFilter(ncols, blockRows);
-
+    filter.writeFilter(ncols, blockRows);
 }
 
 TEST(Filter, constructRangeCommonBandKaiserFilter)

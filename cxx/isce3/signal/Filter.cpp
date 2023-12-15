@@ -858,7 +858,7 @@ isce3::signal::Filter<T>::_lowpass2bandpass(const std::valarray<std::complex<T>>
                     std::valarray<std::complex<T>> &band_pass_filter)
 {
     if (band_pass_filter.size() <= 0) band_pass_filter.resize(low_pass_filter.size());
-    const int n = low_pass_filter.size();
+    const size_t n = low_pass_filter.size();
     for (size_t i = 0; i < n; i++) {
         const double t = (i - (n - 1) / 2.0);
         const double phase = 2.0 * M_PI * fc * t;
@@ -872,7 +872,7 @@ void
 isce3::signal::Filter<T>::_design_shaped_lowpass_filter(const double bandwidth,
                                            const double fs,
                                            const double window_shape,
-                                           std::valarray<std::complex<T>> &kaiser_window,
+                                           std::valarray<std::complex<T>> &coeffs,
                                            const double stopatt,
                                            const double transition_width,
                                            const bool force_odd_len)
@@ -903,10 +903,10 @@ isce3::signal::Filter<T>::_design_shaped_lowpass_filter(const double bandwidth,
     _kaiser_irf(t * bw, window_shape, irf);
     _kaiser(n, beta, kaiser);
 
-    if (kaiser_window.size() <= 0) kaiser_window.resize(n);
+    if (coeffs.size() <= 0) coeffs.resize(n);
 
     for (size_t i = 0; i < n; i++) {
-        kaiser_window[i] = irf[i] * kaiser[i] * bw;
+        coeffs[i] = irf[i] * kaiser[i] * bw;
     }
 }
 
