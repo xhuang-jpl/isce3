@@ -8,6 +8,7 @@
 #include "Filter.h"
 #include <pyre/journal.h>
 #include <isce3/math/complexOperations.h>
+using namespace isce3::math::complex_operations;
 
 /**
  * @param[in] signal a block of data to filter
@@ -824,7 +825,7 @@ isce3::signal::Filter<T>::_kaiser_irf(const std::valarray<double> &t,
     if (irf.size() <= 0) irf.resize(t.size());
     for (size_t i = 0; i < t.size(); i++) {
         auto val = std::complex<T>(t[i] * t[i] - alpha * alpha, 0.0);
-        auto sincVal = isce3::math::complex_operations::operator/(isce3::math::sinc<T>(std::sqrt(val)),beta0);
+        auto sincVal = isce3::math::sinc<T>(std::sqrt(val)) / beta0;
         irf[i] = std::complex<T>(sincVal.real(), 0.0);
     }
 }
@@ -905,7 +906,7 @@ isce3::signal::Filter<T>::_design_shaped_lowpass_filter(const double bandwidth,
     if (kaiser_window.size() <= 0) kaiser_window.resize(n);
 
     for (size_t i = 0; i < n; i++) {
-        kaiser_window[i] = std::complex<T>(bw, 0.0) * irf[i] * kaiser[i];
+        kaiser_window[i] = irf[i] * kaiser[i] * bw;
     }
 }
 
