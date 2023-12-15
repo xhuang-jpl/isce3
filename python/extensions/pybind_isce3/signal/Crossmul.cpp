@@ -44,9 +44,10 @@ void addbinding(py::class_<Crossmul> & pyCrossmul)
         Output interferogram raster
     coherence: Raster
         Output coherence raster
-    interferogram: Raster
+    range_offset: Raster
         Optional range offset raster usef for flattening and common band filter
-        Optional range offset raster usef for azimuth common band filter
+    azimuth_offset: Raster
+        Optional azimuth offset raster usef for azimuth common band filter
     range_bandwidth: float
         range bandwidth of the reference SLC
     azimuth_bandwidth: float
