@@ -135,9 +135,9 @@ TEST(Filter, constructRangeCommonBandKaiserFilter)
                                                 1.6,
                                                 kaiser);
 
-    ASSERT_LT(std::abs(std::abs(kaiser[0]) - 0.768964), 1.0e-6);
-    ASSERT_LT(std::abs(std::abs(kaiser[127]) - 0.234426), 1.0e-6);
-    ASSERT_LT(std::abs(std::abs(kaiser[255]) - 0.768879), 1.0e-6);
+    ASSERT_LT(std::abs(std::abs(kaiser[0]) - 0.9997906684875488), 1.0e-6);
+    ASSERT_LT(std::abs(std::abs(kaiser[127]) - 0.003600120544433594), 1.0e-6);
+    ASSERT_LT(std::abs(std::abs(kaiser[255]) - 0.99970543384552), 1.0e-6);
 }
 
 int main(int argc, char * argv[]) {

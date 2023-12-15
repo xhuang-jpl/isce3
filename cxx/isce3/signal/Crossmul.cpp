@@ -213,8 +213,8 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 }
 
 /**
-* @param[in] refDopplerCentroids doppler centroid frequency for reference
-* @param[in] secDopplerCentroids doppler centroid frequency for secondary
+* @param[in] refDopplerCentroids doppler centroid frequency for reference, w.r.t slant range
+* @param[in] secDopplerCentroids doppler centroid frequency for secondary, w.r.t slant range
 * @param[in] numOfDopplerCentroids number of valid doppler centroids
 * @param[in] bandwidth intput SLCs bandwidth
 * @param[in] prf pulse repeat frequency
@@ -243,12 +243,14 @@ isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double
 
             // The bandwidth should be less than frequency shift
             if (bandwidth < fshift) {
+                std::string err_msg = "Bandwidth " +
+                                      std::to_string(bandwidth) +
+                                      " is less than frequency shift " +
+                                      std::to_string(fshift);
                 pyre::journal::error_t err(
                     "isce.signal.Crossmul._computeMaxAzimuthFilterKernelSize");
-                err << "Bandwith is less than frequency shift"
-                    << pyre::journal::endl;
-                throw isce3::except::InvalidArgument(ISCE_SRCINFO(),
-                    "Bandwith is less than frequency shift");
+                err << err_msg << pyre::journal::endl;
+                throw isce3::except::InvalidArgument(ISCE_SRCINFO(), err_msg);
             }
 
             // Normalized bandwdith
@@ -448,19 +450,17 @@ crossmul(isce3::io::Raster& refSlcRaster,
         debug << "max azimuth window kernel size: " << maxAzimuthFilterKernelSize
               << pyre::journal::endl;
         // to ensure the overlap size is an integer multiple number of azimuth looks.
-        maxAzimuthFilterKernelSize = (maxAzimuthFilterKernelSize + _azimuthLooks) / _azimuthLooks;
+        int numOfAzimuthLooks = (maxAzimuthFilterKernelSize + _azimuthLooks - 1) / _azimuthLooks;
 
         // Force the kernel size to be even
-        maxAzimuthFilterKernelSize =
-                (maxAzimuthFilterKernelSize%2 == 0) ?
-                     maxAzimuthFilterKernelSize : maxAzimuthFilterKernelSize + 1;
+        numOfAzimuthLooks = (numOfAzimuthLooks % 2 == 0) ? numOfAzimuthLooks : numOfAzimuthLooks + 1;
 
         // The overlap size will be even
-        overlapSize = maxAzimuthFilterKernelSize * _azimuthLooks;
+        overlapSize = numOfAzimuthLooks * _azimuthLooks;
         halfOverlapSize = overlapSize / 2;
 
         // Compute the lines per block to account for the overlaps between two blocks
-        linesPerBlock = (_linesPerBlock / _azimuthLooks) * _azimuthLooks;
+        linesPerBlock = ((_linesPerBlock + _azimuthLooks - 1)/ _azimuthLooks) * _azimuthLooks;
         _linesPerBlock = linesPerBlock + overlapSize;
 
         // The lines per block will be multiple times of the azimuth looks
@@ -472,7 +472,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
     if (_multiLookEnabled) {
         // Making sure that the number of rows in each block (linesPerBlock)
         // to be an integer multiple of the number of azimuth looks.
-        linesPerBlock = (_linesPerBlock / _azimuthLooks) * _azimuthLooks;
+        linesPerBlock = ((_linesPerBlock + _azimuthLooks - 1)/ _azimuthLooks) * _azimuthLooks;
 
         // checking only multilook interferogram shape is sufficient
         // interferogram and coherence shapes checked to match above

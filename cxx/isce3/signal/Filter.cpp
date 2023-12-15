@@ -7,6 +7,7 @@
 
 #include "Filter.h"
 #include <pyre/journal.h>
+#include <isce3/math/complexOperations.h>
 
 /**
  * @param[in] signal a block of data to filter
@@ -316,7 +317,6 @@ constructRangeCommonBandKaiserFilter(const double subBandCenterFrequency,
                              std::valarray<std::complex<T>>& filter1D,
                              const int maxFilterKernelSize)
 {
-
     if (filter1D.size() <= 0) filter1D.resize(fft_size);
     filter1D = std::complex<T>(0.0, 0.0);
 
@@ -460,7 +460,7 @@ constructAzimuthCommonBandFilter(const std::valarray<double> & refDoppler,
                             prf, windowParameter,
                             ncols, nrows);
     }
-    
+
     std::string err_str = filterType + " filter has not been implemented";
     pyre::journal::error_t err(
         "isce.signal.Filter.constructAzimuthCommonBandFilter");
@@ -823,8 +823,9 @@ isce3::signal::Filter<T>::_kaiser_irf(const std::valarray<double> &t,
 
     if (irf.size() <= 0) irf.resize(t.size());
     for (size_t i = 0; i < t.size(); i++) {
-        std::complex<T> val(t[i] * t[i] - alpha * alpha, 0.0);
-        irf[i] = std::complex<T>(isce3::math::sinc<T>(std::sqrt(val).real()) / beta0, 0.0);
+        auto val = std::complex<T>(t[i] * t[i] - alpha * alpha, 0.0);
+        auto sincVal = isce3::math::complex_operations::operator/(isce3::math::sinc<T>(std::sqrt(val)),beta0);
+        irf[i] = std::complex<T>(sincVal.real(), 0.0);
     }
 }
 
@@ -838,10 +839,14 @@ isce3::signal::Filter<T>::_kaiser(const int n,
 
     if (coeffs.size() <= 0) coeffs.resize(n);
 
+    if (n == 1) {
+        coeffs[0] = std::complex<T>(1.0,0.0);
+        return;
+    }
+    const double alpha = (n - 1) / 2.0;
     for (size_t i = 0; i < n; i++) {
-        const double t = i - (n - 1) / 2.0;
-        if (std::abs(t) <= n / 2.0) coeffs[i] = isce3::math::bessel_i0(
-            beta * std::sqrt(1.0 - (2 * t / (n - 1)) * (2 * t / (n - 1)))) / beta0;
+        const double t = (i - alpha)/alpha;
+        coeffs[i] = isce3::math::bessel_i0(beta * std::sqrt(1.0 - t * t)) / beta0;
     }
 }
 
