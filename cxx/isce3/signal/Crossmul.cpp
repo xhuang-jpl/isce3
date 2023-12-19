@@ -230,7 +230,6 @@ isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(const std::valarray<
                                     const  std::valarray<int> &numOfValidDopplerCentroids,
                                     const double bandwidth,
                                     const double prf,
-                                    const double beta,
                                     isce3::signal::Filter<float> &aziFilter)
 {
     int max_kernel_size = 0;
@@ -390,7 +389,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
                 "interferogram and coherence rasters width do not match");
 
      // maximum range filter kernel size
-    size_t maxRangeFilterKernelSize = 256;
+    size_t maxRangeFilterKernelSize = 0;
 
     // Compute the range sampling frequency in Hz using the range pixel spacing
     _rangeSamplingFrequency = 1.0 / (_rangePixelSpacing*2.0/isce3::core::speed_of_light);
@@ -412,7 +411,7 @@ crossmul(isce3::io::Raster& refSlcRaster,
         throw isce3::except::LengthError(ISCE_SRCINFO(), "_oversampleFactor * fft_size > INT_MAX");
 
     // force the multilook to be true if azimuth or range looks > 1
-    _multiLookEnabled = ((_rangeLooks > 1) || (_azimuthLooks > 1)) ? true : false;
+    _multiLookEnabled = ((_rangeLooks > 1) || (_azimuthLooks > 1));
 
     // Declare valarray for range and azimuth doppler centroids used by filter
     std::valarray<double> refDoppCentroids;
@@ -442,7 +441,6 @@ crossmul(isce3::io::Raster& refSlcRaster,
                                  numOfValidDoppCentroids,
                                  _azimuthBandwidth,
                                  _prf,
-                                 _windowParameter,
                                  azimuthFilter);
 
         debug << "max azimuth window kernel size: " << maxAzimuthFilterKernelSize

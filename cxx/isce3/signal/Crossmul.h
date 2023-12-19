@@ -240,7 +240,6 @@ class isce3::signal::Crossmul {
                                     const std::valarray<int> &numOfValidDopplerCentroids,
                                     const double bandwidth,
                                     const double prf,
-                                    const double beta,
                                     isce3::signal::Filter<float> &aziFilter);
 
         //Doppler LUT for the refernce SLC
