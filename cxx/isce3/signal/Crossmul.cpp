@@ -334,9 +334,12 @@ isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> 
 
             // Interpolate the doppler centroids
             if (refDoppler.contains(refY, refX) && secDoppler.contains(secY, secX)) {
-                refDopplerCentroids[col] += refDoppler.eval(refY, refX);
-                secDopplerCentroids[col] += secDoppler.eval(secY, secX);
-                numOfValidDopplerCentroids[col]++;
+                #pragma omp critical
+                {
+                    refDopplerCentroids[col] += refDoppler.eval(refY, refX);
+                    secDopplerCentroids[col] += secDoppler.eval(secY, secX);
+                    numOfValidDopplerCentroids[col]++;
+                }
             }
         }
     }
@@ -450,13 +453,13 @@ crossmul(isce3::io::Raster& refSlcRaster,
         debug << "max azimuth window kernel size: " << maxAzimuthFilterKernelSize
               << pyre::journal::endl;
         // to ensure the overlap size is an integer multiple number of azimuth looks.
-        int numOfAzimuthLooks = (maxAzimuthFilterKernelSize + _azimuthLooks - 1) / _azimuthLooks;
+        int k = (maxAzimuthFilterKernelSize + _azimuthLooks - 1) / _azimuthLooks;
 
         // Force the kernel size to be even
-        numOfAzimuthLooks = (numOfAzimuthLooks % 2 == 0) ? numOfAzimuthLooks : numOfAzimuthLooks + 1;
+        k = (k % 2 == 0) ? k : k + 1;
 
         // The overlap size will be even
-        overlapSize = numOfAzimuthLooks * _azimuthLooks;
+        overlapSize = k * _azimuthLooks;
         halfOverlapSize = overlapSize / 2;
 
         // Compute the lines per block to account for the overlaps between two blocks
