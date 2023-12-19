@@ -3,7 +3,9 @@
 #include "Filter.h"
 #include "Looks.h"
 #include "Signal.h"
+
 #include <pyre/journal.h>
+#include <isce3/fft/FFTUtil.h>
 
 /**
  * Compute the frequency response due to a subpixel shift introduced by
@@ -223,9 +225,9 @@ azimuthCommonBandFilter(std::valarray<std::complex<float>> &refSlc,
 * @returns the maximum azimuth filter kernel size
 */
 int
-isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(std::valarray<double> &refDopplerCentroids,
-                                    std::valarray<double> &secDopplerCentroids,
-                                     std::valarray<int> &numOfValidDopplerCentroids,
+isce3::signal::Crossmul::_computeMaxAzimuthFilterKernelSize(const std::valarray<double> &refDopplerCentroids,
+                                    const std::valarray<double> &secDopplerCentroids,
+                                    const  std::valarray<int> &numOfValidDopplerCentroids,
                                     const double bandwidth,
                                     const double prf,
                                     const double beta,
@@ -310,20 +312,16 @@ isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> 
         numOfValidDopplerCentroids = 0;
     }
 
+    std::valarray<double> rangeOffsets(ncols);
+    std::valarray<double> azimuthOffsets(ncols);
+
     // Compute the doppler centroids for the reference and secondary images
-    #pragma omp parallel for
     for (size_t row = 0; row < nrows; row++) {
-        // Private variables for each thread
-        std::valarray<double> rangeOffsets(ncols);
-        std::valarray<double> azimuthOffsets(ncols);
 
-        // Read the data thread by thread
-        #pragma omp critical
-        {
-            rngOffsetRaster->getLine(rangeOffsets, row);
-            aziOffsetRaster->getLine(azimuthOffsets, row);
-        }
+        rngOffsetRaster->getLine(rangeOffsets, row);
+        aziOffsetRaster->getLine(azimuthOffsets, row);
 
+        #pragma omp parallel for
         for (size_t col = 0; col < ncols; col++) {
             // Convert the line/pixel to range doppler coordinates
             double refX = col * rangePixelSpacing() + refStartRange();
@@ -334,12 +332,9 @@ isce3::signal::Crossmul::_computeDoppCentroids(const isce3::core::LUT2d<double> 
 
             // Interpolate the doppler centroids
             if (refDoppler.contains(refY, refX) && secDoppler.contains(secY, secX)) {
-                #pragma omp critical
-                {
-                    refDopplerCentroids[col] += refDoppler.eval(refY, refX);
-                    secDopplerCentroids[col] += secDoppler.eval(secY, secX);
-                    numOfValidDopplerCentroids[col]++;
-                }
+                refDopplerCentroids[col] += refDoppler.eval(refY, refX);
+                secDopplerCentroids[col] += secDoppler.eval(secY, secX);
+                numOfValidDopplerCentroids[col]++;
             }
         }
     }

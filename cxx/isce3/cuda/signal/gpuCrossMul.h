@@ -5,7 +5,6 @@
 #include <isce3/core/forward.h>
 
 #include <isce3/core/Common.h>
-#include <isce3/core/LUT1d.h>
 #include <isce3/core/LUT2d.h>
 
 #include <thrust/complex.h>
@@ -25,6 +24,9 @@ class isce3::cuda::signal::gpuCrossmul {
          * \param[out]  coherenceRaster output coherence raster
          * \param[in]  rngOffsetRaster  optional pointer to range offset raster
          *                              if provided, interferogram will be flattened
+         * \param[in]  aziOffsetRaster  optional pointer to azimuth offset raster
+         *                              it is a placeholder here, and will implement the
+         *                              azimuth common band filter based on it
          */
         void crossmul(isce3::io::Raster& refSlcRaster,
                 isce3::io::Raster& secSlcRaster,

@@ -4,11 +4,9 @@
 
 #include <complex>
 #include <isce3/core/Constants.h>
-#include <isce3/core/LUT1d.h>
 #include <isce3/core/LUT2d.h>
 #include <isce3/core/forward.h>
 #include <isce3/io/forward.h>
-#include <isce3/fft/FFTUtil.h>
 
 /** \brief Intereferogram generation by cross-multiplication of reference and secondary SLCs.
  *
@@ -237,9 +235,9 @@ class isce3::signal::Crossmul {
                                     std::valarray<double> &secDopplerCentroids,
                                     std::valarray<int> &numOfValidDopplerCentroids);
 
-        int _computeMaxAzimuthFilterKernelSize(std::valarray<double> &refDopplerCentroids,
-                                    std::valarray<double> &secDopplerCentroids,
-                                    std::valarray<int> &numOfValidDopplerCentroids,
+        int _computeMaxAzimuthFilterKernelSize(const std::valarray<double> &refDopplerCentroids,
+                                    const std::valarray<double> &secDopplerCentroids,
+                                    const std::valarray<int> &numOfValidDopplerCentroids,
                                     const double bandwidth,
                                     const double prf,
                                     const double beta,
