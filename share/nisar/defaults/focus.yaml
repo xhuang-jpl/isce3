@@ -105,6 +105,10 @@ runconfig:
                 # override user-provided start_time.
                 time_snap_interval: 1.0
 
+            # Min amount of padding (in seconds) beyond raw data start and stop
+            # times to retain when cropping the orbit and attitude data.
+            ephemeris_crop_pad: 10.0
+
             # Range spectral window, optional.  Defaults to no weighting.
             range_window:
                 # Kaiser or Cosine
@@ -177,6 +181,26 @@ runconfig:
                 # Transition width as a fraction of output bandwidth.
                 width: 0.15
 
+            # Radar-to-geographic coordinate transforms
+            rdr2geo:
+                # Allowable height error in m
+                tol_height: 1e-5
+                # Smallest possible look angle in degrees
+                look_min_deg: 0.0
+                # Largest possible look angle in degrees
+                look_max_deg: 90.0
+
+            # Geographic-to-radar coordinate transforms
+            geo2rdr:
+                # Allowable azimuth time error in s
+                tol_aztime: 1e-7
+                # Earliest time in search interval, in s past orbit reference
+                # epoch.  null for automatic selection
+                time_start: null
+                # Latest time in search interval, in s past orbit reference
+                # epoch.  null for automatic selection
+                time_end: null
+
             doppler:
                 # Offset between quaternion frame and antenna boresight in degrees.
                 # TBD This will likely be parameter in a separate cal file.
@@ -191,14 +215,6 @@ runconfig:
                     range: 2000.0
                     # Lookup table Azimuth spacing in s
                     azimuth: 1.0
-
-                rdr2geo:
-                    # Slant range convergence threshold (m): float (default: 1e-8)
-                    threshold: 1e-8
-                    # Max number of primary iterations: int (default: 25)
-                    maxiter: 25
-                    # Max number of secondary iterations: int (default: 15)
-                    extraiter: 15
 
             # Settings for range compression algorithm.
             rangecomp:
@@ -232,23 +248,6 @@ runconfig:
 
                     fit: Table # null or Cheby or Table
                     fit_order: 2048
-
-                rdr2geo:
-                    # Slant range convergence threshold (m): float (default: 1e-8)
-                    threshold: 1e-8
-                    # Max number of primary iterations: int (default: 25)
-                    maxiter: 25
-                    # Max number of secondary iterations: int (default: 15)
-                    extraiter: 15
-
-                geo2rdr:
-                    # Slant range convergence threshold (m): float (default: 1e-8)
-                    threshold: 1e-8
-                    # Max number of iterations: int (default: 50)
-                    maxiter: 50
-                    # Step size for computing numerical gradient of Doppler (m): float
-                    # (default: 10.)
-                    delta_range: 10.
 
             dry_troposphere_model: tsx
 
@@ -293,6 +292,38 @@ runconfig:
                 range_cor: True
                 # azimuth compression
                 azcomp: True
+
+        output:
+            # Data type for image layers.  The pixel values are stored as pairs
+            # of floating point numbers corresponding to the real and imaginary
+            # parts of a complex number.  Valid choices are
+            # - complex32: pairs of 16-bit floats (half precision)
+            # - complex64: pairs of 32-bit floats (single precision)
+            # - complex64_zero_mantissa: pairs of 32-bit floats where the least
+            #       significant bits are zeroed out.  Useful when combined with
+            #       compression.
+            data_type: complex64_zero_mantissa
+
+            # Enable gzip compression of raster
+            compression_enabled: True
+
+            # HDF5 compression filter.  Typically gzip, lzf, or szip.
+            compression_type: gzip
+
+            # Level of compression applied to raster
+            compression_level: 4
+
+            # Chunk size of raster.  Enter [-1, -1] to disable chunks.
+            chunk_size: [128, 128]
+
+            # Enable shuffle filtering of raster
+            shuffle: True
+
+            # Number of stored bits retained in the mantissa of the floating
+            # point representation of each component (real/imaginary) of each
+            # complex sample.  Only relevant when
+            # data_type=complex64_zero_mantissa.
+            mantissa_nbits: 10
 
         qa:
             workflows:
@@ -405,6 +436,28 @@ runconfig:
                     # Default: (1024, -1)
                     tile_shape: [1024, -1]
 
+                range_spectra:
+
+                    # The stride to decimate the input array along the azimuth axis.
+                    # For example, `4` means every 4th range line will
+                    # be used to compute the range spectra. Must be greater than zero.
+                    # If `1`, no decimation will occur (but is slower to compute).
+                    # Default: 8
+                    az_decimation: 8
+
+                    # True if the input frequencies are in Hz,
+                    # but output should be converted to MHz.
+                    # Default: True
+                    hz_to_mhz: true
+
+                    # User-preferred tile height (number of range lines) for processing
+                    # images by batches. Actual tile shape may be modified by QA to be
+                    # an integer multiple of `az_decimation`. -1 to use all rows.
+                    # Note: full rows must be read in, so the number of columns for each tile
+                    # will be fixed to the number of columns in the input raster.
+                    # Default: 512
+                    tile_height: 512
+
             absolute_radiometric_calibration:
                 # The width, in samples, of the square block of image data
                 # centered around the target position to extract for oversampling
@@ -465,32 +518,6 @@ runconfig:
                 # Default: 3.0
                 power_threshold: 3.0
 
-            noise_estimation:
-                # *REQUIRED* Frequency group in raw L0B H5 file. Must be in {'A', 'B'}.
-                freq_group:
-
-                # *REQUIRED* Tx and Rx polarizations in raw L0B file. Must be in {'HH',
-                # 'HV', 'VH', 'VV', 'LH', 'LV', 'RH', 'RV'}.
-                pol:
-
-                # Start range bins for beams. A list of range sample indices or null.
-                # If rng_start and rng_stop are both null, noise power is estimated over
-                # the full rangeline. Defaults to null.
-                rng_start: null
-
-                # Stop range bins for beams. A list of range sample indices or null.
-                # If rng_start and rng_stop are both null, noise power is estimated over
-                # the full rangeline. Defaults to null.
-                rng_stop: null
-
-                # Noise estimation algorithm: 'avg' - mean of sum of squares, or 'evd' -
-                # Eigenvalue Decomposition. Defaults to 'avg'.
-                algorithm: avg
-
-                # Coherent processing interval in number of range lines. Only used when
-                # algorithm='evd'. Must be >= 1. Defaults to 2.
-                cpi: 2
-
             point_target_analyzer:
                 # The width, in samples, of the square block of image data
                 # centered around the target position to extract for oversampling
@@ -540,8 +567,8 @@ runconfig:
                 # `predict_null` has no effect on peak-to-sidelobe ratio (PSLR)
                 # computation -- for PSLR analysis, the null locations are always
                 # determined by searching for nulls in the RSLC data.
-                # Default: True
-                predict_null: true
+                # Default: False
+                predict_null: false
 
                 # The ratio of sampling rate to bandwidth in the RSLC
                 # image data. Must be the same for both range & azimuth. It is

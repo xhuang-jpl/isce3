@@ -51,6 +51,9 @@ runconfig:
             # PLACEHOLDER - Output format
             format: HDF5
 
+            # Enable/disable compression of output raster
+            compression_enabled: True
+
             # Compression type. 'none' for no compression
             compression_type: gzip
 
@@ -58,13 +61,16 @@ runconfig:
             compression_level: 9
 
             # PLACEHOLDER - Compression number of bits
-            nbits: 16
+            mantissa_nbits: 16
 
         # Output options for secondary layers (e.g., number of looks, RTC ANF)
         output_secondary_layers:
             # PLACEHOLDER - Output format
             format: HDF5
 
+            # Enable/disable compression of output raster
+            compression_enabled: True
+
             # Compression type. 'none' for no compression
             compression_type: gzip
 
@@ -72,11 +78,12 @@ runconfig:
             compression_level: 9
 
             # PLACEHOLDER - Compression number of bits
-            nbits: 16
+            mantissa_nbits: 16
 
         primary_executable:
             product_type: GCOV
             product_version: 0.1.0
+            processing_type:
             partial_granule_id:
 
         debug_level_group:
@@ -191,6 +198,18 @@ runconfig:
                 # Apply radiometric terrain correction
                 apply_rtc: True
 
+                # Apply dry tropospheric delay correction
+                apply_dry_tropospheric_delay_correction: False
+
+                # Apply wet tropospheric delay correction
+                apply_wet_tropospheric_delay_correction: False
+
+                # Apply range ionospheric delay correction
+                apply_range_ionospheric_delay_correction: False
+
+                # Apply azimuth ionospheric delay correction
+                apply_azimuth_ionospheric_delay_correction: False
+
                 # Apply RSLC metadata valid-samples sub-swath masking
                 apply_valid_samples_sub_swath_masking: False
 
@@ -198,7 +217,7 @@ runconfig:
                 apply_shadow_masking: True
 
                 # Memory mode. Choices: "single_block", "geogrid", "geogrid_and_radargrid", and "auto" (default)
-                memory_mode:
+                memory_mode: auto
 
                 # OPTIONAL - Processing upsampling factor applied to input geogrid
                 geogrid_upsampling: 1
@@ -318,6 +337,22 @@ runconfig:
                 bottom_right:
                     y_abs:
                     x_abs:
+
+            calibration_information: 
+
+                # OPTIONAL - Spacing between pixels, in same units as output EPSG.
+                # All postings/spacings must be > 0.
+                output_posting:
+                    x_posting: 
+                    y_posting:                 
+
+            processing_information: 
+
+                # OPTIONAL - Spacing between pixels, in same units as output EPSG.
+                # All postings/spacings must be > 0.
+                output_posting:
+                    x_posting: 
+                    y_posting: 
 
             geo2rdr:
                 threshold: 1.0e-8

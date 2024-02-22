@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Analyze point targets in an RSLC HDF5 file
 """
@@ -8,6 +9,8 @@ import traceback
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, Union
+
+import shapely
 
 import nisar
 from nisar.cal import CRValidity
@@ -21,7 +24,10 @@ from isce3.cal import point_target_info as pti
 import warnings
 import json
 from nisar.products.readers.GenericProduct import get_hdf5_file_product_type
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 desc = __doc__
 
@@ -204,14 +210,15 @@ def get_radar_grid_coords(llh_deg, slc, freq_group):
 
     if radargrid.ref_epoch != orbit.reference_epoch:
         raise ValueError('Reference epoch of radar grid and orbit are different!')
+
+    xyz = ellipsoid.lon_lat_to_xyz(llh)
         
-    aztime, slant_range = isce3.geometry.geo2rdr(
-        llh,
-        ellipsoid,
-        orbit,
-        doppler,
-        radargrid.wavelength,
-        radargrid.lookside,
+    aztime, slant_range = isce3.geometry.geo2rdr_bracket(
+        xyz=xyz,
+        orbit=orbit,
+        doppler=doppler,
+        wavelength=radargrid.wavelength,
+        side=radargrid.lookside,
     )
 
     line = (aztime - radargrid.sensing_start) * radargrid.prf
@@ -284,7 +291,7 @@ def slc_pt_performance(
     cr_llh,
     fs_bw_ratio=1.2,
     num_sidelobes=10,
-    predict_null=True,
+    predict_null=False,
     nov=32,
     chipsize=64,
     plots=False,
@@ -410,7 +417,7 @@ def analyze_corner_reflectors(
     upsample_factor: int = 32,
     peak_find_domain: str = "time",
     num_sidelobes: int = 10,
-    predict_null: bool = True,
+    predict_null: bool = False,
     fs_bw_ratio: float = 1.2,
     window_type: str = "rect",
     window_parameter: float = 0.0,
@@ -475,7 +482,7 @@ def analyze_corner_reflectors(
         cuts centered on the target location. In this case, the main lobe does *not*
         include the first sidelobe. `predict_null` has no effect on peak-to-sidelobe
         ratio (PSLR) computation -- for PSLR analysis, the null locations are always
-        determined by searching for nulls in the RSLC data. Defaults to True.
+        determined by searching for nulls in the RSLC data. Defaults to False.
     fs_bw_ratio : float, optional
         The ratio of sampling rate to bandwidth in the RSLC image data. Must be the same
         for both range & azimuth. It is ignored if `predict_null` was false. Defaults to
@@ -672,6 +679,10 @@ def analyze_corner_reflectors(
             shift_domain=peak_find_domain,
         )
 
+    orbit = rslc.getOrbit()
+    attitude = rslc.getAttitude()
+    radar_grid = rslc.getRadarGrid(freq)
+
     results = []
     for cr in corner_reflectors:
         try:
@@ -694,8 +705,14 @@ def analyze_corner_reflectors(
         assert "validity" not in cr_info
         assert "velocity" not in cr_info
 
-        # TODO: Placeholder for now. To be implemented in R4.
-        elevation_angle = np.nan
+        # Get the target's zero-Doppler elevation angle.
+        _, elevation_angle = isce3.cal.get_target_observation_time_and_elevation(
+            target_llh=cr.llh,
+            orbit=orbit,
+            attitude=attitude,
+            wavelength=radar_grid.wavelength,
+            look_side=radar_grid.lookside,
+        )
 
         # Add some additional metadata.
         cr_info.update(
@@ -848,6 +865,16 @@ def process_corner_reflector_csv(
     else:
         raise ValueError(f"unexpected csv format: {csv_format!r}")
 
+    # Filter CRs by heading.
+    approx_cr_heading = nisar.cal.est_cr_az_mid_swath_from_slc(rslc)
+    corner_reflectors = nisar.cal.filter_crs_per_az_heading(
+        corner_reflectors, az_heading=approx_cr_heading
+    )
+
+    # Filter out CRs outside the RSLC bounding polygon.
+    polygon = shapely.from_wkt(rslc.identification.boundingPolygon)
+    corner_reflectors = isce3.cal.get_crs_in_polygon(corner_reflectors, polygon)
+
     # Analyze point targets.
     results = analyze_corner_reflectors(
         corner_reflectors=corner_reflectors,
@@ -927,7 +954,7 @@ if __name__ == "__main__":
             pta_output = pta_output,
         )
 
-        if plots:
+        if plots and plt is not None:
             plt.show()
     else:
         # Should be unreachable.

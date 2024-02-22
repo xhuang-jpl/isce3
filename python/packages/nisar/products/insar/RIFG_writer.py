@@ -5,6 +5,7 @@ from nisar.workflows.helpers import get_cfg_freq_pols
 from .InSAR_L1_writer import L1InSARWriter
 from .InSAR_products_info import InSARProductsInfo
 from .product_paths import RIFGGroupsPaths
+from .units import Units
 
 
 class RIFGWriter(L1InSARWriter):
@@ -40,7 +41,7 @@ class RIFGWriter(L1InSARWriter):
         self.attrs["reference_document"] = \
             np.string_("D-102270 NISAR NASA SDS Product Specification"
                        " L1 Range Doppler Wrapped Interferogram")
-        
+
         ctype = h5py.h5t.py_create(np.complex64)
         ctype.commit(self["/"].id, np.string_("complex64"))
 
@@ -87,7 +88,7 @@ class RIFGWriter(L1InSARWriter):
                         "wrappedInterferogram",
                         np.complex64,
                         f"Interferogram between {pol} layers",
-                        "DN",
+                        Units.unitless,
                     ),
                 ]
 

@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
-import numpy as np
+import shapely
 
 import isce3
 import nisar
@@ -137,8 +137,13 @@ def estimate_abscal_factor(
           The absolute radiometric calibration error for the corner reflector (the ratio
           of the measured RCS to the predicted RCS), in linear units.
 
+        'elevation_angle':
+          The elevation angle of the corner reflector, in radians. Elevation is measured
+          in the cross-track direction w.r.t antenna boresight, increasing toward
+          far-range.
+
         'timestamp':
-          The corner reflector observation time.
+          The corner reflector zero-Doppler observation time.
 
         'frequency':
           The frequency sub-band of the data.
@@ -222,6 +227,9 @@ def estimate_abscal_factor(
     else:
         orbit = external_orbit
 
+    # Get platform attitude data.
+    attitude = rslc.getAttitude()
+
     # Estimate the absolute calibration error (the ratio of the measured RCS to the
     # predicted RCS) for a single corner reflector.
     def estimate_abscal_error(
@@ -267,16 +275,20 @@ def estimate_abscal_factor(
             )
             continue
 
-        # TODO: Placeholder for now. To be implemented in R4.
-        elevation_angle = np.nan
+        # Get the target's zero-Doppler UTC time and elevation angle.
+        az_datetime, el_angle = isce3.cal.get_target_observation_time_and_elevation(
+            target_llh=cr.llh,
+            orbit=orbit,
+            attitude=attitude,
+            wavelength=radar_grid.wavelength,
+            look_side=radar_grid.lookside,
+        )
 
-        # TODO: Update 'timestamp' to be the actual observation time of the corner
-        # reflector from geo2rdr().
         cr_info = {
             "id": cr.id,
             "absolute_calibration_factor": abscal_error,
-            "elevation_angle": elevation_angle,
-            "timestamp": rslc.identification.zdStartTime,
+            "elevation_angle": el_angle,
+            "timestamp": az_datetime,
             "frequency": freq,
             "polarization": pol,
         }
@@ -484,6 +496,16 @@ def main(
         )
     else:
         raise ValueError(f"unexpected csv format: {csv_format!r}")
+
+    # Filter CRs by heading.
+    approx_cr_heading = nisar.cal.est_cr_az_mid_swath_from_slc(rslc)
+    corner_reflectors = nisar.cal.filter_crs_per_az_heading(
+        corner_reflectors, az_heading=approx_cr_heading
+    )
+
+    # Filter out CRs outside the RSLC bounding polygon.
+    polygon = shapely.from_wkt(rslc.identification.boundingPolygon)
+    corner_reflectors = isce3.cal.get_crs_in_polygon(corner_reflectors, polygon)
 
     # Parse external orbit XML file, if applicable.
     if external_orbit_xml is None:

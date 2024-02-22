@@ -149,7 +149,7 @@ runconfig:
                 # ISCE3 output rasters always have North-up West-left orientation
                 wrapped_interferogram:
                     # Default interpolation method is SINC method
-                    interp_method: BILINEAR
+                    interp_method: SINC
                     # OPTIONAL - To control output grid in same units as output EPSG
                     x_snap:
                     # OPTIONAL - To control output grid in same units as output EPSG
@@ -316,7 +316,7 @@ runconfig:
                 write_local_incidence: False
                 write_local_psi: False
                 write_simulated_amplitude: False
-                write_layover_shadow: True
+                write_layover_shadow: False
 
             coarse_resample:
                 # Path to coarse offsets directory (geo2rdr offsets)
@@ -379,7 +379,7 @@ runconfig:
                 # Oversampling factor of the correlation surface for sub-pixel offset refinement
                 correlation_surface_oversampling_factor: 64
                 # Correlation surface oversampling algorithm
-                correlation_surface_oversampling_method: 'sinc'
+                correlation_surface_oversampling_method: 'fft'
                 # Number of cuda streams
                 cuda_streams:
                 # Number of offset estimates to process in batch along slant range
@@ -444,8 +444,6 @@ runconfig:
                     window_azimuth: 64
                     half_search_range: 16
                     half_search_azimuth: 16
-                    skip_range: 15
-                    skip_azimuth: 15
 
             rubbersheet:
                 # Path to dense offsets outputs (offsets, snr, covariance).
@@ -793,6 +791,13 @@ runconfig:
                     qa_reports: true
 
                 qa_reports:
+                    phase_img:
+                        # The multiple of pi to rewrap the unwrapped phase image.
+                        # If None, no rewrapping will occur.
+                        # Ex: If 3 is provided, the image is rewrapped to the interval [0, 3pi).
+                        # Default: 7
+                        rewrap: 7
+
                     hsi_img:
                         # True to perform histogram equalization on the Intensity channel
                         # (the coherence magnitude layer) in the browse image PNG.
@@ -809,8 +814,8 @@ runconfig:
                         # The multiple of pi to rewrap the unwrapped phase image
                         # when generating the HSI image(s). If None, no rewrapping will occur.
                         # Ex: If 3 is provided, the image is rewrapped to the interval [0, 3pi).
-                        # Default: 3
-                        rewrap: 3
+                        # Default: 7
+                        rewrap: 7
 
             gunw:
                 workflows:
@@ -842,8 +847,8 @@ runconfig:
                         # The multiple of pi to rewrap the unwrapped phase image
                         # when generating the HSI image(s). If None, no rewrapping will occur.
                         # Ex: If 3 is provided, the image is rewrapped to the interval [0, 3pi).
-                        # Default: 3
-                        rewrap: 3
+                        # Default: 7
+                        rewrap: 7
 
             roff:
                 workflows:

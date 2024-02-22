@@ -51,7 +51,11 @@ def get_dataset_output_options(cfg: dict):
 
 def get_complex_output_dtype(cfg: dict, dst_h5: h5py.File):
     '''
-    Determine type of complex output
+    Get the dtype for the complex output and the corresponding NaN fill value.
+    
+    The dtype is specified in `cfg`. `fill_value` will have a dtype of `ctype`.
+    This custom ctype will be added as a new object in the root of `dst_h5` file,
+    to teach tools like GDAL/netCDF how to read datasets with these custom dtypes.
 
     Parameters
     ----------
@@ -77,8 +81,11 @@ def get_complex_output_dtype(cfg: dict, dst_h5: h5py.File):
         ctype = complex32
         fill_value = to_complex32(np.array([fill_value]))[0]
     else:
+        # output_type is 'complex64' or 'complex64_zero_mantissa'.
         ctype = h5py.h5t.py_create(np.complex64)
         ctype.commit(dst_h5['/'].id, np.string_('complex64'))
+        # Cast fill value as np.complex64.
+        fill_value = np.complex64(fill_value)
 
     return ctype, fill_value
 
@@ -95,6 +102,7 @@ def get_products_and_paths(cfg: dict) -> (dict, dict):
     insar_products = ['ROFF', 'GOFF', 'RIFG', 'RUNW', 'GUNW']
     product_dict = {'ROFF_RIFG_RUNW_GOFF_GUNW': insar_products,
                     'RIFG_RUNW_GUNW': insar_products[2:],
+                    'ROFF_GOFF': insar_products[0:2],
                     'GUNW': insar_products[2:],
                     'GOFF': insar_products[0:2],
                     'RUNW': ['RIFG', 'RUNW'],
@@ -102,8 +110,7 @@ def get_products_and_paths(cfg: dict) -> (dict, dict):
                     'ROFF': ["ROFF"],
                     'GCOV': ['GCOV'],
                     'GSLC': ['GSLC'],
-                    'RUNW_STANDALONE': ['RUNW'],
-                    'GUNW_STANDALONE': ['GUNW']}
+                    }
 
     # dict keying product type to dict of product type key(s) to output(s)
     # following lambda creates subproduct specific output path
@@ -116,6 +123,9 @@ def get_products_and_paths(cfg: dict) -> (dict, dict):
                 'RIFG_RUNW_GUNW': dict(zip(insar_products[2:],
                                            [insar_path(output_path, product) for product
                                            in insar_products[2:]])),
+                'ROFF_GOFF': dict(zip(insar_products[0:2],
+                                      [insar_path(output_path, product) for product
+                                       in insar_products[0:2]])),
                 'GUNW': {'RIFG': f'{scratch}/RIFG.h5',
                          'RUNW': f'{scratch}/RUNW.h5',
                          'GUNW': output_path},
@@ -205,7 +215,7 @@ def cp_geocode_meta(cfg, output_hdf5, dst):
 
     with h5py.File(input_hdf5, 'r', libver='latest', swmr=True) as src_h5, \
             h5py.File(output_hdf5, 'w', libver='latest', swmr=True) as dst_h5:
-        dst_h5.attrs['Conventions'] = np.string_("CF-1.8")
+        dst_h5.attrs['Conventions'] = np.string_("CF-1.7")
 
         # Copy of identification group
         ident_path = f'{common_path}/identification'
@@ -500,11 +510,11 @@ def prep_ds(cfg, output_hdf5, dst):
     with h5py.File(output_hdf5, 'a', libver='latest', swmr=True) as dst_h5:
         # Fork the dataset preparation for GSLC/GCOV and GUNW
         if dst in ['GSLC', 'GCOV']:
-            prep_ds_gslc_gcov(cfg, dst, dst_h5)
+            prep_gslc_dataset(cfg, dst, dst_h5)
         else:
             prep_ds_insar(cfg, dst, dst_h5)
 
-def prep_ds_gslc_gcov(cfg, dst, dst_h5):
+def prep_gslc_dataset(cfg, dst, dst_h5):
     '''
     Prepare datasets for GSLC and GCOV
     '''
@@ -514,13 +524,13 @@ def prep_ds_gslc_gcov(cfg, dst, dst_h5):
 
     gslc_output_options = {}
     # if GSLC, populate output dict with h5py.Group.create_dataset kwargs
-    if dst == 'GSLC':
-        # Get compression and chunking options
-        gslc_output_options = get_dataset_output_options(cfg)
 
-        # Get complex data type and set fill value to kwargs
-        ctype, fill_value = get_complex_output_dtype(cfg, dst_h5)
-        gslc_output_options['fillvalue'] = fill_value
+    # Get compression and chunking options
+    gslc_output_options = get_dataset_output_options(cfg)
+
+    # Get complex data type and set fill value to kwargs
+    ctype, fill_value = get_complex_output_dtype(cfg, dst_h5)
+    gslc_output_options['fillvalue'] = fill_value
 
     # Create datasets in the ouput hdf5
     geogrids = cfg['processing']['geocode']['geogrids']
@@ -531,21 +541,15 @@ def prep_ds_gslc_gcov(cfg, dst, dst_h5):
 
         yds, xds = set_get_geo_info(dst_h5, dst_parent_path, geogrids[freq])
 
-        # GSLC specfics datasets
-        if dst == 'GSLC':
-            # create datasets for polarizations of current frequency
-            for polarization in pol_list:
-                dst_grp = dst_h5[dst_parent_path]
-                long_name = f'geocoded single-look complex image {polarization}'
-                descr = f'Geocoded SLC image ({polarization})'
-                _create_datasets(dst_grp, shape, ctype, polarization,
-                                 descr=descr, units='', grids="projection",
-                                 long_name=long_name, yds=yds, xds=xds,
-                                 **gslc_output_options)
-
-        # set GCOV polarization values (diagonal values only)
-        elif dst == 'GCOV':
-            pol_list = [(p + p).upper() for p in pol_list]
+        # create datasets for polarizations of current frequency
+        for polarization in pol_list:
+            dst_grp = dst_h5[dst_parent_path]
+            long_name = f'geocoded single-look complex image {polarization}'
+            descr = f'Geocoded SLC image ({polarization})'
+            _create_datasets(dst_grp, shape, ctype, polarization,
+                             descr=descr, units='', grids="projection",
+                             long_name=long_name, yds=yds, xds=xds,
+                             fill_value=fill_value, **gslc_output_options)
 
         _add_polarization_list(dst_h5, dst, common_parent_path, freq, pol_list)
 
@@ -568,7 +572,7 @@ def get_off_params(pcfg, param_name, is_roff=False, pattern=None,
 def _create_datasets(dst_grp, shape, ctype, dataset_name,
                      chunks=(128, 128), descr=None, units=None,
                      grids=None, data=None, standard_name=None, long_name=None,
-                     yds=None, xds=None, **kwargs):
+                     yds=None, xds=None, fill_value=None, **kwargs):
     '''
     wrapper around h5py.Group.create_dataset that adds nisar.workflows specific
     attributes to avoid boilerplate calls
@@ -614,6 +618,9 @@ def _create_datasets(dst_grp, shape, ctype, dataset_name,
     if xds is not None:
         ds.dims[1].attach_scale(xds)
 
+    if fill_value is not None:
+        ds.attrs["_FillValue"] = fill_value
+
 
 def _add_polarization_list(dst_h5, dst, common_parent_path, frequency, pols):
     '''
@@ -630,11 +637,12 @@ def _add_polarization_list(dst_h5, dst, common_parent_path, frequency, pols):
     name = "listOfPolarizations"
     pols_array = np.array(pols, dtype="S2")
     dset = grp.create_dataset(name, data=pols_array)
-    desc = f"List of polarization layers with frequency{frequency}"
+    desc = f"List of processed polarization layers with frequency {frequency}"
     dset.attrs["description"] = np.string_(desc)
 
 
-def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None, flag_cube=False):
+def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None,
+                     flag_cube=False, flag_save_coordinate_spacing=True):
     epsg_code = geo_grid.epsg
 
     dx = geo_grid.spacing_x
@@ -647,32 +655,18 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None, flag_cube=False):
     yf = y0 + (geo_grid.length - 1) * dy
     y_vect = np.linspace(y0, yf, geo_grid.length, dtype=np.float64)
 
-    hdf5_obj.attrs['Conventions'] = np.string_("CF-1.8")
-
     if epsg_code == 4326:
         x_coord_units = "degree_east"
         y_coord_units = "degree_north"
         x_standard_name = "longitude"
         y_standard_name = "latitude"
     else:
-        x_coord_units = "m"
-        y_coord_units = "m"
+        x_coord_units = "meters"
+        y_coord_units = "meters"
         x_standard_name = "projection_x_coordinate"
         y_standard_name = "projection_y_coordinate"
 
-    if flag_cube:
-        # EPSG
-        descr = ("EPSG code corresponding to coordinate system used" +
-                 " for representing radar grid")
-        epsg_dataset_name = os.path.join(root_ds, 'epsg')
-        if epsg_dataset_name in hdf5_obj:
-            del hdf5_obj[epsg_dataset_name]
-        epsg_dataset = hdf5_obj.create_dataset(epsg_dataset_name,
-                                               data=np.array(epsg_code, "i4"))
-        epsg_dataset.attrs["description"] = np.string_(descr)
-        epsg_dataset.attrs["units"] = ""
-        epsg_dataset.attrs["long_name"] = np.string_("EPSG code")
-    else:
+    if not flag_cube and flag_save_coordinate_spacing:
         # xCoordinateSpacing
         descr = (f'Nominal spacing in {x_coord_units}'
                  ' between consecutive pixels')
@@ -696,11 +690,7 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None, flag_cube=False):
         yds_spacing.attrs["long_name"] = np.string_("y coordinates spacing")
 
     # xCoordinates
-    if not flag_cube:
-        descr = "CF compliant dimension associated with the X coordinate"
-    else:
-        descr = ('X coordinate values corresponding'
-                 ' to the radar grid')
+    descr = 'X coordinates in specified projection'
     xds_name = os.path.join(root_ds, 'xCoordinates')
     if xds_name in hdf5_obj:
         del hdf5_obj[xds_name]
@@ -711,11 +701,7 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None, flag_cube=False):
     xds.attrs["long_name"] = np.string_("x coordinate")
 
     # yCoordinates
-    if not flag_cube:
-        descr = "CF compliant dimension associated with the Y coordinate"
-    else:
-        descr = ('Y coordinate values corresponding'
-                 ' to the radar grid')
+    descr = 'Y coordinates in specified projection'
 
     yds_name = os.path.join(root_ds, 'yCoordinates')
     if yds_name in hdf5_obj:
@@ -730,15 +716,16 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None, flag_cube=False):
 
     # zCoordinates
     if z_vect is not None:
-        descr = "Height values above WGS84 Ellipsoid corresponding to the radar grid"
+        descr = ('Height values above WGS84 Ellipsoid corresponding to the'
+                 ' radar grid')
         zds_name = os.path.join(root_ds, 'heightAboveEllipsoid')
         if zds_name in hdf5_obj:
             del hdf5_obj[zds_name]
-        zds = hdf5_obj.create_dataset(zds_name, data=z_vect)
+        zds = hdf5_obj.create_dataset(zds_name, data=z_vect, dtype='f8')
         zds.attrs['standard_name'] = np.string_(
             "height_above_reference_ellipsoid")
-        yds.attrs["description"] = np.string_(descr)
-        zds.attrs['units'] = np.string_("m")
+        zds.attrs["description"] = np.string_(descr)
+        zds.attrs['units'] = np.string_("meters")
         coordinates_list.append(zds)
 
     try:
@@ -759,6 +746,10 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None, flag_cube=False):
     # Set up osr for wkt
     srs = osr.SpatialReference()
     srs.ImportFromEPSG(epsg_code)
+
+    # Add projection description
+    projds.attrs['description'] = np.string_('Product map grid projection: EPSG code, '
+                                             'with additional projection information as HDF5 Attributes')
 
     # WGS84 ellipsoid
     projds.attrs['semi_major_axis'] = 6378137.0
@@ -871,55 +862,58 @@ def add_radar_grid_cubes_to_hdf5(hdf5_obj, cube_group_name, geogrid,
         cube_group, 'slantRange', np.float64, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='slant-range',
-        descr='',
+        descr='Slant range in meters',
         units='meter')
     azimuth_time_raster = _get_raster_from_hdf5_ds(
         cube_group, 'zeroDopplerAzimuthTime', np.float64, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='zero-Doppler azimuth time',
-        descr='Zero doppler azimuth time in seconds',
+        descr='Zero Doppler azimuth time in seconds',
         units=az_coord_units)
     incidence_angle_raster = _get_raster_from_hdf5_ds(
         cube_group, 'incidenceAngle', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='incidence angle',
-        descr='Incidence angle is defined as angle between LOS vector and normal at the target',
+        descr=('Incidence angle is defined as the angle between the LOS vector'
+               ' and the normal to the ellipsoid at the target height'),
         units='degrees')
     los_unit_vector_x_raster = _get_raster_from_hdf5_ds(
         cube_group, 'losUnitVectorX', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='LOS unit vector X',
         descr='East component of unit vector of LOS from target to sensor',
-        units='unitless')
+        units='1')
     los_unit_vector_y_raster = _get_raster_from_hdf5_ds(
         cube_group, 'losUnitVectorY', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='LOS unit vector Y',
         descr='North component of unit vector of LOS from target to sensor',
-        units='unitless')
+        units='1')
     along_track_unit_vector_x_raster = _get_raster_from_hdf5_ds(
         cube_group, 'alongTrackUnitVectorX', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Along-track unit vector X',
         descr='East component of unit vector along ground track',
-        units='unitless')
+        units='1')
     along_track_unit_vector_y_raster = _get_raster_from_hdf5_ds(
         cube_group, 'alongTrackUnitVectorY', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Along-track unit vector Y',
         descr='North component of unit vector along ground track',
-        units='unitless')
+        units='1')
     elevation_angle_raster = _get_raster_from_hdf5_ds(
         cube_group, 'elevationAngle', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Elevation angle',
-        descr='Elevation angle is defined as angle between LOS vector and norm at the sensor',
+        descr=('Elevation angle is defined as the angle between the LOS vector'
+               ' and the normal to the ellipsoid at the sensor'),
         units='degrees')
     ground_track_velocity_raster = _get_raster_from_hdf5_ds(
         cube_group, 'groundTrackVelocity', np.float64, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Ground-track velocity',
-        descr='Ground track velocity needed to convert azimuth offsets in pixels to meters',
+        descr=('Absolute value of the platform velocity scaled at the target'
+               ' height'),
         units='m/s')
 
     isce3.geometry.make_radar_grid_cubes(radar_grid,
@@ -1015,20 +1009,20 @@ def add_geolocation_grid_cubes_to_hdf5(hdf5_obj, cube_group_name, radar_grid,
         x_coord_units = "degree_east"
         y_coord_units = "degree_north"
     else:
-        x_coord_units = "meter"
-        y_coord_units = "meter"
+        x_coord_units = "meters"
+        y_coord_units = "meters"
 
     coordinate_x_raster = _get_raster_from_hdf5_ds(
         cube_group, 'coordinateX', np.float64, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Coordinate X',
-        descr='X coordinate in specified EPSG code',
+        descr='X coordinates in specified EPSG code',
         units=x_coord_units)
     coordinate_y_raster = _get_raster_from_hdf5_ds(
         cube_group, 'coordinateY', np.float64, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Coordinate Y',
-        descr='Y coordinate in specified EPSG code',
+        descr='Y coordinates in specified EPSG code',
         units=y_coord_units)
     incidence_angle_raster = _get_raster_from_hdf5_ds(
         cube_group, 'incidenceAngle', np.float32, cube_shape,
@@ -1042,25 +1036,25 @@ def add_geolocation_grid_cubes_to_hdf5(hdf5_obj, cube_group_name, radar_grid,
         zds=zds, yds=yds, xds=xds,
         long_name='LOS unit vector X',
         descr='East component of unit vector of LOS from target to sensor',
-        units='')
+        units='1')
     los_unit_vector_y_raster = _get_raster_from_hdf5_ds(
         cube_group, 'losUnitVectorY', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='LOS unit vector Y',
         descr='North component of unit vector of LOS from target to sensor',
-        units='')
+        units='1')
     along_track_unit_vector_x_raster = _get_raster_from_hdf5_ds(
         cube_group, 'alongTrackUnitVectorX', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Along-track unit vector X',
         descr='East component of unit vector along ground track',
-        units='')
+        units='1')
     along_track_unit_vector_y_raster = _get_raster_from_hdf5_ds(
         cube_group, 'alongTrackUnitVectorY', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Along-track unit vector Y',
         descr='North component of unit vector along ground track',
-        units='')
+        units='1')
     elevation_angle_raster = _get_raster_from_hdf5_ds(
         cube_group, 'elevationAngle', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
@@ -1073,7 +1067,7 @@ def add_geolocation_grid_cubes_to_hdf5(hdf5_obj, cube_group_name, radar_grid,
         zds=zds, yds=yds, xds=xds,
         long_name='Ground-track velocity',
         descr='Absolute value of the platform velocity scaled at the target height',
-        units='meters per second')
+        units='meters / second')
 
     isce3.geometry.make_geolocation_cubes(radar_grid,
                                           heights,
@@ -1107,10 +1101,7 @@ def set_create_geolocation_grid_coordinates(hdf5_obj, root_ds, radar_grid,
     d_az = 1.0 / radar_grid.prf
 
     az_f = az_0 + (radar_grid.length - 1) * d_az
-    az_vect = np.linspace(az_0, az_f - d_az, radar_grid.length,
-                          dtype=np.float64)
-
-    hdf5_obj.attrs['Conventions'] = np.string_("CF-1.8")
+    az_vect = np.linspace(az_0, az_f, radar_grid.length, dtype=np.float64)
 
     rg_coord_units = "meters"
 
@@ -1130,22 +1121,21 @@ def set_create_geolocation_grid_coordinates(hdf5_obj, root_ds, radar_grid,
     epsg_dataset = hdf5_obj.create_dataset(epsg_dataset_name,
                                            data=np.array(epsg, "i4"))
     epsg_dataset.attrs["description"] = np.string_(descr)
-    epsg_dataset.attrs["units"] = ""
     epsg_dataset.attrs["long_name"] = np.string_("EPSG code")
 
     # Slant range
-    descr = "Slant range dimension corresponding to calibration records"
+    descr = "Slant range values corresponding to the geolocation grid"
     rg_dataset_name = os.path.join(root_ds, 'slantRange')
     if rg_dataset_name in hdf5_obj:
         del hdf5_obj[rg_dataset_name]
     rg_dataset = hdf5_obj.create_dataset(rg_dataset_name, data=rg_vect)
     rg_dataset.attrs["description"] = np.string_(descr)
     rg_dataset.attrs["units"] = np.string_(rg_coord_units)
-    rg_dataset.attrs["long_name"] = np.string_("slant-range")
+    rg_dataset.attrs["long_name"] = np.string_("slant range")
     coordinates_list.append(rg_dataset)
 
     # Zero-doppler time
-    descr = "Zero doppler time dimension corresponding to calibration records"
+    descr = "Zero Doppler time values corresponding to the geolocation grid"
     az_dataset_name = os.path.join(root_ds, 'zeroDopplerTime')
     if az_dataset_name in hdf5_obj:
         del hdf5_obj[az_dataset_name]
@@ -1167,52 +1157,3 @@ def set_create_geolocation_grid_coordinates(hdf5_obj, root_ds, radar_grid,
     coordinates_list.append(height_dataset)
 
     return coordinates_list
-
-
-def add_solid_earth_to_gunw_hdf5(solid_earth_tides,
-                                  gunw_hdf5):
-    '''
-    Add the solid earth phase datacube to GUNW product
-
-    Parameters
-     ----------
-      los_solid_earth_tides_datacube: np.ndarray
-        solid earth tides along the los direction
-      azimuth_solid_earth_tides_datacube: np.ndarray
-        solid earth tides along the azimuth direction
-      gunw_hdf5: str
-         GUNW HDF5 file where SET will be written
-
-    Returns
-     -------
-       None
-    '''
-
-    with h5py.File(gunw_hdf5, 'a', libver='latest', swmr=True) as hdf:
-
-        radar_grid = hdf.get('science/LSAR/GUNW/metadata/radarGrid')
-
-        # Dataset description
-        descrs = ["InSAR phase datacube due to Solid Earth tides along line of sight direction",
-                  'InSAR phase datacube due to Solid Earth tides along the azimuth direction']
-
-        # Product names
-        product_names = ['losSolidEarthTidesPhase', 'alongTrackSolidEarthTidesPhase']
-
-        for  product_name, descr, solid_earth_tides_product in zip(product_names,
-                                                                   descrs,
-                                                                   solid_earth_tides):
-
-            # If there is no los solid earth tides phasey product, then createa new one
-            if product_name not in radar_grid:
-                _create_datasets(radar_grid, [0], np.float64,
-                                 product_name, descr=descr,
-                                 units='radians',
-                                 data=solid_earth_tides_product.astype(np.float64))
-
-            # If there exists the product, overwrite the old one
-            else:
-                solid_earth_tides_set = radar_grid[product_name]
-                solid_earth_tides_set[:] = solid_earth_tides_product.astype(
-                    np.float64)
-

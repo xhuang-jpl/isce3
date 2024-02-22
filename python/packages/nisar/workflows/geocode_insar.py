@@ -3,6 +3,7 @@
 """
 collection of functions for NISAR geocode workflow
 """
+import os
 import pathlib
 import time
 from enum import Enum
@@ -11,6 +12,11 @@ import h5py
 import isce3
 import journal
 import numpy as np
+from nisar.products.insar.product_paths import (CommonPaths, GOFFGroupsPaths,
+                                                GUNWGroupsPaths,
+                                                RIFGGroupsPaths,
+                                                ROFFGroupsPaths,
+                                                RUNWGroupsPaths)
 from nisar.products.readers import SLC
 from nisar.products.readers.orbit import load_orbit_from_xml
 from nisar.workflows import prepare_insar_hdf5
@@ -20,9 +26,6 @@ from nisar.workflows.geocode_corrections import get_az_srg_corrections
 from nisar.workflows.geocode_insar_runconfig import GeocodeInsarRunConfig
 from nisar.workflows.h5_prep import add_radar_grid_cubes_to_hdf5
 from nisar.workflows.helpers import get_cfg_freq_pols
-from nisar.products.insar.product_paths import (CommonPaths, GUNWGroupsPaths,
-                                                GOFFGroupsPaths, ROFFGroupsPaths,
-                                                RIFGGroupsPaths, RUNWGroupsPaths)
 from nisar.workflows.yaml_argparse import YamlArgparse
 from osgeo import gdal
 
@@ -581,7 +584,7 @@ def cpu_geocode_rasters(cpu_geo_obj, geo_datasets, desired, freq, pol_list,
                         block_size, offset_params=None, scratch_path='',
                         compute_stats=True, input_product_type = InputProduct.RUNW,
                         iono_sideband=False, az_correction=isce3.core.LUT2d(),
-                        srg_correction=isce3.core.LUT2d()):
+                        srg_correction=isce3.core.LUT2d(), subswaths=None):
 
     geocoded_rasters, geocoded_datasets, input_rasters, *_ = \
         get_raster_lists(geo_datasets, desired, freq, pol_list, input_hdf5,
@@ -600,11 +603,14 @@ def cpu_geocode_rasters(cpu_geo_obj, geo_datasets, desired, freq, pol_list,
                 min_block_size=block_size,
                 max_block_size=block_size,
                 az_time_correction=az_correction,
-                slant_range_correction=srg_correction)
+                slant_range_correction=srg_correction,
+                sub_swaths=subswaths)
 
         if compute_stats:
             for raster, ds in zip(geocoded_rasters, geocoded_datasets):
-                compute_stats_real_data(raster, ds)
+                if os.path.basename(ds.name) not in ['wrappedInterferogram',
+                                                     'connectedComponents']:
+                    compute_stats_real_data(raster, ds)
 
 def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
     """ Geocode RUNW products on CPU
@@ -717,6 +723,8 @@ def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                      geo_grid.spacing_x, geo_grid.spacing_y,
                                      geo_grid.width, geo_grid.length, geo_grid.epsg)
 
+            subswaths = slc.getSwathMetadata(freq).sub_swaths()
+
             # Assign correct radar grid
             if az_looks > 1 or rg_looks > 1:
                 radar_grid = radar_grid_mlook
@@ -733,7 +741,8 @@ def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                 cpu_geocode_rasters(geocode_obj, geo_datasets, desired, freq,
                                     pol_list, input_hdf5, dst_h5, radar_grid,
                                     dem_raster, block_size, az_correction=az_correction,
-                                    srg_correction=srg_correction)
+                                    srg_correction=srg_correction,
+                                    subswaths=subswaths)
                 if iono_enabled:
                     # polarizations for ionosphere can be independent to insar pol
                     pol_list_iono = freq_pols_iono[freq]
@@ -771,7 +780,8 @@ def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                             block_size,
                                             iono_sideband=iono_sideband_bool,
                                             az_correction=az_correction,
-                                            srg_correction=srg_correction)
+                                            srg_correction=srg_correction,
+                                            subswaths=subswaths)
 
                 # reset geocode_obj geogrid
                 if is_iono_method_sideband and freq == 'B':
@@ -786,7 +796,8 @@ def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                 cpu_geocode_rasters(geocode_obj, geo_datasets, desired, freq,
                                     pol_list, input_hdf5, dst_h5, radar_grid,
                                     dem_raster, block_size, az_correction=az_correction,
-                                    srg_correction=srg_correction)
+                                    srg_correction=srg_correction,
+                                    subswaths=subswaths)
 
                 desired = ['along_track_offset', 'slant_range_offset',
                            'correlation_surface_peak']
@@ -799,22 +810,23 @@ def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                     radar_grid_offset, dem_raster,
                                     block_size, az_correction=az_correction,
                                     srg_correction=srg_correction)
+                if cfg['processing']['rdr2geo']['write_layover_shadow']:
+                    desired = ["mask"]
+                    geocode_obj.data_interpolator = 'NEAREST'
+                    cpu_geocode_rasters(geocode_obj, geo_datasets, desired, freq,
+                                        pol_list, input_hdf5, dst_h5,
+                                        radar_grid_slc, dem_raster, block_size,
+                                        scratch_path=scratch_path,
+                                        compute_stats=False,
+                                        az_correction=az_correction,
+                                        srg_correction=srg_correction,
+                                        subswaths=subswaths)
 
-                desired = ["mask"]
-                geocode_obj.data_interpolator = 'NEAREST'
-                cpu_geocode_rasters(geocode_obj, geo_datasets, desired, freq,
-                                    pol_list, input_hdf5, dst_h5,
-                                    radar_grid_slc, dem_raster, block_size,
-                                    scratch_path=scratch_path,
-                                    compute_stats=False,
-                                    az_correction=az_correction,
-                                    srg_correction=srg_correction)
-
-                # add water mask to GUNW product
-                add_water_to_mask(cfg, freq, geo_grid, dst_h5)
-                mask_path = f'{GUNWGroupsPaths().GridsPath}/frequency{freq}/unwrappedInterferogram/mask'
-                mask_ds = dst_h5[mask_path]
-                compute_layover_shadow_water_stats(mask_ds)
+                    # add water mask to GUNW product
+                    add_water_to_mask(cfg, freq, geo_grid, dst_h5)
+                    mask_path = f'{GUNWGroupsPaths().GridsPath}/frequency{freq}/unwrappedInterferogram/mask'
+                    mask_ds = dst_h5[mask_path]
+                    compute_layover_shadow_water_stats(mask_ds)
 
             elif input_product_type is InputProduct.ROFF:
                 offset_cfg = cfg['processing']['offsets_product']
@@ -844,7 +856,8 @@ def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                     offset_params=layer_geocode_params,
                                     input_product_type=InputProduct.ROFF,
                                     az_correction=az_correction,
-                                    srg_correction=srg_correction)
+                                    srg_correction=srg_correction,
+                                    subswaths=subswaths)
             else:
                 #RIFG
                 # Geocode the coherence
@@ -855,7 +868,8 @@ def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                     dem_raster, block_size,
                                     input_product_type=InputProduct.RIFG,
                                     az_correction=az_correction,
-                                    srg_correction=srg_correction)
+                                    srg_correction=srg_correction,
+                                    subswaths=subswaths)
 
                 # Geocode the wrapped interferogram
                 desired = ['wrapped_interferogram']
@@ -866,7 +880,8 @@ def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                     dem_raster, block_size * 2,
                                     input_product_type=InputProduct.RIFG,
                                     az_correction=az_correction,
-                                    srg_correction=srg_correction)
+                                    srg_correction=srg_correction,
+                                    subswaths=subswaths)
 
             # spec for NISAR GUNW does not require freq B so skip radar cube
             if freq.upper() == 'B':
@@ -889,11 +904,14 @@ def gpu_geocode_rasters(geocoded_dataset_flags,
                         lines_per_block,
                         input_hdf5,
                         dst_h5,
+                        subswaths,
                         offset_layers=None,
                         scratch_path='',
                         compute_stats=True,
                         input_product_type=InputProduct.RUNW,
-                        iono_sideband=False):
+                        iono_sideband=False,
+                        az_correction=isce3.core.LUT2d(),
+                        srg_correction=isce3.core.LUT2d()):
     '''
     Geocode datasets with common geogrid and radar geometry.
 
@@ -927,6 +945,8 @@ def gpu_geocode_rasters(geocoded_dataset_flags,
         Path to HDF5 with radar datasets to be geocoded.
     dst_h5: str
         Path to HDF5 where geocoded datasets are to be placed.
+    subswaths: isce3.product.SubSwaths
+        Possible subswath that could be used to mask geocoding.
     offset_layers: list[str]
         List of names of offset layers.
     scratch_path: str
@@ -937,6 +957,10 @@ def gpu_geocode_rasters(geocoded_dataset_flags,
         Enum describing type of product to geocoded.
     iono_sideband: bool
         True if iono rasters are to be geocoded.
+    az_correction: isce3.core.LUT2d()
+        Low-res LUT containing azimuth timing correction for geocoding
+    srg_correction: isce3.core.LUT2d()
+        Low-res LUT containing slant range timing correction for geocoding
     '''
     # Get:
     # 1. List of output geocoded rasters asisce3.io.Rasters objects
@@ -977,11 +1001,16 @@ def gpu_geocode_rasters(geocoded_dataset_flags,
                                         interpolation_methods,
                                         raster_types,
                                         invalid_values,
-                                        dem_raster)
+                                        dem_raster,
+                                        subswaths=subswaths,
+                                        az_time_correction=az_correction,
+                                        srange_correction=srg_correction)
 
         if compute_stats:
             for raster, ds in zip(geocoded_rasters, geocoded_datasets):
-                compute_stats_real_data(raster, ds)
+                if os.path.basename(ds.name) not in ['connectedComponents',
+                                                     'wrappedInterferogram']:
+                    compute_stats_real_data(raster, ds)
 
 def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
     """ Geocode RUNW products on GPU
@@ -1083,7 +1112,13 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
         # Based on runconfig iterate over frequencies and their polarizations
         for freq, pol_list, offset_pol_list in get_cfg_freq_pols(cfg):
 
+            # Get azimuth and slant range LUT corrections
+            az_correction, srg_correction = \
+                get_az_srg_corrections(cfg, slc, freq, orbit
+                                       )
             geogrid = geogrids[freq]
+
+            subswaths = slc.getSwathMetadata(freq).sub_swaths()
 
             # Create frequency based radar grid
             radar_grid = slc.getRadarGrid(freq)
@@ -1116,7 +1151,10 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                     interpolation_methods, invalid_values,
                                     freq, pol_list,
                                     geogrid, rdr_geometry, dem_raster,
-                                    lines_per_block, input_hdf5, dst_h5)
+                                    lines_per_block, input_hdf5, dst_h5,
+                                    subswaths=subswaths,
+                                    az_correction=az_correction,
+                                    srg_correction=srg_correction)
 
                 if iono_enabled:
                     desired_geo_dataset_names = ['ionosphere_phase_screen',
@@ -1176,7 +1214,10 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                             iono_freq, pol_list_iono,
                                             geogrid, rdr_geometry, dem_raster,
                                             lines_per_block, input_hdf5_iono, dst_h5,
-                                            iono_sideband=iono_sideband_bool)
+                                            subswaths,
+                                            iono_sideband=iono_sideband_bool,
+                                            az_correction=az_correction,
+                                            srg_correction=srg_correction)
 
                 desired_geo_dataset_names = [
                    'along_track_offset', 'slant_range_offset',
@@ -1203,41 +1244,47 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                     interpolation_methods, invalid_values,
                                     freq, offset_pol_list,
                                     geogrid, rdr_geometry, dem_raster,
-                                    lines_per_block, input_hdf5, dst_h5)
+                                    lines_per_block, input_hdf5, dst_h5,
+                                    subswaths=subswaths,
+                                    az_correction=az_correction,
+                                    srg_correction=srg_correction)
 
                 # Geocode layover shadow mask
-                desired_geo_dataset_names = ["mask"]
+                if cfg['processing']['rdr2geo']['write_layover_shadow']:
+                    desired_geo_dataset_names = ["mask"]
 
-                # Interpolation methods for dataset above
-                interpolation_methods = [isce3.core.DataInterpMethod.NEAREST]
+                    # Interpolation methods for dataset above
+                    interpolation_methods = [isce3.core.DataInterpMethod.NEAREST]
 
-                # Invalid values for dataset above
-                # layover shadow raster has type char and an invalid
-                # value of NaN becomes 0 which conflicts with 0 being used
-                # to indicate an unmasked value/pixel. 127 is chosen as it is
-                # the most distant value from the allowed set of [0, 1, 2, 3].
-                invalid_values = [127]
+                    # Invalid values for dataset above
+                    # layover shadow raster has type char and an invalid
+                    # value of NaN becomes 0 which conflicts with 0 being used
+                    # to indicate an unmasked value/pixel. 127 is chosen as it is
+                    # the most distant value from the allowed set of [0, 1, 2, 3].
+                    invalid_values = [127]
 
-                # If needed create geocode object for shadow layover dataset
-                # Create radar grid geometry required by layover shadow
-                rdr_geometry = isce3.container.RadarGeometry(slc.getRadarGrid(freq),
-                                                             orbit,
-                                                             grid_zero_doppler)
+                    # If needed create geocode object for shadow layover dataset
+                    # Create radar grid geometry required by layover shadow
+                    rdr_geometry = isce3.container.RadarGeometry(slc.getRadarGrid(freq),
+                                                                orbit,
+                                                                grid_zero_doppler)
 
-                gpu_geocode_rasters(geocoded_dataset_flags,
-                                    desired_geo_dataset_names,
-                                    interpolation_methods, invalid_values,
-                                    freq, pol_list,
-                                    geogrid, rdr_geometry, dem_raster,
-                                    lines_per_block, input_hdf5, dst_h5,
-                                    scratch_path=scratch_path,
-                                    compute_stats=False)
+                    gpu_geocode_rasters(geocoded_dataset_flags,
+                                        desired_geo_dataset_names,
+                                        interpolation_methods, invalid_values,
+                                        freq, pol_list,
+                                        geogrid, rdr_geometry, dem_raster,
+                                        lines_per_block, input_hdf5, dst_h5,
+                                        subswaths,
+                                        scratch_path=scratch_path,
+                                        compute_stats=False, az_correction=az_correction,
+                                        srg_correction=srg_correction)
 
-                # add water mask to GUNW product
-                add_water_to_mask(cfg, freq, geogrid, dst_h5)
-                mask_path = f'{GUNWGroupsPaths().GridsPath}/frequency{freq}/unwrappedInterferogram/mask'
-                mask_ds = dst_h5[mask_path]
-                compute_layover_shadow_water_stats(mask_ds)
+                    # add water mask to GUNW product
+                    add_water_to_mask(cfg, freq, geogrid, dst_h5)
+                    mask_path = f'{GUNWGroupsPaths().GridsPath}/frequency{freq}/unwrappedInterferogram/mask'
+                    mask_ds = dst_h5[mask_path]
+                    compute_layover_shadow_water_stats(mask_ds)
 
             elif input_product_type is InputProduct.ROFF:
                 offset_cfg = cfg['processing']['offsets_product']
@@ -1277,8 +1324,11 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                     freq, offset_pol_list,
                                     geogrid, rdr_geometry, dem_raster,
                                     lines_per_block, input_hdf5, dst_h5,
+                                    subswaths,
                                     offset_layers=layer_geocode_params,
-                                    input_product_type=InputProduct.ROFF)
+                                    input_product_type=InputProduct.ROFF,
+                                    az_correction=az_correction,
+                                    srg_correction=srg_correction)
             else:
                 # Datasets from RIFG to be geocoded
                 desired_geo_dataset_names = ['coherence_magnitude',
@@ -1302,7 +1352,10 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                                     freq, pol_list,
                                     geogrid, rdr_geometry, dem_raster,
                                     lines_per_block, input_hdf5, dst_h5,
-                                    input_product_type = InputProduct.RIFG)
+                                    subswaths,
+                                    input_product_type=InputProduct.RIFG,
+                                    az_correction=az_correction,
+                                    srg_correction=srg_correction)
 
             # spec for NISAR GUNW does not require freq B so skip radar cube
             if freq.upper() == 'B':

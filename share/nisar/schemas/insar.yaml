@@ -69,7 +69,7 @@ runconfig:
 
         primary_executable:
             # RIFG_RUNW_GUNW will produce all three InSAR products
-            product_type: enum('GUNW', 'RIFG', 'RUNW', 'RIFG_RUNW_GUNW', 'ROFF_RIFG_RUNW_GOFF_GUNW', 'RUNW_STANDALONE', 'GUNW_STANDALONE')
+            product_type: enum('GUNW', 'RIFG', 'RUNW', 'RIFG_RUNW_GUNW', 'ROFF_RIFG_RUNW_GOFF_GUNW', 'ROFF', 'GOFF', 'ROFF_GOFF')
             product_version: str('^\d+\.\d+\.\d+$', required=False)
             composite_release_id: regex(r'\w\d\d\d\d\d', name='CRID', required=False)
             processing_type: enum('PR', 'UR', required=False)
@@ -311,10 +311,10 @@ dense_offsets_options:
     window_azimuth: int(min=16, max=512, required=False)
 
     # Number of columns for search chip/template in secondary image
-    half_search_range: int(min=4, max=32, required=False)
+    half_search_range: int(min=4, max=128, required=False)
 
     # Number of lines for search chip/template in secondary image
-    half_search_azimuth: int(min=4, max=32, required=False)
+    half_search_azimuth: int(min=4, max=128, required=False)
 
     # Number of columns to skip in reference image for next offset estimate
     skip_range: int(min=1, required=False)
@@ -851,6 +851,7 @@ runw_options:
     qa_reports: include('runw_qa_reports_options', required=False)
 
 runw_qa_reports_options:
+    phase_img: include('qa_phase_img_options', required=False)
     hsi_img: include('qa_hsi_img_unwrapped_options', required=False)
 
 gunw_options:
@@ -858,6 +859,7 @@ gunw_options:
     qa_reports: include('gunw_qa_reports_options', required=False)
 
 gunw_qa_reports_options:
+    phase_img: include('qa_phase_img_options', required=False)
     hsi_img: include('qa_hsi_img_unwrapped_options', required=False)
 
 roff_options:
@@ -874,6 +876,9 @@ offsets_qa_reports_options:
 workflows_options:
     validate: bool(required=False)
     qa_reports: bool(required=False)
+
+qa_phase_img_options:
+    rewrap: num(min=0.0, required=False)
 
 qa_hsi_img_wrapped_options:
     equalize_browse: bool(required=False)
