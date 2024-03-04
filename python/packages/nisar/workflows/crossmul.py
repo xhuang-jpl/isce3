@@ -129,12 +129,12 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
                 # azimuth band width and PRF
                 crossmul.azimuth_bandwidth = \
                     ref_slc.getSwathMetadata(freq).processed_azimuth_bandwidth
-                crossmul.prf = rdr_grid.prf
+                crossmul.prf = ref_radar_grid.prf
 
                 # start range and azimuth time for reference and secondary images
-                crossmul.ref_start_range = rdr_grid.starting_range
+                crossmul.ref_start_range = ref_radar_grid.starting_range
                 crossmul.sec_start_range = sec_rdr_grid.starting_range
-                crossmul.ref_start_azimuth_time = rdr_grid.sensing_start
+                crossmul.ref_start_azimuth_time = ref_radar_grid.sensing_start
                 crossmul.sec_start_azimuth_time = sec_rdr_grid.sensing_start
 
             # enable/disable flatten accordingly
