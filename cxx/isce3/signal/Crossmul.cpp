@@ -35,7 +35,7 @@ void lookdownShiftImpact(size_t oversample, size_t fft_size, size_t blockRows,
     // As an example for a signal with length of 5 and :
     // original sample locations:   0       1       2       3        4
     // upsampled sample locations:  0   0.5 1  1.5  2  2.5  3   3.5  4   4.5
-    // Looked dow sample locations:   0.25    1.25    2.25    3.25    4.25
+    // Looked down sample locations:  0.25    1.25    2.25    3.25    4.25
     // Obviously the signal after looking down would be shifted by 0.25 pixel in
     // range comared to the original signal. Since a shift in time domain introduces
     // a linear phase in frequency domain, we compute the impact in frequency domain.
