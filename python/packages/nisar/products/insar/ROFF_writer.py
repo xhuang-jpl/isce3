@@ -7,6 +7,7 @@ from .InSAR_base_writer import InSARBaseWriter
 from .InSAR_L1_writer import L1InSARWriter
 from .InSAR_products_info import InSARProductsInfo
 from .product_paths import ROFFGroupsPaths
+from .units import Units
 
 
 class ROFFWriter(L1InSARWriter):
@@ -143,19 +144,19 @@ class ROFFWriter(L1InSARWriter):
                 DatasetParams(
                     "alongTrackSkipWindowSize",
                     np.uint32(az_skip),
-                    "Along track cross-correlation skip window size in"
+                    "Along-track cross-correlation skip window size in"
                     " pixels"
                     ,
                     {
-                        "units": "unitless",
+                        "units": Units.unitless,
                     },
                 ),
                 DatasetParams(
                     "alongTrackStartPixel",
                     np.uint32(az_start),
-                    "Reference RSLC start pixel in along track",
+                    "Reference RSLC start pixel in along-track",
                     {
-                        "units": "unitless",
+                        "units": Units.unitless,
                     },
                 ),
                 DatasetParams(
@@ -165,7 +166,7 @@ class ROFFWriter(L1InSARWriter):
                     " pixels"
                     ,
                     {
-                        "units": "unitless",
+                        "units": Units.unitless,
                     },
                 ),
                 DatasetParams(
@@ -173,16 +174,16 @@ class ROFFWriter(L1InSARWriter):
                     np.uint32(rg_start),
                     "Reference RSLC start pixel in slant range",
                     {
-                        "units": "unitless",
+                        "units": Units.unitless,
                     },
                 ),
                 DatasetParams(
-                    "crossCorrelationSurfaceOversampling",
+                    "correlationSurfaceOversampling",
                     np.uint32(ovs_factor),
                     "Oversampling factor of the cross-correlation surface"
                     ,
                     {
-                        "units": "unitless",
+                        "units": Units.unitless,
                     },
                 ),
                 DatasetParams(
@@ -193,7 +194,7 @@ class ROFFWriter(L1InSARWriter):
                     " computation"
                     ,
                     {
-                        "units": "unitless",
+                        "units": Units.unitless,
                     },
                 ),
             ]
@@ -230,11 +231,11 @@ class ROFFWriter(L1InSARWriter):
                         DatasetParams(
                             "alongTrackWindowSize",
                             np.uint32(az_chip),
-                            "Along track cross-correlation window size in"
+                            "Along-track cross-correlation window size in"
                             " pixels"
                             ,
                             {
-                                "units": "unitless",
+                                "units": Units.unitless,
                             },
                         ),
                         DatasetParams(
@@ -244,17 +245,17 @@ class ROFFWriter(L1InSARWriter):
                             " pixels"
                             ,
                             {
-                                "units": "unitless",
+                                "units": Units.unitless,
                             },
                         ),
                         DatasetParams(
                             "alongTrackSearchWindowSize",
                             np.uint32(2 * az_search),
-                            "Along track cross-correlation search window"
+                            "Along-track cross-correlation search window"
                             " size in pixels"
                             ,
                             {
-                                "units": "unitless",
+                                "units": Units.unitless,
                             },
                         ),
                         DatasetParams(
@@ -264,7 +265,7 @@ class ROFFWriter(L1InSARWriter):
                             " size in pixels"
                             ,
                             {
-                                "units": "unitless",
+                                "units": Units.unitless,
                             },
                         ),
                     ]
@@ -285,7 +286,7 @@ class ROFFWriter(L1InSARWriter):
             swaths_freq_group_name = (
                 f"{self.group_paths.SwathsPath}/frequency{freq}"
             )
-            self.require_group(swaths_freq_group_name)
+            swaths_freq_group = self.require_group(swaths_freq_group_name)
 
             # shape of offset product
             off_shape = self._get_pixeloffsets_dataset_shape(freq, pol_list[0])
@@ -295,52 +296,56 @@ class ROFFWriter(L1InSARWriter):
             pixel_offsets_ds_params = [
                 (
                     "alongTrackOffset",
-                    "Along track offset",
-                    "meters",
+                    "Raw (unculled, unfiltered) along-track pixel offsets",
+                    Units.meter,
                 ),
                 (
                     "alongTrackOffsetVariance",
                     "Along-track pixel offsets variance",
-                    "unitless",
+                    Units.unitless,
                 ),
                 (
                     "slantRangeOffsetVariance",
                     "Slant range pixel offsets variance",
-                    "unitless",
+                    Units.unitless,
                 ),
                 (
                     "correlationSurfacePeak",
                     "Normalized correlation surface peak",
-                    "unitless",
+                    Units.unitless,
                 ),
                 (
                     "crossOffsetVariance",
                     "Off-diagonal term of the pixel offsets covariance matrix",
-                    "unitless",
+                    Units.unitless,
                 ),
                 (
                     "slantRangeOffset",
-                    "Slant range offset",
-                    "meters",
+                    "Raw (unculled, unfiltered) slant range pixel offsets",
+                    Units.meter,
                 ),
                 (
                     "snr",
                     "Pixel offsets signal-to-noise ratio",
-                    "unitless",
+                    Units.unitless,
                 ),
             ]
+
+            # add the list of layers
+            self.add_list_of_layers(swaths_freq_group)
 
             # add the polarization dataset to pixelOffsets
             for pol in pol_list:
                 offset_pol_group_name = \
                     f"{swaths_freq_group_name}/pixelOffsets/{pol}"
-                self.require_group(offset_pol_group_name)
+                pixeloffsets_pol_group = \
+                    self.require_group(offset_pol_group_name)
                 for layer in proc_cfg["offsets_product"]:
                     if layer.startswith("layer"):
                         layer_group_name = f"{offset_pol_group_name}/{layer}"
                         layer_group = self.require_group(layer_group_name)
 
-                         # Create the pixel offsets dataset
+                        # Create the pixel offsets dataset
                         for pixel_offsets_ds_param in pixel_offsets_ds_params:
                             ds_name, ds_description, ds_unit = pixel_offsets_ds_param
                             self._create_2d_dataset(
@@ -350,4 +355,88 @@ class ROFFWriter(L1InSARWriter):
                                 np.float32,
                                 ds_description,
                                 units=ds_unit,
+                                compression_enabled=self.cfg['output']['compression_enabled'],
+                                compression_level=self.cfg['output']['compression_level'],
+                                chunk_size=self.cfg['output']['chunk_size'],
+                                shuffle_filter=self.cfg['output']['shuffle']
                             )
+
+
+    def add_list_of_layers(self, freq_group):
+        """
+        Get the requested layer groups from the runconfig,
+        and add the `listOfLayers` Dataset to `freq_group`.
+
+        Parameters
+        ----------
+        freq_group : h5py.Group
+            The Group to add the `listOfLayers` Dataset to.
+        """
+
+        proc_cfg = self.cfg["processing"]
+
+        # Extract offset layer group names, e.g. "layer1", "layer3".
+        # If the layer group name appears in the runconfig,
+        # that layer group will be generated, so add it to the list.
+        layers = [
+            layer
+            for layer in proc_cfg["offsets_product"]
+            if layer.startswith("layer")]
+
+        list_of_layers = np.string_(layers)
+        freq_group.require_dataset('listOfLayers',
+                                    shape=list_of_layers.shape,
+                                    dtype=list_of_layers.dtype,
+                                    data=list_of_layers)
+
+        freq_group['listOfLayers'].attrs['units'] = Units.unitless
+        freq_group['listOfLayers'].attrs['description'] =\
+            np.string_('List of pixel offsets layers')
+
+    def add_swaths_to_hdf5(self):
+        """
+        Add swaths to the HDF5
+        """
+        super().add_swaths_to_hdf5()
+
+        # pull the offset parameters
+        is_roff,  margin, rg_start, az_start,\
+        rg_skip, az_skip, rg_search, az_search,\
+        rg_chip, az_chip, ovs_factor = self._pull_pixel_offsets_params()
+
+        for freq, pol_list, _ in get_cfg_freq_pols(self.cfg):
+            # Create the swath group
+            swaths_freq_group_name = (
+                f"{self.group_paths.SwathsPath}/frequency{freq}"
+            )
+            swaths_freq_group = self.require_group(swaths_freq_group_name)
+
+            rslc_freq_group = self.ref_h5py_file_obj[
+                f"{self.ref_rslc.SwathPath}/frequency{freq}"
+            ]
+
+            # add scene center parameters
+            scene_center_params = [
+                DatasetParams(
+                    "sceneCenterAlongTrackSpacing",
+                    rslc_freq_group["sceneCenterAlongTrackSpacing"][()]
+                    * az_skip,
+                    (
+                        "Nominal along-track spacing in meters between"
+                        " consecutive lines near mid-swath of the product images"
+                    ),
+                    {"units": Units.meter},
+                ),
+                DatasetParams(
+                    "sceneCenterGroundRangeSpacing",
+                    rslc_freq_group["sceneCenterGroundRangeSpacing"][()]
+                    * rg_skip,
+                    (
+                        "Nominal ground range spacing in meters between"
+                        " consecutive pixels near mid-swath of the product images"
+                    ),
+                    {"units": Units.meter},
+                ),
+            ]
+            for ds_param in scene_center_params:
+                add_dataset_and_attrs(swaths_freq_group, ds_param)

@@ -7,6 +7,7 @@ from .InSAR_base_writer import InSARBaseWriter
 from .InSAR_L2_writer import L2InSARWriter
 from .product_paths import GOFFGroupsPaths
 from .ROFF_writer import ROFFWriter
+from .units import Units
 
 
 class GOFFWriter(ROFFWriter, L2InSARWriter):
@@ -60,6 +61,16 @@ class GOFFWriter(ROFFWriter, L2InSARWriter):
         ROFFWriter.add_parameters_to_procinfo_group(self)
         L2InSARWriter.add_geocoding_to_procinfo_params_group(self)
 
+        # Update the descriptions of the reference and secondary
+        for rslc_name in ['reference', 'secondary']:
+            rslc = self[self.group_paths.ParametersPath][rslc_name]
+            rslc['referenceTerrainHeight'].attrs['description'] = \
+                np.string_("Reference Terrain Height as a function of"
+                           f" map coordinates for {rslc_name} RSLC")
+            rslc['referenceTerrainHeight'].attrs['units'] = \
+                Units.meter
+
+
     def add_grids_to_hdf5(self):
         """
         Add grids to HDF5
@@ -93,6 +104,9 @@ class GOFFWriter(ROFFWriter, L2InSARWriter):
             pixeloffsets_group_name = \
                 f"{grids_freq_group_name}/pixelOffsets"
 
+            # add the list of layers
+            self.add_list_of_layers(grids_freq_group)
+
             for pol in pol_list:
                 for layer in layers:
                     pixeloffsets_pol_layer_name = \
@@ -106,30 +120,41 @@ class GOFFWriter(ROFFWriter, L2InSARWriter):
                         goff_geogrids,
                     )
 
+                    pixeloffsets_pol_layer_group['projection'][...] = \
+                        pixeloffsets_pol_layer_group['projection'][()].astype(np.uint32)
+                    pixeloffsets_pol_layer_group['yCoordinateSpacing'].attrs['long_name'] = \
+                        np.string_("Y coordinates spacing")
+                    pixeloffsets_pol_layer_group['xCoordinateSpacing'].attrs['long_name'] = \
+                        np.string_("X coordinates spacing")
+                    pixeloffsets_pol_layer_group['xCoordinates'].attrs['long_name'] = \
+                        np.string_("X coordinates of projection")
+                    pixeloffsets_pol_layer_group['yCoordinates'].attrs['long_name'] = \
+                        np.string_("Y coordinates of projection")
+
                     #pixeloffsets dataset parameters as tuples in the following
                     #order: dataset name, description, and units
                     pixeloffsets_ds_params = [
                         ("alongTrackOffset",
                          "Raw (unculled, unfiltered) along-track pixel offsets",
-                         "meters"),
+                         Units.meter),
                         ("slantRangeOffset",
                          "Raw (unculled, unfiltered) slant range pixel offsets",
-                         "meters"),
+                         Units.meter),
                         ("alongTrackOffsetVariance",
                          "Along-track pixel offsets variance",
-                         "unitless"),
+                         Units.unitless),
                         ("slantRangeOffsetVariance",
                          "Slant range pixel offsets variance",
-                         "unitless"),
+                         Units.unitless),
                         ("crossOffsetVariance",
                          "Off-diagonal term of the pixel offsets covariance matrix",
-                         "unitless"),
+                         Units.unitless),
                         ("correlationSurfacePeak",
-                         "Normalized surface correlation peak",
-                         "unitless"),
+                         "Normalized correlation surface peak",
+                         Units.unitless),
                         ("snr",
                          "Pixel offsets signal-to-noise ratio",
-                         "unitless"),
+                         Units.unitless),
                     ]
 
                     for ds_params in pixeloffsets_ds_params:
@@ -143,4 +168,9 @@ class GOFFWriter(ROFFWriter, L2InSARWriter):
                             ds_units,
                             grids_val,
                             xds=xds,
-                            yds=yds)
+                            yds=yds,
+                            compression_enabled=self.cfg['output']['compression_enabled'],
+                            compression_level=self.cfg['output']['compression_level'],
+                            chunk_size=self.cfg['output']['chunk_size'],
+                            shuffle_filter=self.cfg['output']['shuffle']
+                        )

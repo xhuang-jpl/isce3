@@ -5,6 +5,7 @@ from nisar.workflows.helpers import get_cfg_freq_pols
 from .InSAR_L1_writer import L1InSARWriter
 from .InSAR_products_info import InSARProductsInfo
 from .product_paths import RIFGGroupsPaths
+from .units import Units
 
 
 class RIFGWriter(L1InSARWriter):
@@ -40,7 +41,7 @@ class RIFGWriter(L1InSARWriter):
         self.attrs["reference_document"] = \
             np.string_("D-102270 NISAR NASA SDS Product Specification"
                        " L1 Range Doppler Wrapped Interferogram")
-        
+
         ctype = h5py.h5t.py_create(np.complex64)
         ctype.commit(self["/"].id, np.string_("complex64"))
 
@@ -61,6 +62,8 @@ class RIFGWriter(L1InSARWriter):
         """
         Add interferogram group to swaths
         """
+        # Extract runconfiguration file
+        pcfg = self.cfg['processing']
         super().add_interferogram_to_swaths_group()
 
         # Add the wrappedInterferogram to the interferogram group
@@ -87,7 +90,7 @@ class RIFGWriter(L1InSARWriter):
                         "wrappedInterferogram",
                         np.complex64,
                         f"Interferogram between {pol} layers",
-                        "DN",
+                        Units.unitless,
                     ),
                 ]
 
@@ -102,6 +105,10 @@ class RIFGWriter(L1InSARWriter):
                         ds_dtype,
                         ds_description,
                         units=ds_unit,
+                        compression_enabled=self.cfg['output']['compression_enabled'],
+                        compression_level=self.cfg['output']['compression_level'],
+                        chunk_size=self.cfg['output']['chunk_size'],
+                        shuffle_filter=self.cfg['output']['shuffle']
                     )
 
     def add_swaths_to_hdf5(self):

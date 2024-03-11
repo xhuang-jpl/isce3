@@ -8,11 +8,13 @@ from nisar.workflows.helpers import get_cfg_freq_pols
 from .dataset_params import DatasetParams, add_dataset_and_attrs
 from .InSAR_base_writer import InSARBaseWriter
 from .product_paths import L1GroupsPaths
+from .units import Units
+from .utils import extract_datetime_from_string, number_to_ordinal
 
 
 class L1InSARWriter(InSARBaseWriter):
     """
-    InSAR Level 1 prodcuts writer inherenting from the InSARBaseWriter
+    InSAR Level 1 products writer inherit from the InSARBaseWriter
     The Level 1 products include ROFF, RUNW, and RIFG.
 
     Attributes
@@ -68,31 +70,47 @@ class L1InSARWriter(InSARBaseWriter):
         # and range directions.
         max_spacing = 500.0
         t = radargrid.sensing_mid + \
-            (radargrid.ref_epoch - self.orbit.reference_epoch).total_seconds()
+            (radargrid.ref_epoch - self.ref_orbit.reference_epoch).total_seconds()
 
-        _, v = self.orbit.interpolate(t)
+        _, v = self.ref_orbit.interpolate(t)
         dx = np.linalg.norm(v) / radargrid.prf
-        tskip = int(np.floor(max_spacing / dx))
-        rskip = int(np.floor(max_spacing / radargrid.range_pixel_spacing))
-        radargrid = radargrid[::tskip, ::rskip]
 
         grid_doppler = LUT2d()
         native_doppler = self.ref_rslc.getDopplerCentroid(
             frequency=cube_freq
         )
+
         native_doppler.bounds_error = False
 
         geo2rdr_params = dict(threshold_geo2rdr=1e-8,
                               numiter_geo2rdr=50,
                               delta_range=10)
 
+        # Create a new geolocation radar grid with 5 extra points
+        # before and after the starting and ending
+        # zeroDopplerTime and slantRange
+        extra_points = 5
+
+        # Total number of samples along the azimuth and slant range
+        # using around 500m sampling interval
+        ysize = int(np.ceil(radargrid.length / (max_spacing / dx)))
+        xsize = int(np.ceil(radargrid.width / \
+            (max_spacing / radargrid.range_pixel_spacing)))
+
+        # New geolocation grid
+        geolocation_radargrid = \
+            radargrid.resize_and_keep_startstop(ysize, xsize)
+        geolocation_radargrid = \
+            geolocation_radargrid.add_margin(extra_points,
+                                             extra_points)
+
         # Add geolocation grid cubes to hdf5
         add_geolocation_grid_cubes_to_hdf5(
             self,
             geolocationGrid_path,
-            radargrid,
+            geolocation_radargrid,
             heights,
-            self.orbit,
+            self.ref_orbit,
             native_doppler,
             grid_doppler,
             epsg,
@@ -114,6 +132,31 @@ class L1InSARWriter(InSARBaseWriter):
             geolocation_grid_group[ds_name].attrs["min"] = valid_min
             geolocation_grid_group[ds_name].attrs["max"] = valid_max
 
+        geolocation_grid_group['epsg'][...] = \
+            geolocation_grid_group['epsg'][()].astype(np.uint32)
+        geolocation_grid_group['epsg'].attrs['description'] = \
+            np.string_("EPSG code corresponding to the coordinate system"
+                       " used for representing the geolocation grid")
+        geolocation_grid_group['epsg'].attrs['units'] = Units.unitless
+        geolocation_grid_group['losUnitVectorX'].attrs['units'] = Units.unitless
+        geolocation_grid_group['losUnitVectorY'].attrs['units'] = Units.unitless
+        geolocation_grid_group['losUnitVectorY'].attrs['description'] = \
+            np.string_("LOS unit vector Y")
+
+        geolocation_grid_group['alongTrackUnitVectorX'].attrs['units'] = \
+            Units.unitless
+        geolocation_grid_group['alongTrackUnitVectorY'].attrs['units'] = \
+            Units.unitless
+        geolocation_grid_group['heightAboveEllipsoid'][...] = \
+            geolocation_grid_group['heightAboveEllipsoid'][()].astype(np.float64)
+
+        zero_dopp_time_units = geolocation_grid_group['zeroDopplerTime'].attrs['units']
+        zero_dopp_time_units = extract_datetime_from_string(str(zero_dopp_time_units),
+                                                            'seconds since ')
+        if zero_dopp_time_units is not None:
+            geolocation_grid_group['zeroDopplerTime'].attrs['units']\
+                = np.string_(zero_dopp_time_units)
+
     def add_algorithms_to_procinfo_group(self):
         """
         Add the algorithms group to the processingInformation group
@@ -134,7 +177,7 @@ class L1InSARWriter(InSARBaseWriter):
         interferogram_ds_params = [
             DatasetParams(
                 "commonBandRangeFilterApplied",
-                np.bool_(range_filter),
+                np.string_(str(range_filter)),
                 (
                     "Flag to indicate if common band range filter has been"
                     " applied"
@@ -142,7 +185,7 @@ class L1InSARWriter(InSARBaseWriter):
             ),
             DatasetParams(
                 "commonBandAzimuthFilterApplied",
-                np.bool_(azimuth_filter),
+                np.string_(str(azimuth_filter)),
                 (
                     "Flag to indicate if common band azimuth filter has been"
                     " applied"
@@ -150,18 +193,18 @@ class L1InSARWriter(InSARBaseWriter):
             ),
             DatasetParams(
                 "ellipsoidalFlatteningApplied",
-                np.bool_(flatten),
+                np.string_(str(flatten)),
                 (
-                    "Flag to indicate if interferometric phase has been"
-                    " flattened with respect to a zero height ellipsoid"
+                    "Flag to indicate if the interferometric phase has been "
+                    "flattened with respect to a zero height ellipsoid"
                 ),
             ),
             DatasetParams(
                 "topographicFlatteningApplied",
-                np.bool_(flatten),
+                np.string_(str(flatten)),
                 (
-                    "Flag to indicate if interferometric phase has been"
-                    " flattened with respect to a zero height ellipsoid"
+                    "Flag to indicate if the interferometric phase has been "
+                    "flattened with respect to topographic height using a DEM"
                 ),
             ),
             DatasetParams(
@@ -172,7 +215,7 @@ class L1InSARWriter(InSARBaseWriter):
                     " form the wrapped interferogram"
                 ),
                 {
-                    "units": "unitless",
+                    "units": Units.unitless,
                 },
             ),
             DatasetParams(
@@ -183,7 +226,7 @@ class L1InSARWriter(InSARBaseWriter):
                     " form the wrapped interferogram"
                 ),
                 {
-                    "units": "unitless",
+                    "units": Units.unitless,
                 },
             ),
         ]
@@ -204,11 +247,20 @@ class L1InSARWriter(InSARBaseWriter):
                 igram_group,
                 "azimuthBandwidth",
             )
+            igram_group['azimuthBandwidth'].attrs['description'] = \
+                np.string_("Processed azimuth bandwidth for frequency " + \
+                           f"{freq} interferometric layers")
+            igram_group['azimuthBandwidth'].attrs['units'] = Units.hertz
+
             bandwidth_group.copy(
                 "processedRangeBandwidth",
                 igram_group,
                 "rangeBandwidth",
             )
+            igram_group['rangeBandwidth'].attrs['description'] = \
+                np.string_("Processed slant range bandwidth for frequency " + \
+                           f"{freq} interferometric layers")
+            igram_group['rangeBandwidth'].attrs['units'] = Units.hertz
 
             for ds_param in interferogram_ds_params:
                 add_dataset_and_attrs(igram_group, ds_param)
@@ -294,6 +346,7 @@ class L1InSARWriter(InSARBaseWriter):
         """
         Add datasets to pixel offsets group
         """
+        pcfg = self.cfg['processing']
         for freq, pol_list, _ in get_cfg_freq_pols(self.cfg):
             # create the swath group
             swaths_freq_group_name = \
@@ -315,18 +368,18 @@ class L1InSARWriter(InSARBaseWriter):
                 pixel_offsets_ds_params = [
                     (
                         "alongTrackOffset",
-                        "Along track offset",
-                        "meters",
+                        "Along-track offset",
+                        Units.meter,
                     ),
                     (
                         "correlationSurfacePeak",
                         "Normalized correlation surface peak",
-                        "unitless",
+                        Units.unitless,
                     ),
                     (
                         "slantRangeOffset",
                         "Slant range offset",
-                        "meters",
+                        Units.meter,
                     ),
                 ]
 
@@ -338,7 +391,12 @@ class L1InSARWriter(InSARBaseWriter):
                         off_shape,
                         np.float32,
                         ds_description,
-                        units=ds_unit)
+                        units=ds_unit,
+                        compression_enabled=self.cfg['output']['compression_enabled'],
+                        compression_level=self.cfg['output']['compression_level'],
+                        chunk_size=self.cfg['output']['chunk_size'],
+                        shuffle_filter=self.cfg['output']['shuffle']
+                    )
 
     def add_pixel_offsets_to_swaths_group(self):
         """
@@ -377,30 +435,37 @@ class L1InSARWriter(InSARBaseWriter):
             offset_slant_range_spacing = \
                 rslc_freq_group["slantRangeSpacing"][()] * rg_skip
 
+            zero_dopp_time_units = \
+                rslc_swaths_group["zeroDopplerTime"].attrs['units']
+            time_str = extract_datetime_from_string(str(zero_dopp_time_units),
+                                                    'seconds since ')
+            if time_str is not None:
+                zero_dopp_time_units = time_str
+
             ds_offsets_params = [
                 DatasetParams(
                     "slantRange",
                     offset_slant_range,
                     "Slant range vector",
-                    rslc_freq_group["slantRange"].attrs,
+                    {'units': Units.meter},
                 ),
                 DatasetParams(
                     "zeroDopplerTime",
                     offset_zero_doppler_time,
                     "Zero Doppler azimuth time vector",
-                    rslc_swaths_group["zeroDopplerTime"].attrs,
+                    {'units': zero_dopp_time_units},
                 ),
                 DatasetParams(
                     "zeroDopplerTimeSpacing",
                     offset_zero_doppler_time_spacing,
-                    "Along track spacing of the offset grid",
-                    rslc_swaths_group["zeroDopplerTimeSpacing"].attrs,
+                    "Along-track spacing of the offset grid",
+                    {'units': Units.second},
                 ),
                 DatasetParams(
                     "slantRangeSpacing",
                     offset_slant_range_spacing,
-                    "Slant range spacing of offset grid",
-                    rslc_freq_group["slantRangeSpacing"].attrs,
+                    "Slant range spacing of the offset grid",
+                    {'units': Units.meter},
                 ),
             ]
             offset_group_name = f"{swaths_freq_group_name}/pixelOffsets"
@@ -415,6 +480,7 @@ class L1InSARWriter(InSARBaseWriter):
         """
         Add the interferogram group to the swaths group
         """
+        pcfg = self.cfg['processing']
         for freq, pol_list, _ in get_cfg_freq_pols(self.cfg):
             # Create the swath group
             swaths_freq_group_name = (
@@ -437,20 +503,20 @@ class L1InSARWriter(InSARBaseWriter):
                     rslc_freq_group["sceneCenterAlongTrackSpacing"][()]
                     * self.igram_azimuth_looks,
                     (
-                        "Nominal along track spacing in meters between"
-                        " consecutive lines near mid swath of the RIFG image"
+                        "Nominal along-track spacing in meters "
+                        "between consecutive lines near mid-swath of the product images"
                     ),
-                    {"units": "meters"},
+                    {"units": Units.meter},
                 ),
                 DatasetParams(
                     "sceneCenterGroundRangeSpacing",
                     rslc_freq_group["sceneCenterGroundRangeSpacing"][()]
                     * self.igram_range_looks,
                     (
-                        "Nominal ground range spacing in meters between"
-                        " consecutive pixels near mid swath of the RIFG image"
+                        "Nominal ground range spacing in meters between "
+                        "consecutive pixels near mid-swath of the product images"
                     ),
-                    {"units": "meters"},
+                    {"units": Units.meter},
                 ),
             ]
             for ds_param in scene_center_params:
@@ -488,28 +554,35 @@ class L1InSARWriter(InSARBaseWriter):
                 rslc_freq_group["slantRangeSpacing"][()] * \
                     self.igram_range_looks
 
+            zero_dopp_time_units = \
+                rslc_swaths_group["zeroDopplerTime"].attrs['units']
+            time_str = extract_datetime_from_string(str(zero_dopp_time_units),
+                                                    'seconds since ')
+            if time_str is not None:
+                zero_dopp_time_units = time_str
+
             ds_igram_params = [
                 DatasetParams(
                     "slantRange",
                     igram_slant_range,
                     "Slant range vector",
-                    rslc_freq_group["slantRange"].attrs,
+                    {'units': Units.meter},
                 ),
                 DatasetParams(
                     "zeroDopplerTime",
                     igram_zero_doppler_time,
                     "Zero Doppler azimuth time vector",
-                    rslc_swaths_group["zeroDopplerTime"].attrs,
+                    {'units': zero_dopp_time_units},
                 ),
                 DatasetParams(
                     "zeroDopplerTimeSpacing",
                     igram_zero_doppler_time_spacing,
                     (
-                        "Time interval in the along track direction for raster"
+                        "Time interval in the along-track direction for raster"
                         " layers. This is same as the spacing between"
                         " consecutive entries in the zeroDopplerTime array"
                     ),
-                    rslc_swaths_group["zeroDopplerTimeSpacing"].attrs,
+                    {'units': Units.second},
                 ),
                 DatasetParams(
                     "slantRangeSpacing",
@@ -518,7 +591,7 @@ class L1InSARWriter(InSARBaseWriter):
                         "Slant range spacing of grid. Same as difference"
                         " between consecutive samples in slantRange array"
                     ),
-                    rslc_freq_group["slantRangeSpacing"].attrs,
+                    {'units': Units.meter},
                 ),
             ]
             igram_group_name = f"{swaths_freq_group_name}/interferogram"
@@ -539,7 +612,7 @@ class L1InSARWriter(InSARBaseWriter):
                         "coherenceMagnitude",
                         np.float32,
                         f"Coherence magnitude between {pol} layers",
-                        "unitless",
+                        Units.unitless,
                     ),
                 ]
 
@@ -551,7 +624,12 @@ class L1InSARWriter(InSARBaseWriter):
                         igram_shape,
                         ds_dtype,
                         ds_description,
-                        units=ds_unit)
+                        units=ds_unit,
+                        compression_enabled=self.cfg['output']['compression_enabled'],
+                        compression_level=self.cfg['output']['compression_level'],
+                        chunk_size=self.cfg['output']['chunk_size'],
+                        shuffle_filter=self.cfg['output']['shuffle']
+                    )
 
 
     def add_subswaths_to_swaths_group(self):
@@ -569,7 +647,15 @@ class L1InSARWriter(InSARBaseWriter):
             rslc_freq_group = self.ref_h5py_file_obj[
                 f"{self.ref_rslc.SwathPath}/frequency{freq}"
             ]
-            rslc_freq_group.copy("numberOfSubSwaths", swaths_freq_group)
+            number_of_subswaths = rslc_freq_group["numberOfSubSwaths"]
+            number_of_subwaths_ds = \
+                swaths_freq_group.require_dataset("numberOfSubSwaths",
+                                                  shape=number_of_subswaths.shape,
+                                                  dtype=np.uint8,
+                                                  data=number_of_subswaths[...])
+            number_of_subwaths_ds.attrs['description'] = \
+                np.string_('Number of swaths of continuous imagery, due to transmit gaps')
+            number_of_subwaths_ds.attrs['units'] = Units.unitless
 
             # valid samples subswath
             num_of_subswaths = rslc_freq_group["numberOfSubSwaths"][()]
@@ -578,6 +664,10 @@ class L1InSARWriter(InSARBaseWriter):
                 # Get RSLC subswath dataset, range looks, and destination
                 # dataset name based on keys in RSLC
                 valid_samples_subswath_name = f"validSamplesSubSwath{subswath}"
+                description = \
+                    "First and last valid sample in each line of" +\
+                    f" {number_to_ordinal(subswath)} subswath"
+
                 if valid_samples_subswath_name in rslc_freq_group.keys():
                     rslc_freq_subswath_ds = \
                         rslc_freq_group[valid_samples_subswath_name]
@@ -594,9 +684,11 @@ class L1InSARWriter(InSARBaseWriter):
                     name=valid_samples_subswath_name,
                     data=number_of_range_looks,
                     shape=number_of_range_looks.shape,
-                    dtype=number_of_range_looks.dtype,
+                    dtype=np.uint32,
                 )
-                dst_subswath_ds.attrs.update(rslc_freq_subswath_ds.attrs)
+                dst_subswath_ds.attrs['units'] = Units.unitless
+                dst_subswath_ds.attrs['description'] = np.string_(description)
+
 
     def add_swaths_to_hdf5(self):
         """
@@ -615,7 +707,7 @@ class L1InSARWriter(InSARBaseWriter):
             list_of_pols = DatasetParams(
                 "listOfPolarizations",
                 np.string_(pol_list),
-                f"List of processed polarization layers with frequency{freq}",
+                f"List of processed polarization layers with frequency {freq}",
             )
             add_dataset_and_attrs(swaths_freq_group, list_of_pols)
 
@@ -626,5 +718,11 @@ class L1InSARWriter(InSARBaseWriter):
                 swaths_freq_group,
                 "centerFrequency",
             )
+
+            # Add the description and units
+            cfreq = swaths_freq_group["centerFrequency"]
+            cfreq.attrs['description'] = np.string_("Center frequency of"
+                                                    " the processed image in hertz")
+            cfreq.attrs['units'] = Units.hertz
 
         self.add_pixel_offsets_to_swaths_group()

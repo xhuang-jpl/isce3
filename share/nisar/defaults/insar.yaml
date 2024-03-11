@@ -67,6 +67,7 @@ runconfig:
 
         primary_executable:
             product_type: GUNW
+            product_version: 0.1.0
 
         debug_level_group:
             debug_switch: false
@@ -148,7 +149,7 @@ runconfig:
                 # ISCE3 output rasters always have North-up West-left orientation
                 wrapped_interferogram:
                     # Default interpolation method is SINC method
-                    interp_method: BILINEAR
+                    interp_method: SINC
                     # OPTIONAL - To control output grid in same units as output EPSG
                     x_snap:
                     # OPTIONAL - To control output grid in same units as output EPSG
@@ -315,7 +316,7 @@ runconfig:
                 write_local_incidence: False
                 write_local_psi: False
                 write_simulated_amplitude: False
-                write_layover_shadow: True
+                write_layover_shadow: False
 
             coarse_resample:
                 # Path to coarse offsets directory (geo2rdr offsets)
@@ -378,7 +379,7 @@ runconfig:
                 # Oversampling factor of the correlation surface for sub-pixel offset refinement
                 correlation_surface_oversampling_factor: 64
                 # Correlation surface oversampling algorithm
-                correlation_surface_oversampling_method: 'sinc'
+                correlation_surface_oversampling_method: 'fft'
                 # Number of cuda streams
                 cuda_streams:
                 # Number of offset estimates to process in batch along slant range
@@ -443,8 +444,6 @@ runconfig:
                     window_azimuth: 64
                     half_search_range: 16
                     half_search_azimuth: 16
-                    skip_range: 15
-                    skip_azimuth: 15
 
             rubbersheet:
                 # Path to dense offsets outputs (offsets, snr, covariance).
@@ -750,43 +749,240 @@ runconfig:
                         # Max number of connected components per tile
                         max_ncomps: 32
 
+            # Set of options to enable compression, choose compression level,
+            # chunk size and shuffle filter
+        output:
+            # Enable/Disable gzip compression
+            compression_enabled: True
+            # Compression level: 1: least compression; 9: best compression
+            compression_level: 5
+            # Chunk size of InSAR raster
+            chunk_size: [128, 128]
+            # Enable/disable shuffle filter
+            shuffle: True
         qa:
             rifg:
                 workflows:
-                    # True to run the validate workflow. Default: False
-                    validate: False
+                    # Flag to run `validate` workflow to validate the
+                    # input file against its product spec.
+                    # Default: True
+                    validate: true
 
-                    # True to run the qa_reports workflow. Default: False
-                    qa_reports: False
+                    # Flag to run `qa_reports` workflow to generate a
+                    # PDF report, geolocated browse image, compute statistics
+                    # on the input file, etc..
+                    # Default: True
+                    qa_reports: true
+
+                qa_reports:
+                    hsi_img:
+                        # True to perform histogram equalization on the Intensity channel
+                        # (the coherence magnitude layer) in the browse image PNG.
+                        # (Browse image is in HSI color space.) PDF report will not be affected.
+                        # See: https://scikit-image.org/docs/stable/auto_examples/color_exposure/plot_equalize.html
+                        # Default: True
+                        equalize_browse: true
+
+                        # The maximum number of pixels allowed for the longest
+                        # side of the final 2D browse image. Defaults to 2048.
+                        # Default: 2048
+                        longest_side_max: 2048
 
             runw:
                 workflows:
-                    # True to run the validate workflow. Default: False
-                    validate: False
+                    # Flag to run `validate` workflow to validate the
+                    # input file against its product spec.
+                    # Default: True
+                    validate: true
 
-                    # True to run the qa_reports workflow. Default: False
-                    qa_reports: False
+                    # Flag to run `qa_reports` workflow to generate a
+                    # PDF report, geolocated browse image, compute statistics
+                    # on the input file, etc..
+                    # Default: True
+                    qa_reports: true
+
+                qa_reports:
+                    phase_img:
+                        # The multiple of pi to rewrap the unwrapped phase image.
+                        # If None, no rewrapping will occur.
+                        # Ex: If 3 is provided, the image is rewrapped to the interval [0, 3pi).
+                        # Default: 7
+                        rewrap: 7
+
+                    hsi_img:
+                        # True to perform histogram equalization on the Intensity channel
+                        # (the coherence magnitude layer) in the browse image PNG.
+                        # (Browse image is in HSI color space.) PDF report will not be affected.
+                        # See: https://scikit-image.org/docs/stable/auto_examples/color_exposure/plot_equalize.html
+                        # Default: True
+                        equalize_browse: true
+
+                        # The maximum number of pixels allowed for the longest
+                        # side of the final 2D browse image. Defaults to 2048.
+                        # Default: 2048
+                        longest_side_max: 2048
+
+                        # The multiple of pi to rewrap the unwrapped phase image
+                        # when generating the HSI image(s). If None, no rewrapping will occur.
+                        # Ex: If 3 is provided, the image is rewrapped to the interval [0, 3pi).
+                        # Default: 7
+                        rewrap: 7
 
             gunw:
                 workflows:
-                    # True to run the validate workflow. Default: False
-                    validate: False
+                    # Flag to run `validate` workflow to validate the
+                    # input file against its product spec.
+                    # Default: True
+                    validate: true
 
-                    # True to run the qa_reports workflow. Default: False
-                    qa_reports: False
+                    # Flag to run `qa_reports` workflow to generate a
+                    # PDF report, geolocated browse image, compute statistics
+                    # on the input file, etc..
+                    # Default: True
+                    qa_reports: true
+
+                qa_reports:
+                    hsi_img:
+                        # True to perform histogram equalization on the Intensity channel
+                        # (the coherence magnitude layer) in the browse image PNG.
+                        # (Browse image is in HSI color space.) PDF report will not be affected.
+                        # See: https://scikit-image.org/docs/stable/auto_examples/color_exposure/plot_equalize.html
+                        # Default: True
+                        equalize_browse: true
+
+                        # The maximum number of pixels allowed for the longest
+                        # side of the final 2D browse image. Defaults to 2048.
+                        # Default: 2048
+                        longest_side_max: 2048
+
+                        # The multiple of pi to rewrap the unwrapped phase image
+                        # when generating the HSI image(s). If None, no rewrapping will occur.
+                        # Ex: If 3 is provided, the image is rewrapped to the interval [0, 3pi).
+                        # Default: 7
+                        rewrap: 7
 
             roff:
                 workflows:
-                    # True to run the validate workflow. Default: False
-                    validate: False
+                    # Flag to run `validate` workflow to validate the
+                    # input file against its product spec.
+                    # Default: True
+                    validate: true
 
-                    # True to run the qa_reports workflow. Default: False
-                    qa_reports: False
+                    # Flag to run `qa_reports` workflow to generate a
+                    # PDF report, geolocated browse image, compute statistics
+                    # on the input file, etc..
+                    # Default: True
+                    qa_reports: true
+
+                qa_reports:
+                    quiver_plots:
+                        # The vmin and vmax values to generate the quiver plot.
+                        # The magnitude of the offsets is clipped to this interval,
+                        # which (in turn) is used for the interval of the colorbar.
+                        # If None, the interval is computed using the min and max
+                        # magnitudes of along track and slant range offset.
+                        # Default: None
+                        colorbar_min_max:
+
+                        # Stride along each axis of the Frequency A
+                        # image arrays for decimating the quiver plot image for the browse PNG.
+                        # This takes precedence over `longest_side_max`.
+                        # Format: [<num_rows>, <num_cols>]
+                        # Example: [6,7]
+                        # If None, QA-SAS will compute the decimation strides
+                        # based on `longest_side_max` and creating square pixels.
+                        # Default: None
+                        browse_decimation_freqa:
+
+                        # Stride along each axis of the Frequency B
+                        # image arrays for decimating the quiver plot image for the browse PNG.
+                        # This takes precedence over `longest_side_max`.
+                        # Format: [<num_rows>, <num_cols>]
+                        # Example: [6,7]
+                        # If None, QA-SAS will compute the decimation strides
+                        # based on `longest_side_max` and creating square pixels.
+                        # Default: None
+                        browse_decimation_freqb:
+
+                        # Number of arrows (vectors) to plot per the
+                        # longest edge of the raster.
+                        # Default: 20
+                        arrow_density: 20
+
+                        # Scales the length of the arrow inversely.
+                        # Number of data units per arrow length unit, e.g., m/s per plot width;
+                        # a smaller scale parameter makes the arrow longer.
+                        # If None, a simple autoscaling algorithm is used, based on the average
+                        # vector length and the number of vectors.
+                        # See: The `scaling` parameter for `matplotlib.axes.Axes.quiver()`.
+                        # Default: None
+                        arrow_scaling:
+
+                        # The maximum number of pixels allowed for the longest
+                        # side of the final 2D browse image. If `decimation_freqX` is not
+                        # None, then `longest_side_max` will be ignored.
+                        # Default: 2048
+                        longest_side_max: 2048
 
             goff:
                 workflows:
-                    # True to run the validate workflow. Default: False
-                    validate: False
+                    # Flag to run `validate` workflow to validate the
+                    # input file against its product spec.
+                    # Default: True
+                    validate: true
 
-                    # True to run the qa_reports workflow. Default: False
-                    qa_reports: False
+                    # Flag to run `qa_reports` workflow to generate a
+                    # PDF report, geolocated browse image, compute statistics
+                    # on the input file, etc..
+                    # Default: True
+                    qa_reports: true
+
+                qa_reports:
+                    quiver_plots:
+                        # The vmin and vmax values to generate the quiver plot.
+                        # The magnitude of the offsets is clipped to this interval,
+                        # which (in turn) is used for the interval of the colorbar.
+                        # If None, the interval is computed using the min and max
+                        # magnitudes of along track and slant range offset.
+                        # Default: None
+                        colorbar_min_max:
+
+                        # Stride along each axis of the Frequency A
+                        # image arrays for decimating the quiver plot image for the browse PNG.
+                        # This takes precedence over `longest_side_max`.
+                        # Format: [<num_rows>, <num_cols>]
+                        # Example: [6,7]
+                        # If None, QA-SAS will compute the decimation strides
+                        # based on `longest_side_max` and creating square pixels.
+                        # Default: None
+                        browse_decimation_freqa:
+
+                        # Stride along each axis of the Frequency B
+                        # image arrays for decimating the quiver plot image for the browse PNG.
+                        # This takes precedence over `longest_side_max`.
+                        # Format: [<num_rows>, <num_cols>]
+                        # Example: [6,7]
+                        # If None, QA-SAS will compute the decimation strides
+                        # based on `longest_side_max` and creating square pixels.
+                        # Default: None
+                        browse_decimation_freqb:
+
+                        # Number of arrows (vectors) to plot per the
+                        # longest edge of the raster.
+                        # Default: 20
+                        arrow_density: 20
+
+                        # Scales the length of the arrow inversely.
+                        # Number of data units per arrow length unit, e.g., m/s per plot width;
+                        # a smaller scale parameter makes the arrow longer.
+                        # If None, a simple autoscaling algorithm is used, based on the average
+                        # vector length and the number of vectors.
+                        # See: The `scaling` parameter for `matplotlib.axes.Axes.quiver()`.
+                        # Default: None
+                        arrow_scaling:
+
+                        # The maximum number of pixels allowed for the longest
+                        # side of the final 2D browse image. If `decimation_freqX` is not
+                        # None, then `longest_side_max` will be ignored.
+                        # Default: 2048
+                        longest_side_max: 2048

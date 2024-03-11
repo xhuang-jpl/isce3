@@ -5,6 +5,7 @@ from .dataset_params import DatasetParams, add_dataset_and_attrs
 from .InSAR_L1_writer import L1InSARWriter
 from .InSAR_products_info import InSARProductsInfo
 from .product_paths import RUNWGroupsPaths
+from .units import Units
 
 
 class RUNWWriter(L1InSARWriter):
@@ -68,18 +69,18 @@ class RUNWWriter(L1InSARWriter):
         ds_params = [
             DatasetParams(
                 "highBandBandwidth",
-                np.float32(high_bandwidth),
+                np.float64(high_bandwidth),
                 "Slant range bandwidth of the high sub-band image",
                 {
-                    "units": "Hz",
+                    "units": Units.hertz,
                 },
             ),
             DatasetParams(
                 "lowBandBandwidth",
-                np.float32(low_bandwidth),
+                np.float64(low_bandwidth),
                 "Slant range bandwidth of the low sub-band image",
                 {
-                    "units": "Hz",
+                    "units": Units.hertz,
                 },
             ),
         ]
@@ -109,7 +110,7 @@ class RUNWWriter(L1InSARWriter):
             iono_filling = iono_cfg["dispersive_filter"]["filling_method"]
             num_of_iters = iono_cfg["dispersive_filter"]["filter_iterations"]
             # ionosphere filtering method
-            iono_filtering = "gaussian"
+            iono_filtering = f"Iterative gaussian filter with {num_of_iters} filtering"
             iono_outliers = iono_cfg["dispersive_filter"]["filter_mask_type"]
             unwrap_correction = iono_cfg["dispersive_filter"][
                 "unwrap_correction"
@@ -154,7 +155,7 @@ class RUNWWriter(L1InSARWriter):
             DatasetParams(
                 "ionosphereFiltering",
                 iono_filtering,
-                f"Iterative gaussian filter with {num_of_iters} filtering",
+                f"Filtering algorithm for ionosphere phase screen computation",
                 {
                     "algorithm_type": "Ionosphere estimation",
                 },
@@ -171,9 +172,9 @@ class RUNWWriter(L1InSARWriter):
             ),
             DatasetParams(
                 "unwrappingErrorCorrection",
-                unwrap_correction,
-                "Flag indicating if unwrapping errors in sub-band"
-                " unwrapped interferograms are corrected"
+                np.bool_(unwrap_correction),
+                "Algorithm correcting unwrapping errors in sub-band"
+                " unwrapped interferograms"
                 ,
                 {
                     "algorithm_type": "Ionosphere estimation",
@@ -327,26 +328,26 @@ class RUNWWriter(L1InSARWriter):
                     (
                         "connectedComponents",
                         np.uint32,
-                        f"Connected components for {pol} layers",
-                        "DN",
+                        f"Connected components for {pol} layer",
+                        Units.dn,
                     ),
                     (
                         "ionospherePhaseScreen",
                         np.float32,
                         "Ionosphere phase screen",
-                        "radians",
+                        Units.radian,
                     ),
                     (
                         "ionospherePhaseScreenUncertainty",
                         np.float32,
                         "Uncertainty of the ionosphere phase screen",
-                        "radians",
+                        Units.radian,
                     ),
                     (
                         "unwrappedPhase",
                         np.float32,
                         f"Unwrapped interferogram between {pol} layers",
-                        "radians",
+                        Units.radian,
                     ),
                 ]
 
@@ -360,6 +361,10 @@ class RUNWWriter(L1InSARWriter):
                         ds_dtype,
                         ds_description,
                         units=ds_unit,
+                        compression_enabled=self.cfg['output']['compression_enabled'],
+                        compression_level=self.cfg['output']['compression_level'],
+                        chunk_size=self.cfg['output']['chunk_size'],
+                        shuffle_filter=self.cfg['output']['shuffle']
                     )
 
     def add_swaths_to_hdf5(self):

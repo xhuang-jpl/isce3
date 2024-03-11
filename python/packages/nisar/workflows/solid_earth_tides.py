@@ -1,22 +1,41 @@
 #!/usr/bin/env python3
-from datetime import datetime
-import os
 import time
+from datetime import datetime
 
 import h5py
+import isce3
 import journal
 import numpy as np
 import pysolid
-from osgeo import gdal, osr
+from isce3.core import transform_xy_to_latlon
+from nisar.products.insar.product_paths import GUNWGroupsPaths
+from nisar.workflows.h5_prep import get_products_and_paths
+from nisar.workflows.solid_earth_tides_runconfig import \
+    InsarSolidEarthTidesRunConfig
+from nisar.workflows.yaml_argparse import YamlArgparse
 from scipy.interpolate import RegularGridInterpolator
 
-import isce3
-from isce3.core import transform_xy_to_latlon
-from nisar.workflows.h5_prep import add_solid_earth_to_gunw_hdf5
-from nisar.workflows.h5_prep import get_products_and_paths
-from nisar.workflows.solid_earth_tides_runconfig import InsarSolidEarthTidesRunConfig
-from nisar.workflows.yaml_argparse import YamlArgparse
 
+def add_solid_earth_to_gunw_hdf5(solid_earth_tides,
+                                 gunw_hdf5):
+    '''
+    Add the solid earth phase datacube to GUNW product
+
+    Parameters
+    ----------
+    solid_earth_tides: tuple
+        solid earth tides along the slant range and along-track directions
+    gunw_hdf5: str
+         GUNW HDF5 file where SET will be written
+    '''
+
+    with h5py.File(gunw_hdf5, 'a', libver='latest', swmr=True) as hdf:
+        radar_grid = hdf.get(GUNWGroupsPaths().RadarGridPath)
+        product_names = ['slantRangeSolidEarthTidesPhase', 'alongTrackSolidEarthTidesPhase']
+
+        for  product_name, solid_earth_tides_product in zip(product_names,
+                                                            solid_earth_tides):
+            radar_grid[product_name][...] = solid_earth_tides_product
 
 def calculate_solid_earth_tides(inc_angle_datacube,
                                 los_unit_vector_x_datacube,
@@ -32,29 +51,29 @@ def calculate_solid_earth_tides(inc_angle_datacube,
     calculate the solid earth tides components along LOS and azimuth directions
 
     Parameters
-     ----------
-     inc_angle_datacube: numpy.ndarray
+    ----------
+    inc_angle_datacube: numpy.ndarray
         incidence angle datacube in degrees
-     los_unit_vector_x_datacube: numpy.ndarray
+    los_unit_vector_x_datacube: numpy.ndarray
         unit vector X datacube in ENU projection
-     los_unit_vector_y_datacube: numpy.ndarray
+    los_unit_vector_y_datacube: numpy.ndarray
         unit vector y datacube in ENU projection
-     xcoord_of_datacube: numpy.ndarray
+    xcoord_of_datacube: numpy.ndarray
         xcoordinates of datacube
-     ycoord_of_datacube: numpy.ndarray
+    ycoord_of_datacube: numpy.ndarray
         ycoordinates of datacube
-     epsg: int
+    epsg: int
         EPSG code of the datacube
-     wavelength: float
+    wavelength: float
         radar wavelength in meters
-     reference_start_time: datetime.datetime
+    reference_start_time: datetime.datetime
        start time of the reference image
-     secondary_start_time: datetime.datetime
+    secondary_start_time: datetime.datetime
        start time of the secondary image
 
     Returns
-     -------
-     solid_earth_tides: tuple
+    -------
+    solid_earth_tides: tuple
         solid earth tides along the los and azimuth directions
     '''
 
@@ -153,27 +172,29 @@ def calculate_solid_earth_tides(inc_angle_datacube,
 
 def _extract_params_from_gunw_hdf5(gunw_hdf5_path: str):
 
+    # Instantiate GUNW object to avoid hard-coded paths to GUNW datasets
+    gunw_obj = GUNWGroupsPaths()
     with h5py.File(gunw_hdf5_path, 'r', libver='latest', swmr=True) as h5_obj:
 
         # Fetch the GUWN Incidence Angle Datacube
-        lsar_path = 'science/LSAR'
-        rdr_grid_path = f'{lsar_path}/GUNW/metadata/radarGrid'
-        id_path = f'{lsar_path}/identification'
-
+        rdr_grid_path = gunw_obj.RadarGridPath
+        id_path = gunw_obj.IdentificationPath
         [inc_angle_cube,
          los_unit_vector_x_cube,
          los_unit_vector_y_cube,
          xcoord_radar_grid,
          ycoord_radar_grid,
-         height_radar_grid,epsg] =[h5_obj[f'{rdr_grid_path}/{item}'][()]
+         height_radar_grid] =[h5_obj[f'{rdr_grid_path}/{item}'][()]
                                    for item in ['incidenceAngle',
                                                 'losUnitVectorX', 'losUnitVectorY',
                                                 'xCoordinates', 'yCoordinates',
-                                                'heightAboveEllipsoid', 'epsg']]
+                                                'heightAboveEllipsoid']]
+        projection_dataset = h5_obj[f'{rdr_grid_path}/projection']
+        epsg = projection_dataset.attrs['epsg_code']
 
          # Wavelenth in meters
         wavelength = isce3.core.speed_of_light / \
-                h5_obj[f'{lsar_path}/GUNW/grids/frequencyA/centerFrequency'][()]
+                h5_obj[f'{gunw_obj.GridsPath}/frequencyA/centerFrequency'][()]
 
         # Start time of the reference and secondary image
         ref_start_time, sec_start_time = [h5_obj[f'{id_path}/{x}ZeroDopplerStartTime'][()]\
@@ -201,7 +222,7 @@ def compute_solid_earth_tides(gunw_hdf5_path: str):
         path to NISAR GUNW hdf5 file
 
     Returns
-    -------
+    ----------
     solid_earth_tides: tuple
         solid earth tides along the los and azimuth directions
     '''
@@ -237,15 +258,11 @@ def run(cfg: dict, gunw_hdf5_path: str):
     compute the solid earth tides and write to GUNW product
 
     Parameters
-     ----------
-     cfg: dict
+    ----------
+    cfg: dict
         runconfig dictionary
-     gunw_hdf5_path: str
+    gunw_hdf5_path: str
         path to GUNW HDF5 file
-
-    Returns
-     -------
-        None
     '''
 
     # Create info channels
@@ -254,11 +271,10 @@ def run(cfg: dict, gunw_hdf5_path: str):
 
     t_all = time.time()
 
-    # Compute the solid earth tides along los, east, north, and up directions
+    # Compute the solid earth tides along slant range and along-track directions
     solid_earth_tides = compute_solid_earth_tides(gunw_hdf5_path)
 
-    # Write the Solid Earth tides to GUNW product, where the los is a datacube
-    # and east, north, and up_solid_earth_tides are in 2D grid
+    # Write the solid earth tides to GUNW product
     add_solid_earth_to_gunw_hdf5(solid_earth_tides,
                                  gunw_hdf5_path)
 

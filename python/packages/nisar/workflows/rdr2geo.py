@@ -13,7 +13,6 @@ import journal
 import isce3
 from nisar.products.readers import SLC
 from nisar.products.readers.orbit import load_orbit_from_xml
-from nisar.workflows import runconfig
 from nisar.workflows.rdr2geo_runconfig import Rdr2geoRunConfig
 from nisar.workflows.yaml_argparse import YamlArgparse
 
@@ -46,8 +45,12 @@ def run(cfg):
 
     # get params from SLC
     slc = SLC(hdf5file=input_hdf5)
+
+    # Get orbit
     if ref_orbit is not None:
-        orbit = load_orbit_from_xml(ref_orbit)
+        # SLC will get first radar grid whose frequency is available.
+        # Reference epoch and orbit have no frequency dependency.
+        orbit = load_orbit_from_xml(ref_orbit, slc.getRadarGrid().ref_epoch)
     else:
         orbit = slc.getOrbit()
 

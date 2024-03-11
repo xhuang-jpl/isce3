@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
+import shapely
 from numpy.typing import ArrayLike
 
 import isce3
@@ -228,14 +229,14 @@ def target2platform_unit_vector(
         An optional dict of parameters configuring the behavior of the root-finding
         routine used in geo2rdr. The following keys are supported:
 
-        'threshold':
-          The absolute azimuth time convergence tolerance, in seconds.
+        'tol_aztime':
+          Azimuth time convergence tolerance in seconds.
 
-        'maxiter':
-          The maximum number of Newton-Raphson iterations.
+        'time_start':
+          Start of search interval, in seconds. Defaults to ``orbit.start_time``.
 
-        'delta_range':
-          The step size for computing numerical gradient of Doppler, in meters.
+        'time_end':
+          End of search interval, in seconds. Defaults to ``orbit.end_time``.
 
     Returns
     -------
@@ -246,20 +247,25 @@ def target2platform_unit_vector(
     # Convert LLH object to an array containing [lon, lat, height].
     target_llh = target_llh.to_vec3()
 
+    # Get target (x,y,z) position in ECEF coordinates.
+    target_xyz = ellipsoid.lon_lat_to_xyz(target_llh)
+
     if geo2rdr_params is None:
         geo2rdr_params = {}
 
     # Run geo2rdr to get the target azimuth time coordinate in seconds since the orbit
     # epoch.
-    aztime, _ = isce3.geometry.geo2rdr(
-        target_llh, ellipsoid, orbit, doppler, wavelength, look_side, **geo2rdr_params,
+    aztime, _ = isce3.geometry.geo2rdr_bracket(
+        xyz=target_xyz,
+        orbit=orbit,
+        doppler=doppler,
+        wavelength=wavelength,
+        side=look_side,
+        **geo2rdr_params,
     )
 
     # Get platform (x,y,z) position in ECEF coordinates.
     platform_xyz, _ = orbit.interpolate(aztime)
-
-    # Get target (x,y,z) position in ECEF coordinates.
-    target_xyz = ellipsoid.lon_lat_to_xyz(target_llh)
 
     return normalize_vector(platform_xyz - target_xyz)
 
@@ -296,14 +302,14 @@ def predict_triangular_trihedral_cr_rcs(
         An optional dict of parameters configuring the behavior of the root-finding
         routine used in geo2rdr. The following keys are supported:
 
-        'threshold':
-          The absolute azimuth time convergence tolerance, in seconds.
+        'tol_aztime':
+          Azimuth time convergence tolerance in seconds.
 
-        'maxiter':
-          The maximum number of Newton-Raphson iterations.
+        'time_start':
+          Start of search interval, in seconds. Defaults to ``orbit.start_time``.
 
-        'delta_range':
-          The step size for computing numerical gradient of Doppler, in meters.
+        'time_end':
+          End of search interval, in seconds. Defaults to ``orbit.end_time``.
 
     Returns
     -------
@@ -349,3 +355,165 @@ def predict_triangular_trihedral_cr_rcs(
         b = 4.0 * p1 * p2 / a
 
     return 4.0 * np.pi * cr.side_length ** 4 * b ** 2 / wavelength ** 2
+
+
+def get_target_observation_time_and_elevation(
+    target_llh: isce3.core.LLH,
+    orbit: isce3.core.Orbit,
+    attitude: isce3.core.Attitude,
+    wavelength: float,
+    look_side: str,
+    frame: isce3.antenna.Frame = isce3.antenna.Frame("EL_AND_AZ"),
+    ellipsoid: isce3.core.Ellipsoid = isce3.core.WGS84_ELLIPSOID,
+    *,
+    geo2rdr_params: Optional[Mapping[str, float]] = None,
+) -> tuple[isce3.core.DateTime, float]:
+    """
+    Get zero-Doppler observation time and antenna elevation angle of a geodetic target.
+
+    Parameters
+    ----------
+    target_llh : isce3.core.LLH
+        The target position expressed as geodetic longitude, latitude, and height above
+        the reference ellipsoid in radians, radians, and meters respectively.
+    orbit : isce3.core.Orbit
+        The trajectory of the radar antenna phase center.
+    wavelength : float
+        The radar wavelength, in meters.
+    look_side : {"Left", "Right"}
+        The radar look direction.
+    frame : isce3.antenna.Frame, optional
+        Antenna frame which defines the type of spherical coordinate. Defaults to an
+        'EL_AND_AZ' frame.
+    ellipsoid : isce3.core.Ellipsoid, optional
+        The geodetic reference ellipsoid, with dimensions in meters. Defaults to the
+        WGS 84 ellipsoid.
+    geo2rdr_params : dict or None, optional
+        An optional dict of parameters configuring the behavior of the root-finding
+        routine used in geo2rdr. The following keys are supported:
+
+        'tol_aztime':
+          Azimuth time convergence tolerance in seconds.
+
+        'time_start':
+          Start of search interval, in seconds. Defaults to ``orbit.start_time``.
+
+        'time_end':
+          End of search interval, in seconds. Defaults to ``orbit.end_time``.
+
+    Returns
+    -------
+    az_datetime : isce3.core.DateTime
+        The target's zero-Doppler observation time (the time of the platform's closest
+        approach to the target) as a UTC datetime.
+    el_angle : float
+        The elevation angle of the target, in radians. Elevation is measured in the
+        cross-track direction w.r.t antenna boresight, increasing toward far-range.
+    """
+    # Convert LLH object to an array containing [lon, lat, height].
+    target_llh = target_llh.to_vec3()
+
+    # Get target (x,y,z) position in ECEF coordinates.
+    target_xyz = ellipsoid.lon_lat_to_xyz(target_llh)
+
+    if geo2rdr_params is None:
+        geo2rdr_params = {}
+
+    zero_doppler = isce3.core.LUT2d()
+
+    # Run geo2rdr to get the target azimuth time coordinate, in seconds since the orbit
+    # epoch.
+    aztime, _ = isce3.geometry.geo2rdr_bracket(
+        xyz=target_xyz,
+        orbit=orbit,
+        doppler=zero_doppler,
+        wavelength=wavelength,
+        side=look_side,
+        **geo2rdr_params,
+    )
+
+    # Convert `aztime` to a UTC timepoint.
+    az_datetime = orbit.reference_epoch + isce3.core.TimeDelta(aztime)
+
+    # Interpolate orbit & attitude to get platform position in ECEF coordinates and
+    # reflector coordinate system (RCS) to ECEF quaternion.
+    platform_ecef, _ = orbit.interpolate(aztime)
+    q_rcs2ecef = attitude.interpolate(aztime)
+
+    # Get antenna elevation angle.
+    el_angle, _ = isce3.antenna.geo2ant(
+        tg_llh=target_llh,
+        pos_sc_ecef=platform_ecef,
+        quat_ant2ecef=q_rcs2ecef,
+        ant_frame=frame,
+        ellips=ellipsoid,
+    )
+
+    return az_datetime, el_angle
+
+
+def get_crs_in_polygon(
+    crs: Iterable[TriangularTrihedralCornerReflector],
+    polygon: shapely.Polygon,
+    buffer: float | None = None,
+) -> Iterator[TriangularTrihedralCornerReflector]:
+    """
+    Filter out corner reflectors located outside of a Lon/Lat polygon.
+
+    For each input corner reflector, check whether it is contained within `polygon`. An
+    optional buffer may be added to the polygon in order accept corner reflectors
+    slightly outside its extents.
+
+    Returns an iterator over corner reflectors found within the polygon. The relative
+    order of the corner reflectors is preserved.
+
+    Parameters
+    ----------
+    crs : iterable of TriangularTrihedralCornerReflector
+        Input iterable of corner reflector data.
+    polygon : shapely.Polygon
+        A convex polygon, in geodetic Lon/Lat coordinates w.r.t the WGS 84 ellipsoid,
+        enclosing the area of interest. Longitude (x) coordinates should be specified in
+        degrees in the range [-180, 180]. Latitude (y) coordinates should be specified
+        in degrees in the range [-90, 90].
+    buffer : float or None, optional
+        An optional additional margin that extends the region of interest. Corner
+        reflectors located within the buffer region are considered to be contained
+        within the polygon. The units of `buffer` should be the same as `polygon`. Must
+        be >= 0. If None, no buffer is applied. Defaults to None.
+
+    Yields
+    ------
+    cr : TriangularTrihedralCornerReflector
+        A corner reflector from the input iterable that was contained within the
+        polygon.
+
+    Notes
+    -----
+    This function uses a point-in-polygon algorithm that assumes a Euclidean geometry.
+    The results may therefore be inaccurate due to the curvature of the reference
+    surface if the polygon points are spaced far apart, or if the points lie around a
+    discontinuity in the coordinate space (such as the antimeridian or poles).
+    """
+    # If additional buffer was requested, dilate the polygon by the specified margin,
+    # which must be nonnegative.
+    if buffer is not None:
+        if buffer < 0:
+            raise ValueError(f"buffer must be >= 0 (or None), got {buffer}")
+        polygon = polygon.buffer(buffer)
+
+    # Wraps the input angle (in radians) to the interval [-pi, pi).
+    def wrap(phase: float) -> float:
+        return (phase + np.pi) % (2.0 * np.pi) - np.pi
+
+    # Filter out corner reflectors not contained within the specified polygon.
+    for cr in crs:
+        # Get corner reflector lon/lat coordinates in radians, wrap the longitude
+        # coordinate to the expected interval, and convert to degrees.
+        lon, lat, _ = cr.llh.to_vec3()
+        lon_lat_deg = np.rad2deg([wrap(lon), lat])
+
+        # Check whether the corner reflector is in the polygon.
+        point = shapely.Point(lon_lat_deg)
+        if polygon.contains(point):
+            yield cr

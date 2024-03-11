@@ -2,8 +2,9 @@
 import argparse
 import os
 
-from nisar.workflows import defaults, gslc, h5_prep
+from nisar.workflows import defaults, gslc
 from nisar.workflows.gslc_runconfig import GSLCRunConfig
+from nisar.products.writers import GslcWriter
 
 import iscetest
 
@@ -30,13 +31,28 @@ def test_run():
     # geocode same 2 rasters as C++/pybind geocodeSlc
     for xy in ['x', 'y']:
         # adjust runconfig to match just created raster
-        runconfig.cfg['product_path_group']['sas_output_file'] = f'{xy}_out.h5'
+        sas_output_file = f'{xy}_out.h5'
+        runconfig.cfg['product_path_group']['sas_output_file'] = \
+            sas_output_file
 
-        # prepare output hdf5
-        h5_prep.run(runconfig.cfg)
+        partial_granule_id = \
+            ('NISAR_L2_PR_GSLC_105_091_D_006_{MODE}_{POLE}_A'
+                '_{StartDateTime}_{EndDateTime}_D00344_P_P_J_001.h5')
+        expected_granule_id = \
+            ('NISAR_L2_PR_GSLC_105_091_D_006_1600_SHNA_A'
+                '_20030226T175530_20030226T175531_D00344_P_P_J_001.h5')
+        runconfig.cfg['primary_executable']['partial_granule_id'] = \
+            partial_granule_id
+
+        if os.path.isfile(sas_output_file):
+            os.remove(sas_output_file)
 
         # geocode test raster
         gslc.run(runconfig.cfg)
+
+        with GslcWriter(runconfig=runconfig) as gslc_obj:
+            gslc_obj.populate_metadata()
+            assert gslc_obj.granule_id == expected_granule_id
 
 
 if __name__ == '__main__':

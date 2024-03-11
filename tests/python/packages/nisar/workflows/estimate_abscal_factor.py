@@ -1,6 +1,8 @@
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict
+from tempfile import NamedTemporaryFile
 
 import numpy as np
 import pytest
@@ -25,8 +27,7 @@ def get_test_data(bandwidth: str = "20mhz") -> Dict[str, Any]:
     rslc = nisar.products.readers.SLC(hdf5file=os.fspath(rslc_hdf5))
     freq = "A"
     pol = "HH"
-    img_dataset = rslc.getSlcDataset(freq, pol)
-    img_data = isce3.core.types.ComplexFloat16Decoder(img_dataset)
+    img_data = rslc.getSlcDatasetAsNativeComplex(freq, pol)
 
     # Get product metadata.
     orbit = rslc.getOrbit()
@@ -229,3 +230,77 @@ def test_estimate_abscal_factor(bandwidth):
     # Check the "frequency" and "polarization" fields.
     assert all(d["frequency"] == freq for d in abscal_info)
     assert all(d["polarization"] == pol for d in abscal_info)
+
+
+# Treat warnings as test failures (internally, the AbsCal tool catches errors during
+# processing of each corner reflector and converts them into warnings).
+@pytest.mark.filterwarnings("error")
+def test_nisar_corner_reflector_csv():
+    datadir = Path(iscetest.data) / "abscal"
+    cr_csv = datadir / "ree_corner_reflectors_nisar.csv"
+    rslc_hdf5 = datadir / "calib_slc_pass1_5mhz.h5"
+
+    # Create a temporary file to store the JSON output of the tool.
+    with NamedTemporaryFile(suffix=".json") as tmpfile:
+        # Run AbsCal tool.
+        nisar.workflows.estimate_abscal_factor.main(
+            corner_reflector_csv=cr_csv,
+            csv_format="nisar",
+            rslc_hdf5=rslc_hdf5,
+            output_json=tmpfile.name,
+            freq=None,
+            pol=None,
+            external_orbit_xml=None,
+            nchip=4,
+            upsample_factor=128,
+            peak_find_domain="time",
+            nfit=5,
+            power_method="box",
+            pthresh=3.0,
+        )
+
+        # Read JSON output.
+        results = json.load(tmpfile)
+
+        # Result should be a list with three items (one for each corner reflector).
+        assert isinstance(results, list)
+        assert len(results) == 3
+
+        expected_keys = {
+            "id",
+            "absolute_calibration_factor",
+            "elevation_angle",
+            "timestamp",
+            "frequency",
+            "polarization",
+            "survey_date",
+            "velocity",
+        }
+
+        # Check that the expected fields were populated for each corner reflector.
+        for cr_info in results:
+            assert isinstance(cr_info, dict)
+            assert set(cr_info.keys()) == expected_keys
+
+        # Check corner reflector IDs.
+        ids = [cr_info["id"] for cr_info in results]
+        assert ids == ["CR1", "CR2", "CR3"]
+
+        # Check survey dates.
+        expected_date = "2020-01-01T00:00:00.000000000"
+        assert all(cr_info["survey_date"] == expected_date for cr_info in results)
+
+        # Check velocity.
+        expected_velocity = [-1e-9, 1e-9, 0.0]
+        assert all(cr_info["velocity"] == expected_velocity for cr_info in results)
+
+        # We can assume that the elevation angles of these CRs should be within +/- 1
+        # degree with some back-of-the-envelope math:
+        #  - The tilt angles of these CRs varies between ~12-13 deg
+        #  - Assume a theoretical boresight of 35.3 deg for a triangular trihedral
+        #    CR incidence angle = 90 - (tilt + 35.3)
+        #  - CR look angle = incidence angle - 5 deg (due to curvature of the earth)
+        #  - Antenna EL angle = look angle - 37 deg (nominal mechanical boresight for
+        #    NISAR)
+        el_angles = np.asarray([cr_info["elevation_angle"] for cr_info in results])
+        np.testing.assert_allclose(el_angles, 0.0, rtol=0.0, atol=np.deg2rad(1.0))

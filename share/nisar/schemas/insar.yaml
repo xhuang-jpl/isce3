@@ -69,12 +69,14 @@ runconfig:
 
         primary_executable:
             # RIFG_RUNW_GUNW will produce all three InSAR products
-            product_type: enum('GUNW', 'RIFG', 'RUNW', 'RIFG_RUNW_GUNW', 'ROFF_RIFG_RUNW_GOFF_GUNW', 'RUNW_STANDALONE', 'GUNW_STANDALONE')
+            product_type: enum('GUNW', 'RIFG', 'RUNW', 'RIFG_RUNW_GUNW', 'ROFF_RIFG_RUNW_GOFF_GUNW', 'ROFF', 'GOFF', 'ROFF_GOFF')
+            product_version: str('^\d+\.\d+\.\d+$', required=False)
             composite_release_id: regex(r'\w\d\d\d\d\d', name='CRID', required=False)
             processing_type: enum('PR', 'UR', required=False)
             product_accuracy: enum('P','M','N','F', required=False)
             urgent_request_id: list(str(), required=False)
             processing_center: str(required=False)
+            partial_granule_id: str(required=False)
 
         debug_level_group:
             debug_switch: bool()
@@ -141,6 +143,8 @@ runconfig:
 
         # To setup type of worker
         worker: include('worker_options', required=False)
+
+        output: include('output_options', required=False)
 
         qa: include('qa_options', required=False)
 
@@ -309,10 +313,10 @@ dense_offsets_options:
     window_azimuth: int(min=16, max=512, required=False)
 
     # Number of columns for search chip/template in secondary image
-    half_search_range: int(min=4, max=32, required=False)
+    half_search_range: int(min=4, max=128, required=False)
 
     # Number of lines for search chip/template in secondary image
-    half_search_azimuth: int(min=4, max=32, required=False)
+    half_search_azimuth: int(min=4, max=128, required=False)
 
     # Number of columns to skip in reference image for next offset estimate
     skip_range: int(min=1, required=False)
@@ -839,22 +843,62 @@ qa_options:
 
 rifg_options:
     workflows: include('workflows_options', required=False)
+    qa_reports: include('rifg_qa_reports_options', required=False)
+
+rifg_qa_reports_options:
+    hsi_img: include('qa_hsi_img_wrapped_options', required=False)
 
 runw_options:
     workflows: include('workflows_options', required=False)
+    qa_reports: include('runw_qa_reports_options', required=False)
+
+runw_qa_reports_options:
+    phase_img: include('qa_phase_img_options', required=False)
+    hsi_img: include('qa_hsi_img_unwrapped_options', required=False)
 
 gunw_options:
     workflows: include('workflows_options', required=False)
+    qa_reports: include('gunw_qa_reports_options', required=False)
+
+gunw_qa_reports_options:
+    phase_img: include('qa_phase_img_options', required=False)
+    hsi_img: include('qa_hsi_img_unwrapped_options', required=False)
 
 roff_options:
     workflows: include('workflows_options', required=False)
+    qa_reports: include('offsets_qa_reports_options', required=False)
 
 goff_options:
     workflows: include('workflows_options', required=False)
+    qa_reports: include('offsets_qa_reports_options', required=False)
+
+offsets_qa_reports_options:
+    quiver_plots: include('qa_quiver_plots_options', required=False)
 
 workflows_options:
-  validate: bool(required=False)
-  qa_reports: bool(required=False)
+    validate: bool(required=False)
+    qa_reports: bool(required=False)
+
+qa_phase_img_options:
+    rewrap: num(min=0.0, required=False)
+
+qa_hsi_img_wrapped_options:
+    equalize_browse: bool(required=False)
+    longest_side_max: int(min=1, required=False)
+
+qa_hsi_img_unwrapped_options:
+    equalize_browse: bool(required=False)
+    longest_side_max: int(min=1, required=False)
+    rewrap: num(min=0.0, required=False)
+
+qa_quiver_plots_options:
+    colorbar_min_max: list(num, min=2, max=2, required=False)
+    browse_decimation_freqa: list(int(min=1), min=2, max=2, required=False)
+    browse_decimation_freqb: list(int(min=1), min=2, max=2, required=False)
+    arrow_density: num(min=1.0, required=False)
+    arrow_scaling: num(min=0.0, required=False)
+    longest_side_max: int(min=1, required=False)
+
 
 dem_download_options:
     # s3 bucket / curl URL / local file
@@ -967,3 +1011,9 @@ worker_options:
     # Index of the GPU to use for processing, optional. Defaults to the
     # first available CUDA device. Ignored if *gpu_enabled* is False.
     gpu_id: int(min=0, required=False)
+
+output_options:
+    compression_enabled: bool(required=False)
+    compression_level: int(min=1, max=9, required=False)
+    chunk_size: list(int(min=4), min=2, max=2, required=False)
+    shuffle: bool(required=False)

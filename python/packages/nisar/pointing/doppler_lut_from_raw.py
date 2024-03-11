@@ -18,7 +18,7 @@ from isce3.signal import form_single_tap_dbf_echo
 from nisar.log import set_logger
 
 
-def doppler_lut_from_raw(raw, freq_band='A', txrx_pol=None,
+def doppler_lut_from_raw(raw, *, freq_band='A', txrx_pol=None,
                          orbit=None, attitude=None, ant=None,
                          dem=None, num_rgb_avg=8, az_block_dur=4.0,
                          time_interval=2.0, dop_method='CDE', subband=False,
@@ -563,9 +563,12 @@ def doppler_lut_from_raw(raw, freq_band='A', txrx_pol=None,
                 )
             pf_coef_dop_cnt = np.polyfit(sr_valid, dop_cnt_valid, polyfit_deg)
             dop_cnt_map[n_azblk] = np.polyval(pf_coef_dop_cnt, slrg_per_blk)
-            # given estimation of invalid range bins from polyfit,
-            # set the mask to be all True after polyeval!
-            mask_rgb_avg_all[n_azblk] = True
+            # replace zero correlation factors with averaged ones over
+            # TX gaps or invalid regions given interpolation of Doppler
+            # via polyfit/smoothing of valid regions.
+            corr_coef_avg = corr_coef[n_azblk,
+                                      mask_rgb_avg_all[n_azblk]].mean()
+            corr_coef[n_azblk, ~mask_rgb_avg_all[n_azblk]] = corr_coef_avg
         else:  # keep the actual values
             # store the valid Dopplers unwrapped over ranges
             dop_cnt[mask_rgb_avg_all[n_azblk]] = dop_cnt_valid
@@ -600,6 +603,11 @@ def doppler_lut_from_raw(raw, freq_band='A', txrx_pol=None,
 
     # form Doppler LUT2d object
     dop_lut = LUT2d(slrg_per_blk, az_time_blk, dop_cnt_map)
+
+    # given estimation of invalid range bins from polyfit,
+    # set the mask to be all True after polyeval!
+    if polyfit:
+        mask_rgb_avg_all[:] = True
 
     return dop_lut, epoch_utc, mask_rgb_avg_all, corr_coef, txrx_pol, \
         centerfreq, coeff_lpf
@@ -749,7 +757,7 @@ def _plot_save_dop(n_azblk: int, slrg_per_blk: np.ndarray, dop_cnt: np.ndarray,
                    freq_band: str, txrx_pol: str, polyfit_deg: int,
                    mask_valid_rgb: np.ndarray):
     """Plot Doppler as a function Slant range and save it as PNG file"""
-    fig = plt.figure(n_azblk)
+    fig = plt.figure(n_azblk, figsize=(8, 7))
     ax = fig.add_subplot(111)
     # only polyfit over the valid range blocks!
     pf_coeff_dop_rg = np.polyfit(slrg_per_blk[mask_valid_rgb],
@@ -758,7 +766,9 @@ def _plot_save_dop(n_azblk: int, slrg_per_blk: np.ndarray, dop_cnt: np.ndarray,
     slrg_km = slrg_per_blk * 1e-3
     ax.plot(slrg_km, dop_cnt, 'r*--', slrg_km, pv_dop_rg, 'b--')
     ax.legend(["Echo", f"PF(order={polyfit_deg})"], loc='best')
-    diff_dop_pf = dop_cnt - pv_dop_rg
+    # get statistics of difference between measurement and polyfit
+    # only over valid regions of the swath!
+    diff_dop_pf = dop_cnt[mask_valid_rgb] - pv_dop_rg[mask_valid_rgb]
     plt_textstr = '\n'.join((
         'Deviation from PF:',
         r'$\mathrm{MEAN}$=%.1f Hz' % diff_dop_pf.mean(),
@@ -778,6 +788,7 @@ def _plot_save_dop(n_azblk: int, slrg_per_blk: np.ndarray, dop_cnt: np.ndarray,
         out_path, 'Doppler_SlantRange_Plot_Freq'
         f'{freq_band}_Pol{txrx_pol}_AzBlock{n_azblk + 1}.png'
     ))
+    plt.close()
 
 
 def _get_az_block_interval_len(num_pls: int, az_block_dur: float, prf: float,

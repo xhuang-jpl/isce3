@@ -19,6 +19,9 @@ gdal.UseExceptions()
 EARTH_APPROX_CIRCUMFERENCE = 40075017.
 EARTH_RADIUS = EARTH_APPROX_CIRCUMFERENCE / (2 * np.pi)
 
+STATIC_REPO = 'nisar-static-repo'
+WATER_MASK_VSIS3_PATH = f'/vsis3/{STATIC_REPO}/WATER_MASK'
+
 
 def cmdLineParse():
     """
@@ -39,7 +42,7 @@ def cmdLineParse():
     parser.add_argument('-m', '--margin', type=int, action='store',
                         default=5, help='Margin for water mask bounding box (km)')
     parser.add_argument('-v', '--version', type=str, action='store',
-                        dest='version', default='0.2',
+                        dest='version', default='0.3',
                         help='Version for water mask')
     parser.add_argument('-b', '--bbox', type=float, action='store',
                         dest='bbox', default=None, nargs='+',
@@ -88,14 +91,14 @@ def check_dateline(poly):
         # DEM longitude range
         for polygon_count in range(2):
             x, y = polys[polygon_count].exterior.coords.xy
-            if not any([k > 180 for k in x]):
+            if not any(k > 180 for k in x):
                 continue
 
             # Otherwise, wrap longitude values down to 360 deg
             x_wrapped_minus_360 = np.asarray(x) - 360
             polys[polygon_count] = Polygon(zip(x_wrapped_minus_360, y))
 
-        assert (len(polys) == 2)
+        assert len(polys) == 2
     else:
         # If dateline is not crossed, treat input poly as list
         polys = [poly]
@@ -180,9 +183,9 @@ def get_geo_polygon(ref_slc, min_height=-500.,
     poly: shapely.Geometry.Polygon
         Bounding polygon corresponding to RSLC perimeter on the ground
     """
-    from isce3.core import LUT2d
-    from isce3.geometry import DEMInterpolator, get_geo_perimeter_wkt
-    from nisar.products.readers import SLC
+    from isce3.core import LUT2d  # pylint: disable=import-error
+    from isce3.geometry import DEMInterpolator, get_geo_perimeter_wkt  # pylint: disable=import-error
+    from nisar.products.readers import SLC  # pylint: disable=import-error
 
     # Prepare SLC dataset input
     productSlc = SLC(hdf5file=ref_slc)
@@ -313,34 +316,43 @@ def download_watermask(polys, epsgs, outfile, version):
     version: str
         Water mask version
     """
+    try:
+        # Version 0.2 does have geographic coordinate (EPSG4326),
+        # without polar stereographic coordinates
+        if version != '0.2':
+            if 3031 in epsgs:
+                epsgs = [3031] * len(epsgs)
+                polys = transform_polygon_coords(polys, epsgs)
+                # Need one EPSG as in polar stereo; we have one big polygon
+                epsgs = [3031]
+            elif 3413 in epsgs:
+                epsgs = [3413] * len(epsgs)
+                polys = transform_polygon_coords(polys, epsgs)
+                # Need one EPSG as in polar stereo; we have one big polygon
+                epsgs = [3413]
+            else:
+                # set epsg to 4326 for each element in the list
+                epsgs = [4326] * len(epsgs)
 
-    if 3031 in epsgs:
-        epsgs = [3031] * len(epsgs)
-        polys = transform_polygon_coords(polys, epsgs)
-        # Need one EPSG as in polar stereo we have one big polygon
-        epsgs = [3031]
-    elif 3413 in epsgs:
-        epsgs = [3413] * len(epsgs)
-        polys = transform_polygon_coords(polys, epsgs)
-        # Need one EPSG as in polar stereo we have one big polygon
-        epsgs = [3413]
-    else:
-        # set epsg to 4326 for each element in the list
-        epsgs = [4326] * len(epsgs)
-        # convert margin to degree (approx formula)
+        # Download WATERMASK for each polygon/epsg
+        file_prefix = os.path.splitext(outfile)[0]
+        watermask_list = []
+        for n, (epsg, poly) in enumerate(zip(epsgs, polys)):
+            if version == '0.2':
+                vrt_filename = f'{WATER_MASK_VSIS3_PATH}/v{version}/watermask.vrt'
+            else:
+                vrt_filename = f'{WATER_MASK_VSIS3_PATH}/v{version}/EPSG{epsg}.vrt'
+            outpath = f'{file_prefix}_{n}.tiff'
+            watermask_list.append(outpath)
+            xmin, ymin, xmax, ymax = poly.bounds
+            translate_watermask(vrt_filename, outpath, xmin, xmax, ymin, ymax)
 
-    # Download WATERMASK for each polygon/epsg
-    file_prefix = os.path.splitext(outfile)[0]
-    watermask_list = []
-    for n, (epsg, poly) in enumerate(zip(epsgs, polys)):
-        vrt_filename = f'/vsis3/nisar-static-repo/WATER_MASK/v{version}/watermask.vrt'
-        outpath = f'{file_prefix}_{n}.tiff'
-        watermask_list.append(outpath)
-        xmin, ymin, xmax, ymax = poly.bounds
-        translate_watermask(vrt_filename, outpath, xmin, xmax, ymin, ymax)
-
-    # Build vrt with downloaded watermasks
-    gdal.BuildVRT(outfile, watermask_list)
+        # Build vrt with downloaded watermasks
+        gdal.BuildVRT(outfile, watermask_list)
+    except Exception:
+        errmsg = f'Failed to donwload NISAR WATERMASK {version} from s3 bucket. ' \
+                 f'Maybe {version} is not currently supported.'
+        raise ValueError(errmsg)
 
 
 def transform_polygon_coords(polys, epsgs):
@@ -357,7 +369,7 @@ def transform_polygon_coords(polys, epsgs):
     """
 
     # Assert validity of inputs
-    assert(len(polys) == len(epsgs))
+    assert len(polys) == len(epsgs)
 
     # Transform each point of the perimeter in target EPSG coordinates
     llh = osr.SpatialReference()
@@ -403,7 +415,7 @@ def check_watermask_overlap(watermaskFilepath, polys):
         Area (in percentage) covered by the intersection between the
         user-provided WATERMASK and the one downloadable by stage_watermask.py
     """
-    from isce3.io import Raster
+    from isce3.io import Raster  # pylint: disable=import-error
 
     # Get local WATERMASK edge coordinates
     watermask = Raster(watermaskFilepath)
@@ -424,7 +436,7 @@ def check_watermask_overlap(watermaskFilepath, polys):
     return perc_area
 
 
-def check_aws_connection(version):
+def check_aws_connection():
     """Check connection to AWS s3://nisar-static-repo/WATER_MASK bucket
        Throw exception if no connection is established
 
@@ -435,7 +447,8 @@ def check_aws_connection(version):
     """
     import boto3
     s3 = boto3.resource('s3')
-    obj = s3.Object('nisar-static-repo', f'WATER_MASK/v{version}/watermask.vrt')
+    # Check only AWS connection using currently available vrt file.
+    obj = s3.Object(f'{STATIC_REPO}', 'WATER_MASK/v0.3/EPSG4326.vrt')
     try:
         obj.get()['Body'].read()
     except Exception:
@@ -511,8 +524,9 @@ def margin_km_to_longitude_deg(margin_in_km, lat=0):
     delta_lon: np.float
         Longitude margin as a result of the conversion
     '''
-    delta_lon = (180 * 1000 * margin_in_km /
-                (np.pi * EARTH_RADIUS * np.cos(np.pi * lat / 180)))
+    delta_lon = (
+        180 * 1000 * margin_in_km / (np.pi * EARTH_RADIUS * np.cos(np.pi * lat / 180))
+    )
     return delta_lon
 
 
@@ -554,7 +568,7 @@ def main(opts):
     else:
         # Check connection to AWS s3 nisar-WATERMASK  ucket
         try:
-            check_aws_connection(opts.version)
+            check_aws_connection()
         except ImportError:
             import warnings
             warnings.warn('boto3 is required to verify AWS connection '

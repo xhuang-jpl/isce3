@@ -27,6 +27,14 @@ static py::buffer_info toBuffer(const std::vector<isce3::core::Vec3>& buf)
     return {(void*) buf.data(), sizeof(double), format, 2, shape, strides, readonly};
 }
 
+void addbinding(pybind11::enum_<isce3::core::OrbitInterpMethod> & pyOrbitInterpMethod)
+{
+    pyOrbitInterpMethod
+        .value("HERMITE", isce3::core::OrbitInterpMethod::Hermite)
+        .value("LEGENDRE", isce3::core::OrbitInterpMethod::Legendre);
+}
+
+
 void addbinding(py::class_<Orbit> & pyOrbit)
 {
     pyOrbit
@@ -81,6 +89,7 @@ void addbinding(py::class_<Orbit> & pyOrbit)
         .def_property_readonly("spacing",        &Orbit::spacing)
         .def_property_readonly("size",           &Orbit::size)
         .def_property_readonly("start_time",     &Orbit::startTime)
+        .def_property_readonly("mid_time",       &Orbit::midTime)
         .def_property_readonly("end_time",       &Orbit::endTime)
         .def_property_readonly("start_datetime", &Orbit::startDateTime)
         .def_property_readonly("mid_datetime",   &Orbit::midDateTime)
@@ -137,5 +146,16 @@ void addbinding(py::class_<Orbit> & pyOrbit)
             polynomial interpolation).
         )",
         py::arg("method"))
-        ;
+        .def("get_interp_method", [](Orbit& self) {
+            return self.interpMethod();
+        }, R"(
+        Get interpolation method.
+
+        Returns
+        -------
+        orbit_method: isce3.core.OrbitInterpMethod
+            The method for interpolating orbit state vectors (cubic
+            Hermite spline interpolation or eighth-order Legendre
+            polynomial interpolation).
+        )");
 }

@@ -4,7 +4,7 @@ workflowdata = {
         "L0B_RRSD_REE1":
         # files to grab
         [
-            "REE_CR_INFO_out17.csv",
+            "REE_CR_INFO_out17_NISAR.csv",
             "REE_L0B_out17.h5",
             "README.txt",
             "attitude.xml",
@@ -14,13 +14,26 @@ workflowdata = {
         # and so forth
         "L0B_RRSD_REE2":
         [
-            "attitude.xml",
-            "dem_trunc.tiff",
-            "orbit.xml",
-            "NISAR_LCAL_20220101T120000_01.yaml",
-            "NISAR_LINS_20220101T120000_01.h5",
-            "REE_L0B_ECHO_array144sq_03.h5",
-            "REE_ANTPAT_CUTS_DATA.h5",
+            "dem_REE2_right.tif",
+            "NISAR_ANC_L_PR_FOE_20230929T121335_20230701T000150_20230701T000230.xml",
+            "NISAR_ANC_L_PR_FRP_20230929T121335_20230701T000150_20230701T000230.xml",
+            "NISAR_ANTPAT_20230218T144138.h5",
+            "NISAR_LSAR_EXT_CAL_20220101T120000_03.yaml",
+            "NISAR_LSAR_INT_CAL_20220101T120000_01.h5",
+            "README.txt",
+            "NISAR_L0_PR_RRSD_035_079_A_192S_20230701T000150_20230701T000229_A00301_F_J_001.h5",
+        ],
+
+        "L0B_RRSD_REE3":
+        [
+            "dem_90_09_945_16.tiff",
+            "NISAR_ANC_CORNER_REFLECTORS_005.csv",
+            "NISAR_ANC_L_PR_FOE_20231207T182337_20251011T121909_20251011T122039.xml",
+            "NISAR_ANC_L_PR_FRP_20231207T182337_20251011T121909_20251011T122039.xml",
+            "NISAR_ANTPAT_20230707T142741.h5",
+            "NISAR_L0_PR_RRSD_104_159_D_238S_20251011T121909_20251011T122039_A00301_F_J_001.h5",
+            "NISAR_LSAR_EXT_CAL_20220101T120000_03.yaml",
+            "NISAR_LSAR_INT_CAL_20220101T120000_01.h5",
             "README.txt",
         ],
 
@@ -63,7 +76,7 @@ workflowdata = {
         ],
         "L0B_RRSD_ALPSRP110160680_Rosamond":
         [
-            "2008-02-18_0620_Rosamond-corner-reflectors.csv",
+            "2008-02-18_0620_Rosamond-corner-reflectors_NISAR.csv",
             "ALPSRP110160680.L0B.h5",
             "dem.tif",
             "HRES_2008_02_18_T06_20_00.nc",
@@ -73,7 +86,7 @@ workflowdata = {
         ],
         "L0B_RRSD_ALPSRP116870680_Rosamond":
         [
-            "2008-04-04_0619_Rosamond-corner-reflectors.csv",
+            "2008-04-04_0619_Rosamond-corner-reflectors_NISAR.csv",
             "ALPSRP116870680.L0B.h5",
             "dem.tif",
             "HRES_2008_04_04_T06_19_17.nc",
@@ -203,19 +216,21 @@ workflowdata = {
             "README.txt",
         ],
 
-        "L2_GCOV_003_005_A_019_4020_DHNA_A_20200926T135152_20200926T135219_P01101_M_P_J_001":
+        "L2_GCOV_004_001_D_001_4000_QPNA_A_20190829T180759_20190829T180809_P01101_M_P_J_001":
         [
-            "A4S10040600100700001.nc",
-            "NISAR_L2_PR_GCOV_001_005_A_019_4020_DHNA_A_20200902T135152_20200902T135219_P01101_M_P_J_001.h5",
-            "NISAR_L2_PR_GCOV_002_005_A_019_4020_DHNA_A_20200914T135152_20200914T135219_P01101_M_P_J_001.h5",
-            "NISAR_L2_PR_GCOV_003_005_A_019_4020_DHNA_A_20200926T135152_20200926T135219_P01101_M_P_J_001.h5",
-            "NISAR_LOCAL_INCIDENCE_ANGLE_005_019_001.h5",
+            "ERA5_Land_20190829.nc",
+            "NISAR_L2_PR_GCOV_002_001_D_001_4000_QPNA_A_20190801T180758_20190801T180808_P01101_M_P_J_001.h5",
+            "NISAR_L2_PR_GCOV_003_001_D_001_4000_QPNA_A_20190815T180759_20190815T180809_P01101_M_P_J_001.h5",
+            "NISAR_L2_PR_GCOV_004_001_D_001_4000_QPNA_A_20190829T180759_20190829T180809_P01101_M_P_J_001.h5",
+            "NISAR_LOCAL_INCIDENCE_ANGLE_001_001_001.h5",
             "NISAR_PMI_STATIC_ANCILLARY_DATA_001.h5",
-            "NISAR_SM_STATIC_ANCILLARY_001.h5",
+            "NISAR_SM_STATIC_ANCILLARY_002.h5",
             "NISAR_TSR_STATIC_ANCILLARY_DATA_001.h5",
-            "NISAR_VWC_M01_264_200m_001.h5",
-            "NISAR_VWC_M01_276_200m_001.h5",
-            "NISAR_VWC_M01_288_200m_001.h5",
+            "NISAR_VWC_M01_213_200m_002.h5",
+            "NISAR_VWC_M01_227_200m_002.h5",
+            "NISAR_VWC_M01_241_200m_002.h5",
+            "palsar2_dem_0.tiff",
+            "palsar2_dem.vrt",
             "README.txt",
         ],
     }
@@ -226,6 +241,7 @@ workflowtests = {
     'rslc': {"rslc_" + name: "L0B_RRSD_" + name for name in [
         "REE1",
         "REE2",
+        "REE3",
         "REE_NISAR_dithered",
         "DIST1",
         "DIST2",
@@ -308,6 +324,6 @@ workflowtests = {
     ]},
 
     'soilm': {"soilm_" + name: "L2_GCOV_" + name for name in [
-        "003_005_A_019_4020_DHNA_A_20200926T135152_20200926T135219_P01101_M_P_J_001",
+        "004_001_D_001_4000_QPNA_A_20190829T180759_20190829T180809_P01101_M_P_J_001",
     ]},
 }

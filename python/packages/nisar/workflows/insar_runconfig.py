@@ -1,14 +1,12 @@
+import os
 import warnings
 
 import journal
-
-from nisar.products.readers import SLC
 from nisar.workflows.geo2rdr_runconfig import Geo2rdrRunConfig
-import nisar.workflows.helpers as helpers
-
 from nisar.workflows.geocode_insar_runconfig import geocode_insar_cfg_check
 from nisar.workflows.ionosphere_runconfig import ionosphere_cfg_check
 from nisar.workflows.troposphere_runconfig import troposphere_delay_check
+
 
 class InsarRunConfig(Geo2rdrRunConfig):
     def __init__(self, args):
@@ -214,16 +212,6 @@ class InsarRunConfig(Geo2rdrRunConfig):
 
         # Check geocode_insar config options
         geocode_insar_cfg_check(self.cfg)
-
-        # Check if layover shadow output enabled
-        if not self.cfg['processing']['rdr2geo']['write_layover_shadow']:
-            # Raise and log warning
-            warning_str = 'layover_shadow incorrectly disabled for rdr2geo; it will be enabled'
-            warning_channel.log(warning_str)
-            warnings.warn(warning_str)
-
-            # Set write flag True
-            self.cfg['processing']['rdr2geo']['write_layover_shadow'] = True
 
         # Check the troposphere delay
         troposphere_delay_check(self.cfg)

@@ -28,12 +28,16 @@ core/DenseMatrix.h
 core/detail/BuildOrbit.h
 core/detail/InterpolateOrbit.h
 core/detail/InterpolateOrbit.icc
+core/detail/Interp1d.h
+core/detail/SSOBuffer.h
 core/Ellipsoid.h
 core/EMatrix.h
 core/EulerAngles.h
 core/forward.h
 core/Interp1d.h
 core/Interp1d.icc
+core/Interp2d.h
+core/Interp2d.icc
 core/Interpolator.h
 core/Kernels.h
 core/Kernels.icc
@@ -94,9 +98,11 @@ geometry/Geo2rdr.icc
 geocode/GeocodeCov.h
 geocode/GeocodeCov.icc
 geocode/GeocodePolygon.h
+geometry/geo2rdr_roots.h
 geometry/geometry.h
 geometry/getGeolocationGrid.h
 geometry/RTC.h
+geometry/rdr2geo_roots.h
 geometry/Topo.h
 geometry/Topo.icc
 geometry/TopoLayers.h
@@ -104,6 +110,7 @@ geometry/metadataCubes.h
 geogrid/getRadarGrid.h
 geogrid/relocateRaster.h
 image/forward.h
+image/Resample.h
 image/ResampSlc.h
 image/ResampSlc.icc
 image/Tile.h
@@ -134,6 +141,8 @@ math/complexOperations.h
 math/Stats.h
 math/detail/RootFind1dBase.h
 math/polyfunc.h
+math/RootFind1dBracket.h
+math/RootFind1dBracket.icc
 math/RootFind1dNewton.h
 math/RootFind1dSecant.h
 math/Sinc.h

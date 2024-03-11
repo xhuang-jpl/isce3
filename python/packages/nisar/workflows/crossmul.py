@@ -10,14 +10,16 @@ import h5py
 import isce3
 import journal
 from osgeo import gdal
+
 gdal.UseExceptions()
 
 from nisar.products.readers import SLC
-from nisar.workflows import h5_prep
+from nisar.workflows import prepare_insar_hdf5
 from nisar.workflows.compute_stats import compute_stats_real_data
+from nisar.workflows.crossmul_runconfig import CrossmulRunConfig
 from nisar.workflows.helpers import (complex_raster_path_from_h5,
                                      get_cfg_freq_pols)
-from nisar.workflows.crossmul_runconfig import CrossmulRunConfig
+from nisar.products.insar.product_paths import RIFGGroupsPaths
 from nisar.workflows.yaml_argparse import YamlArgparse
 
 
@@ -43,7 +45,7 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
         flatten_path = crossmul_params['flatten_path']
 
     if output_hdf5 is None:
-        output_hdf5 = cfg['product_path_group']['sas_output_file']
+        output_hdf5 = str(scratch_path.joinpath('crossmul/product.h5'))
 
     # init parameters shared by frequency A and B
     ref_slc = SLC(hdf5file=ref_hdf5)
@@ -91,18 +93,26 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
                 sec_slc.getDopplerCentroid(frequency=freq))
             crossmul.set_dopplers(ref_dopp, sec_dopp)
 
-            freq_group_path = f'/science/LSAR/RIFG/swaths/frequency{freq}'
+            freq_group_path = f'{RIFGGroupsPaths().SwathsPath}/frequency{freq}'
 
             # prepare flattening and range filter parameters
-            rdr_grid = ref_slc.getRadarGrid(freq)
-            crossmul.range_pixel_spacing = rdr_grid.range_pixel_spacing
-            crossmul.wavelength = rdr_grid.wavelength
+            ref_radar_grid = ref_slc.getRadarGrid(freq)
+            crossmul.range_pixel_spacing = ref_radar_grid.range_pixel_spacing
+            crossmul.wavelength = ref_radar_grid.wavelength
 
             # enable/disable flatten accordingly
             if flatten:
                 # set frequency dependent range offset raster
                 flatten_raster = isce3.io.Raster(
                     f'{flatten_path}/geo2rdr/freq{freq}/range.off')
+
+                # Calculate the starting range shift between reference and secondary in meters
+                sec_radar_grid = sec_slc.getRadarGrid(freq)
+                rng_shift = (sec_radar_grid.starting_range -
+                             ref_radar_grid.starting_range)
+
+                crossmul.ref_sec_offset_starting_range_shift\
+                    = rng_shift
             else:
                 flatten_raster = None
 
@@ -114,10 +124,10 @@ def run(cfg: dict, output_hdf5: str = None, resample_type='coarse',
                 if dump_on_disk:
                     igram_path = f'{output_dir}/wrapped_igram_rg{rg_looks}_az{az_looks}'
                     coh_path = f'{output_dir}/coherence_rg{rg_looks}_az{az_looks}'
-                    ifg_raster = isce3.io.Raster(igram_path, rdr_grid.width // rg_looks,
-                                                 rdr_grid.length // az_looks, 1, gdal.GDT_CFloat32, 'ENVI')
-                    coh_raster = isce3.io.Raster(coh_path, rdr_grid.width // rg_looks,
-                                                 rdr_grid.length // az_looks, 1, gdal.GDT_Float32, 'ENVI')
+                    ifg_raster = isce3.io.Raster(igram_path, ref_radar_grid.width // rg_looks,
+                                                 ref_radar_grid.length // az_looks, 1, gdal.GDT_CFloat32, 'ENVI')
+                    coh_raster = isce3.io.Raster(coh_path, ref_radar_grid.width // rg_looks,
+                                                 ref_radar_grid.length // az_looks, 1, gdal.GDT_Float32, 'ENVI')
                 else:
 
                     # access the HDF5 dataset for a given frequency and polarization
@@ -191,7 +201,8 @@ def stats_offsets(h5_ds, freq, pol):
     pol: str
        Polarization to process (HH, HV, VH, VV)
     """
-    path = f'science/LSAR/RIFG/swaths/frequency{freq}/pixelOffsets/{pol}/'
+
+    path = f'{RIFGGroupsPaths().SwathsPath}/frequency{freq}/pixelOffsets/{pol}/'
     offset_layer = ['slantRangeOffset', 'alongTrackOffset']
 
     for layer in offset_layer:
@@ -214,6 +225,6 @@ if __name__ == "__main__":
     # get a runconfig dict from command line args
     crossmul_runconfig = CrossmulRunConfig(args, resample_type)
     # prepare RIFG HDF5
-    out_paths = h5_prep.run(crossmul_runconfig.cfg)
+    out_paths = prepare_insar_hdf5.run(crossmul_runconfig.cfg)
     # run crossmul
     run(crossmul_runconfig.cfg, out_paths['RIFG'], resample_type)

@@ -51,31 +51,68 @@ runconfig:
             # PLACEHOLDER - Output format
             format: HDF5
 
+            # Enable/disable compression of output raster
+            compression_enabled: True
+
             # Compression type. 'none' for no compression
             compression_type: gzip
 
             # Compression level
             compression_level: 9
 
-            # PLACEHOLDER - Compression number of bits
-            nbits: 16
+            # Enable/disable chunking of output raster
+            chunking_enabled: True
+
+            # Chunk size of output raster as a list: [y, x]
+            # If no value is specified, the chunk_size defaults to [512, 512]
+            # or a smaller size, constrained by the dimensions of the image
+            chunk_size: [512, 512]
+
+            # Enable/disable shuffle filtering of output raster
+            shuffle_filtering_enabled: True
+
+            # Number bits retained in the mantissa of the floating point
+            # representation of each component real and imaginary (if applicable)
+            # of each output sample.
+            # If no value is provided, the mantissa bits truncation is not applied
+            mantissa_nbits:
 
         # Output options for secondary layers (e.g., number of looks, RTC ANF)
         output_secondary_layers:
             # PLACEHOLDER - Output format
             format: HDF5
 
+            # Enable/disable compression of output raster
+            compression_enabled: True
+
             # Compression type. 'none' for no compression
             compression_type: gzip
 
             # Compression level
             compression_level: 9
 
-            # PLACEHOLDER - Compression number of bits
-            nbits: 16
+            # Enable/disable chunking of output raster
+            chunking_enabled: True
+
+            # Chunk size of output raster as a list: [y, x]
+            # If no value is specified, the chunk_size defaults to [512, 512]
+            # or a smaller size, constrained by the dimensions of the image
+            chunk_size: [512, 512]
+
+            # Enable/disable shuffle filtering of output raster
+            shuffle_filtering_enabled: True
+
+            # Number bits retained in the mantissa of the floating point
+            # representation of each component real and imaginary (if applicable)
+            # of each output sample.
+            # If no value is provided, the mantissa bits truncation is not applied
+            mantissa_nbits:
 
         primary_executable:
             product_type: GCOV
+            product_version: 0.1.0
+            processing_type:
+            partial_granule_id:
 
         debug_level_group:
             debug_switch: false
@@ -96,15 +133,24 @@ runconfig:
         processing:
             input_subset:
                 # Frequencies and polarizations to process
+                # Keys for frequency A and B followed by a list of polarizations to process:
+                #     {frequency}: [polarizations]
+                #
+                # - If the entire field is left empty, all available frequencies will be processed.
+                # - Otherwise, only frequencies listed (i.e, 'A' and/or 'B') will be processed.
+                # - If the [polarizations] list is empty, all available polarizations
+                # for given frequency will be processed
+                #
+                # Example 1:
+                #     list_of_frequencies:  # (empty) process all polarizations from all
+                #                           # available frequencies
+                # Example 2:
+                #     list_of_frequencies:
+                #         A: [HH, HV]  # process only polarizations HH and HV from frequency A
+                #         B:           # process all polarizations from frequency B
+                #
+                #
                 list_of_frequencies:
-                    # Keys for frequency A and B followed by a list of polarizations to process:
-                    #     {frequency}: [polarizations]
-                    #
-                    # - Only frequencies listed (i.e, 'A' and/or 'B') will be processed.
-                    # - If the [polarizations] list is empty, all available polarizations 
-                    # for given frequency will be processed
-                    A:
-                    B:
 
                 # OPTIONAL - If we want full covariance instead of diagonals only. Default False
                 fullcovariance:   False
@@ -156,6 +202,19 @@ runconfig:
                 # RTC DEM upsampling
                 dem_upsampling: 2
 
+                # RTC area beta mode. Options:
+                # 'auto' - Default value is defined by the RTC algorithm that is being
+                #     executed, i.e., 'pixel_area' for 'algorithm_type' equal to
+                #     'bilinear_distribution' and 'projection_angle' for
+                #     'algorithm_type' equal to 'area_projection'
+                #  'pixel_area' - Estimate the beta surface reference area `A_beta`
+                #     using the pixel area, which is the product of the range spacing
+                #     by the azimuth spacing (computed using the ground velocity)
+                #  'projection_angle' - estimate the beta surface reference area `A_beta`
+                #     using the projection angle method:
+                #     `A_beta = A_sigma * cos(projection_angle)`
+                area_beta_mode: auto
+
             # OPTIONAL - Mechanism to specify output posting and DEM
             geocode:
 
@@ -167,6 +226,28 @@ runconfig:
                 # Apply radiometric terrain correction
                 apply_rtc: True
 
+                # PLACEHOLDER (it is expected that the RSLC product already
+                # incorporates static tropospheric delay corrections --
+                # no additional correction is currently applied)
+                # Apply dry tropospheric delay correction
+                apply_dry_tropospheric_delay_correction: False
+
+                # PLACEHOLDER (it is expected that the RSLC product already
+                # incorporates static tropospheric delay corrections --
+                # no additional correction is currently applied)
+                # Apply wet tropospheric delay correction
+                apply_wet_tropospheric_delay_correction: False
+
+                # Apply range ionospheric delay correction
+                # If True, a TEC file must be supplied.
+                # Defaults to True if a TEC file is supplied; otherwise False.
+                apply_range_ionospheric_delay_correction:
+
+                # Apply azimuth ionospheric delay correction
+                # If True, a TEC file must be supplied.
+                # Defaults to True if a TEC file is supplied; otherwise False.
+                apply_azimuth_ionospheric_delay_correction:
+
                 # Apply RSLC metadata valid-samples sub-swath masking
                 apply_valid_samples_sub_swath_masking: False
 
@@ -174,7 +255,7 @@ runconfig:
                 apply_shadow_masking: True
 
                 # Memory mode. Choices: "single_block", "geogrid", "geogrid_and_radargrid", and "auto" (default)
-                memory_mode:
+                memory_mode: auto
 
                 # OPTIONAL - Processing upsampling factor applied to input geogrid
                 geogrid_upsampling: 1
@@ -182,8 +263,13 @@ runconfig:
                 # Save the number of looks used to compute GCOV
                 save_nlooks: True
 
-                # Save the RTC area factor used to compute GCOV
-                save_rtc_anf: True
+                # Save the area normalization factor (ANF) to normalize GCOV
+                # imagery to the original SLC backscatter convention:
+                # beta0 or sigma0 (ellipsoid)
+                save_rtc_anf: False
+
+                # Save the RTC area normalization factor (ANF) gamma0 to sigma0
+                save_rtc_anf_gamma0_to_sigma0: True
 
                 # Save interpolated DEM used to compute GCOV
                 save_dem: False
@@ -290,6 +376,22 @@ runconfig:
                     y_abs:
                     x_abs:
 
+            calibration_information: 
+
+                # OPTIONAL - Spacing between pixels, in same units as output EPSG.
+                # All postings/spacings must be > 0.
+                output_posting:
+                    x_posting: 
+                    y_posting:                 
+
+            processing_information: 
+
+                # OPTIONAL - Spacing between pixels, in same units as output EPSG.
+                # All postings/spacings must be > 0.
+                output_posting:
+                    x_posting: 
+                    y_posting: 
+
             geo2rdr:
                 threshold: 1.0e-8
                 maxiter: 100
@@ -310,14 +412,14 @@ runconfig:
 
                 # Flag to run `validate` workflow to validate the
                 # input file against its product spec.
-                # Default: False
-                validate: false
+                # Default: True
+                validate: true
 
                 # Flag to run `qa_reports` workflow to generate a
                 # PDF report, geolocated browse image, compute statistics
                 # on the input file, etc..
-                # Default: False
-                qa_reports: false
+                # Default: True
+                qa_reports: true
 
             qa_reports:
 

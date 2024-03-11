@@ -1,9 +1,11 @@
+import os
 import tempfile
 from pathlib import Path
 
 import numpy as np
 import numpy.testing as npt
 import pytest
+import shapely
 from numpy.random import default_rng
 from numpy.typing import ArrayLike
 
@@ -14,6 +16,7 @@ from isce3.cal.corner_reflector import (
     enu_to_cr_rotation,
     normalize_vector,
 )
+import nisar
 
 
 def wrap(phi: ArrayLike) -> np.ndarray:
@@ -199,3 +202,92 @@ class TestCRToENURotation:
             q_cr2enu = cr_to_enu_rotation(az=az, el=el)
             q_enu2cr = enu_to_cr_rotation(az=az, el=el)
             assert (q_enu2cr * q_cr2enu).is_approx(identity)
+
+
+def test_get_target_observation_time_and_elevation():
+    datadir = Path(iscetest.data)
+
+    # Get simulated RSLC data containing a single point target.
+    rslc_hdf5 = datadir / "REE_RSLC_out17.h5"
+    rslc = nisar.products.readers.SLC(hdf5file=os.fspath(rslc_hdf5))
+
+    orbit = rslc.getOrbit()
+    attitude = rslc.getAttitude()
+    radar_grid = rslc.getRadarGrid(frequency="A")
+
+    # The CSV contains a single corner reflector.
+    cr_csv = datadir / "REE_CR_INFO_out17.csv"
+    cr = list(isce3.cal.parse_triangular_trihedral_cr_csv(cr_csv))[0]
+
+    # Estimate target zero-Doppler UTC datetime and elevation angle.
+    az_datetime, el_angle = isce3.cal.get_target_observation_time_and_elevation(
+        target_llh=cr.llh,
+        orbit=orbit,
+        attitude=attitude,
+        wavelength=radar_grid.wavelength,
+        look_side=radar_grid.lookside,
+    )
+
+    # The target is located approximately in the center of the radar grid.
+    expected_az = radar_grid.ref_epoch + isce3.core.TimeDelta(radar_grid.sensing_mid)
+    expected_el = 0.0
+
+    assert az_datetime.is_close(expected_az, tol=isce3.core.TimeDelta(seconds=1e-3))
+    assert np.isclose(el_angle, expected_el, atol=1e-6)
+
+
+def test_get_crs_in_polygon():
+    # Create a rectangular lon/lat polygon.
+    lon0, lon1 = -2.0, 2.0
+    lat0, lat1 = -0.5, 0.5
+    lonlat_polygon = shapely.Polygon(
+        [
+            (lon0, lat0),
+            (lon0, lat1),
+            (lon1, lat1),
+            (lon1, lat0),
+            (lon0, lat0),
+        ]
+    )
+
+    # Corner reflector longitudes & latitudes in degrees:
+    #  - The first four CRs are contained within the polygon
+    #  - The next two CRs are on the border of the polygon
+    #  - The final two CRs are slightly outside the polygon
+    eps = 1e-6
+    cr_lonlats = [
+        (0.0, 0.0),
+        (360.0, 0.0),
+        (1.0, 0.0),
+        (0.0, 0.5 - eps),
+        (0.0, 0.5),
+        (2.0, 0.5),
+        (2.1 - eps, 0.0),
+        (2.1 + eps, 0.0),
+    ]
+
+    # Make a list of corner reflectors with unique IDs, one at each lon/lat location.
+    crs = [
+        isce3.cal.TriangularTrihedralCornerReflector(
+            id=f"CR{i}",
+            llh=isce3.core.LLH(np.deg2rad(lon), np.deg2rad(lat), 0.0),
+            elevation=0.0,
+            azimuth=0.0,
+            side_length=1.0,
+        )
+        for i, (lon, lat) in enumerate(cr_lonlats)
+    ]
+
+    cr_ids = [cr.id for cr in crs]
+
+    # Get a list of CRs within the polygon bounds. The resulting list should contain
+    # only the first 4 CRs.
+    filtered_crs = isce3.cal.get_crs_in_polygon(crs, lonlat_polygon)
+    filtered_cr_ids = [cr.id for cr in filtered_crs]
+    assert filtered_cr_ids == cr_ids[:4]
+
+    # Get a list of CRs inside or within 0.1 degrees of the polygon. The resulting list
+    # should contain all except the last CR.
+    filtered_crs = isce3.cal.get_crs_in_polygon(crs, lonlat_polygon, buffer=0.1)
+    filtered_cr_ids = [cr.id for cr in filtered_crs]
+    assert filtered_cr_ids == cr_ids[:-1]

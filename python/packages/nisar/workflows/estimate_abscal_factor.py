@@ -8,7 +8,9 @@ import traceback
 import warnings
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
+
+import shapely
 
 import isce3
 import nisar
@@ -21,8 +23,14 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
+CornerReflectorIterable = Union[
+    Iterable[isce3.cal.TriangularTrihedralCornerReflector],
+    Iterable[nisar.cal.CornerReflector],
+]
+
+
 def estimate_abscal_factor(
-    corner_reflectors: Iterable[isce3.cal.TriangularTrihedralCornerReflector],
+    corner_reflectors: CornerReflectorIterable,
     rslc: nisar.products.readers.SLC,
     freq: Optional[str] = None,
     pol: Optional[str] = None,
@@ -57,8 +65,11 @@ def estimate_abscal_factor(
 
     Parameters
     ----------
-    corner_reflectors : iterable of isce3.cal.TriangularTrihedralCornerReflector
-        Iterable of corner reflectors in the scene.
+    corner_reflectors : iterable
+        Iterable of corner reflectors in the scene. The elements may be instances of
+        `isce3.cal.TriangularTrihedralCornerReflector` or `nisar.cal.CornerReflector`.
+        In the latter case, additional information about the survey date and plate
+        motion velocity of each corner reflector is populated in the output.
     rslc : nisar.products.readers.SLC
         The input RSLC product.
     freq : {'A', 'B'} or None, optional
@@ -126,14 +137,37 @@ def estimate_abscal_factor(
           The absolute radiometric calibration error for the corner reflector (the ratio
           of the measured RCS to the predicted RCS), in linear units.
 
+        'elevation_angle':
+          The elevation angle of the corner reflector, in radians. Elevation is measured
+          in the cross-track direction w.r.t antenna boresight, increasing toward
+          far-range.
+
         'timestamp':
-          The corner reflector observation time.
+          The corner reflector zero-Doppler observation time.
 
         'frequency':
           The frequency sub-band of the data.
 
         'polarization':
           The transmit and receive polarization of the data.
+
+        If the input corner reflectors were instances of `nisar.cal.CornerReflector`,
+        the following additional keys are also populated:
+
+        'survey_date':
+          The date (and time) when the corner reflector was surveyed most recently prior
+          to the radar observation.
+
+        'velocity':
+          The corner reflector velocity due to tectonic plate motion, as an
+          East-North-Up (ENU) vector in meters per second (m/s). The velocity components
+          are provided in local ENU coordinates with respect to the WGS 84 reference
+          ellipsoid.
+
+    Notes
+    -----
+    No corrections to the corner reflector position are applied for tectonic plate
+    motion, solid earth tides, etc.
 
     References
     ----------
@@ -168,11 +202,8 @@ def estimate_abscal_factor(
                 f" polarizations are {set(available_pols)}"
             )
 
-    # Get the RSLC image data for the specified frequency sub-band & polarization and
-    # wrap it in a decoder layer that handles converting half-precision complex values
-    # to single-precision.
-    img_dataset = rslc.getSlcDataset(freq, pol)
-    img_data = isce3.core.types.ComplexFloat16Decoder(img_dataset)
+    # Get the RSLC image data for the specified frequency sub-band & polarization.
+    img_data = rslc.getSlcDatasetAsNativeComplex(freq, pol)
 
     # Get the radar grid on which the image data is sampled.
     radar_grid = rslc.getRadarGrid(freq)
@@ -192,6 +223,9 @@ def estimate_abscal_factor(
         orbit = rslc.getOrbit()
     else:
         orbit = external_orbit
+
+    # Get platform attitude data.
+    attitude = rslc.getAttitude()
 
     # Estimate the absolute calibration error (the ratio of the measured RCS to the
     # predicted RCS) for a single corner reflector.
@@ -229,8 +263,8 @@ def estimate_abscal_factor(
     for cr in corner_reflectors:
         try:
             abscal_error = estimate_abscal_error(cr)
-        except Exception as e:
-            errmsg = "".join(traceback.format_exception(e))
+        except Exception:
+            errmsg = traceback.format_exc()
             warnings.warn(
                 f"an exception occurred while processing corner reflector {cr.id!r}:"
                 f"\n\n{errmsg}",
@@ -238,17 +272,31 @@ def estimate_abscal_factor(
             )
             continue
 
-        # TODO: Update 'timestamp' to be the actual observation time of the corner
-        # reflector from geo2rdr().
-        results.append(
-            {
-                "id": cr.id,
-                "absolute_calibration_factor": abscal_error,
-                "timestamp": rslc.identification.zdStartTime,
-                "frequency": freq,
-                "polarization": pol,
-            }
+        # Get the target's zero-Doppler UTC time and elevation angle.
+        az_datetime, el_angle = isce3.cal.get_target_observation_time_and_elevation(
+            target_llh=cr.llh,
+            orbit=orbit,
+            attitude=attitude,
+            wavelength=radar_grid.wavelength,
+            look_side=radar_grid.lookside,
         )
+
+        cr_info = {
+            "id": cr.id,
+            "absolute_calibration_factor": abscal_error,
+            "elevation_angle": el_angle,
+            "timestamp": az_datetime,
+            "frequency": freq,
+            "polarization": pol,
+        }
+
+        # Add NISAR-specific metadata, if available.
+        if isinstance(cr, nisar.cal.CornerReflector):
+            cr_info.update(
+                {"survey_date": cr.survey_date, "velocity": list(cr.velocity)}
+            )
+
+        results.append(cr_info)
 
     return results
 
@@ -276,11 +324,22 @@ def parse_cmdline_args() -> dict[str, Any]:
         type=str,
         dest="corner_reflector_csv",
         help=(
-            "A CSV file containing corner reflector data. The CSV file is assumed to be"
-            " in the format used by the UAVSAR Rosamond Corner Reflector Array, which"
-            " contains the following columns: [Corner reflector ID, Latitude (deg),"
-            " Longitude (deg), Height above ellipsoid (m), Azimuth (deg),"
-            " Tilt / Elevation angle (deg), Side length (m)]"
+            "A CSV file containing corner reflector data, in the format defined by the"
+            " --format flag."
+        ),
+    )
+    parser.add_argument(
+        "--format",
+        type=str,
+        dest="csv_format",
+        choices=["nisar", "uavsar"],
+        default="nisar",
+        help=(
+            "The corner reflector CSV file format. If 'nisar', the CSV file should be"
+            " in the format described by the NISAR Corner Reflector Software Interface"
+            " Specification (SIS) document, JPL D-107698. If 'uavsar', the CSV file is"
+            " expected to be in the format used by the UAVSAR Rosamond Corner Reflector"
+            " Array (https://uavsar.jpl.nasa.gov/cgi-bin/calibration.pl)."
         ),
     )
     parser.add_argument(
@@ -400,6 +459,7 @@ def parse_cmdline_args() -> dict[str, Any]:
 
 def main(
     corner_reflector_csv: os.PathLike,
+    csv_format: str,
     rslc_hdf5: os.PathLike,
     output_json: Optional[str],
     freq: Optional[str],
@@ -413,12 +473,38 @@ def main(
     pthresh: float,
 ) -> None:
     """Main entry point. See `parse_cmdline_args()` for parameter descriptions."""
-
-    # Parse input files.
-    corner_reflectors = isce3.cal.parse_triangular_trihedral_cr_csv(
-        corner_reflector_csv
-    )
+    # Read input RSLC product.
+    rslc_hdf5 = os.fspath(rslc_hdf5)
     rslc = nisar.products.readers.SLC(hdf5file=rslc_hdf5)
+
+    # Get corner reflector data.
+    if csv_format == "nisar":
+        # Parse the input corner reflector CSV file. Filter out unusable corner
+        # reflector data based on survey date and validity flags.
+        corner_reflectors = nisar.cal.parse_and_filter_corner_reflector_csv(
+            corner_reflector_csv,
+            observation_date=rslc.identification.zdStartTime,
+            validity_flags=nisar.cal.CRValidity.RAD_POL,
+        )
+    elif csv_format == "uavsar":
+        # Parse the input corner reflector CSV file. No filtering is performed.
+        corner_reflectors = isce3.cal.parse_triangular_trihedral_cr_csv(
+            corner_reflector_csv
+        )
+    else:
+        raise ValueError(f"unexpected csv format: {csv_format!r}")
+
+    # Filter CRs by heading.
+    approx_cr_heading = nisar.cal.est_cr_az_mid_swath_from_slc(rslc)
+    corner_reflectors = nisar.cal.filter_crs_per_az_heading(
+        corner_reflectors, az_heading=approx_cr_heading
+    )
+
+    # Filter out CRs outside the RSLC bounding polygon.
+    polygon = shapely.from_wkt(rslc.identification.boundingPolygon)
+    corner_reflectors = isce3.cal.get_crs_in_polygon(corner_reflectors, polygon)
+
+    # Parse external orbit XML file, if applicable.
     if external_orbit_xml is None:
         external_orbit = None
     else:

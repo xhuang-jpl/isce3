@@ -17,6 +17,7 @@ core/DateTime.cpp
 core/Ellipsoid.cpp
 core/EulerAngles.cpp
 core/Interp1d.cpp
+core/Interp2d.cpp
 core/Kernels.cpp
 core/Linspace.cpp
 core/LookSide.cpp
@@ -46,7 +47,9 @@ geocode/GeocodePolygon.cpp
 geometry/geometry.cpp
 geometry/getGeolocationGrid.cpp
 geometry/geo2rdr.cpp
+geometry/geo2rdr_roots.cpp
 geometry/rdr2geo.cpp
+geometry/rdr2geo_roots.cpp
 geometry/RTC.cpp
 geometry/metadataCubes.cpp
 geometry/ltpcoordinates.cpp
@@ -56,6 +59,7 @@ geogrid/relocateRaster.cpp
 geogrid/geogrid.cpp
 geometry/lookIncFromSr.cpp
 image/image.cpp
+image/Resample.cpp
 image/ResampSlc.cpp
 io/gdal/Dataset.cpp
 io/gdal/GDALAccess.cpp

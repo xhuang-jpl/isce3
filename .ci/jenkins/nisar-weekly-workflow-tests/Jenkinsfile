@@ -15,7 +15,7 @@ pipeline {
     // for the CI server. Needed for fetching the QualityAssurance and
     // SoilMoisture repositories. Secret credentials are managed via the
     // Jenkins UI.
-    GIT_OAUTH_TOKEN = credentials('d5f10ff5-2bf9-4bf3-ab05-22f0a388084a')
+    GIT_OAUTH_TOKEN = credentials("${params.GIT_OAUTH_TOKEN}")
   }
   stages {
     stage("Build NISAR ADT image & Fetch workflow test data") {

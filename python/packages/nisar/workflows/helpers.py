@@ -2,29 +2,44 @@
 collection of useful functions used across workflows
 '''
 
-from collections import defaultdict
 import os
 import pathlib
+from collections import defaultdict
+from dataclasses import dataclass
 
-from osgeo import gdal
 import h5py
 import isce3
-import nisar
-import numpy as np
-
 import journal
-
+import numpy as np
+from isce3.product import RadarGridParameters
 from nisar.products.readers import SLC
+from nisar.workflows.get_product_geometry import \
+    get_geolocation_grid as compute_geogrid_geometry
+from osgeo import gdal
 
-def deep_update(original, update):
+
+
+def deep_update(original, update, flag_none_is_valid=True):
     '''
     update default runconfig key with user supplied dict
     https://stackoverflow.com/questions/3232943/update-value-of-a-nested-dictionary-of-varying-depth
+
+    If `flag_none_is_valid` is `True`, then an empty field in a user-supplied
+    runconfig will be treated the same as if that field was omitted entirely.
+    Otherwise, if the field is blank (i.e., `None`) it would override the default value
+    with None.
     '''
     for key, val in update.items():
-        if isinstance(val, dict):
-            original[key] = deep_update(original.get(key, {}), val)
-        else:
+        if isinstance(val, dict) and original.get(key) is not None:
+            # Only call deep_update() if `original[key] is not empty
+            original[key] = deep_update(original.get(key, {}), val,
+                flag_none_is_valid)
+        elif (flag_none_is_valid or val is not None):
+            # Update `original[key]` with val if
+            # 1. The flag `flag_none_is_valid` is enabled:
+            #    In this case, `None` is considered a valid value
+            #    and therefore we don't need to check if `val` is None
+            # 2. Update `original` if `val` is not `None``
             original[key] = val
 
     # return updated original
@@ -313,18 +328,18 @@ def complex_raster_path_from_h5(slc, freq, pol, hdf5_path, lines_per_block,
         File containing raster dataset. Differs from raster_path if when output
         is HDF5
     '''
-    if slc.is_dataset_complex64(freq, pol):
-        # If SLC dataset is complex64 HDF5, return GDAL path to HDF5 dataset
-        slc_h5_path = f'/{slc.SwathPath}/frequency{freq}/{pol}'
-        raster_path = f'HDF5:{hdf5_path}:{slc_h5_path}'
-        file_path = hdf5_path
-    else:
-        # If SLC dataset is not complex64 HDF5, covert to complex32, write to
+    if slc.is_dataset_complex32(freq, pol):
+        # If SLC dataset is complex32 HDF5, convert to complex64, write to
         # ENVI raster, and return path ENVI raster
         copy_raster(hdf5_path, freq, pol, lines_per_block,
                     c32_output_path, file_type='ENVI')
         raster_path = c32_output_path
         file_path = c32_output_path
+    else:
+        # If SLC dataset is complex64 HDF5, return GDAL path to HDF5 dataset
+        slc_h5_path = f'/{slc.SwathPath}/frequency{freq}/{pol}'
+        raster_path = f'HDF5:{hdf5_path}:{slc_h5_path}'
+        file_path = hdf5_path
 
     return raster_path, file_path
 
@@ -369,3 +384,92 @@ def get_cfg_freq_pols(cfg):
         # Yield whatever is pol_list
         else:
             yield freq, pol_list, pol_list
+
+def get_ground_track_velocity_product(ref_rslc : SLC,
+                                      slant_range : np.ndarray,
+                                      zero_doppler_time : np.ndarray,
+                                      dem_file : str,
+                                      output_dir: str):
+    """
+    Generate the ground track velocity product in a radar grid
+    that has the same wavelength, look side, and reference
+    epoch as the frequency A radar grid of the reference RSLC
+    but with different slant range and zero doppler time.
+
+    Parameters
+    ----------
+    ref_rslc : SLC object
+        The SLC object of the reference RSLC
+    slant_range: np.ndarray
+        Slant range of the pixel offsets product
+    zero_doppler_time: np.ndarray
+        Zero doppler time of the pixel offsets product
+    dem_file : str
+        The DEM file
+    output_dir : str
+        The output directory
+
+    Returns
+    ----------
+    ground_track_velocity_file : str
+        ground track velocity output file
+    """
+    # NOTE: the prod_geometry_args dataclass is defined here
+    # to avoid the usage of the parser comand line
+    @dataclass
+    class GroundtrackVelocityGenerationParams:
+        """
+        Parameters to generate the ground track velocity.
+        Defination of each parameter can be found in the
+        get_product_geometry.py
+        """
+        threshold_rdr2geo = None
+        num_iter_rdr2geo = None
+        extra_iter_rdr2geo = None
+        threshold_geo2rdr = None
+        num_iter_geo2rdr = None
+        delta_range_geo2rdr = None
+        threshold_geo2rdr = 1e-8
+        num_iter_geo2rdr = 50
+        delta_range_geo2rdr = 10.0
+        dem_interp_method = None
+        output_dir = None
+        dem_file = None
+        epsg = None
+        # Only the ground track velocity will be generated
+        flag_interpolated_dem = False
+        flag_coordinate_x = False
+        flag_coordinate_y = False
+        flag_incidence_angle = False
+        flag_los = False
+        flag_along_track = False
+        flag_elevation_angle = False
+        flag_ground_track_velocity = True
+
+    args = GroundtrackVelocityGenerationParams()
+    args.dem_file = dem_file
+    args.output_dir = output_dir
+
+    # Create the radar grid of pixel offsets product
+    radar_grid = ref_rslc.getRadarGrid()
+    zero_doppler_starting_time = zero_doppler_time[0]
+    prf = 1.0 / (zero_doppler_time[1] - zero_doppler_time[0])
+    starting_range = slant_range[0]
+    range_spacing = slant_range[1] - slant_range[0]
+
+    pixel_offsets_radar_grid = \
+        RadarGridParameters(zero_doppler_starting_time,
+                            radar_grid.wavelength,
+                            prf,
+                            starting_range,
+                            range_spacing,
+                            radar_grid.lookside,
+                            len(zero_doppler_time),
+                            len(slant_range),
+                            radar_grid.ref_epoch)
+
+    ground_track_velocity_file = f'{args.output_dir}/groundTrackVelocity.tif'
+    compute_geogrid_geometry(ref_rslc, args,
+                             pixel_offsets_radar_grid)
+
+    return ground_track_velocity_file

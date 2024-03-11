@@ -536,6 +536,37 @@ class RawBase(Base, family='nisar.productreader.raw'):
         with h5py.File(self.filename, 'r', libver='latest', swmr=True) as fid:
             return fid[path_txrx]["WL"][()]
 
+    def getSampleRateDBF(self, frequency="A", polarization=None):
+        """
+        Get sample rate corresponding to RD, WD, WL timing metadata.  For
+        NISAR this is always 240 MHz, but it may be different for simulated
+        datasets.
+
+        Parameters
+        ----------
+        frequency : {'A', 'B'}
+            Sub-band.  Typically main science band is 'A'.
+        polarization : {'HH', 'HV', 'VH', 'VV', 'RH','RV', 'LH', 'LV'}, optional
+            Transmit-Receive polarization. If not specified, the first
+            polarization in the `frequency` band will be used.
+
+        Returns
+        -------
+        fs : float
+            Sample rate in Hz
+        """
+        if polarization is None:
+            polarization = self.polarizations[frequency][0]
+        path_txrx = self._rawGroup(frequency, polarization)
+        with h5py.File(self.filename, 'r', libver='latest', swmr=True) as fid:
+            group = fid[path_txrx]
+            key = "sampleRateDBF"
+            if key in group:
+                return group[key][()]
+            else:
+                log.info("sampleRateDBF not found in L0B, assuming 240 MHz")
+                return 240e6
+
     def getRdWdWl(self, frequency='A', polarization=None):
         """
         Get all three DBF-related parameters "RD", "WD", and "WL" in one
@@ -643,69 +674,6 @@ class RawBase(Base, family='nisar.productreader.raw'):
         '''
         return "L0B"
 
-
-    def computeTxCalRatio(self, frequency='A', tx=None):
-        """Get TX-path multi-channel complex weighting over all range lines.
-
-        Tx-path complex weighting is defined as ratio of HPA CAL to
-        BYPASS CAL for all channels over all range lines.
-
-        Parameters
-        ----------
-        frequency : {'A', 'B'}
-            Sub-band.  Typically main science band is 'A'.
-        tx : {'H', 'V'}, optional
-            Transmit polarization. If not specified, the first
-            polarization in the `frequency` band will be used.
-
-        Returns
-        -------
-        np.ndarray(complex)
-            2-D complex float of HPA /BYPASS Calibration,
-            size = [rangelines x channels].
-
-        Raises
-        ------
-        RunTimeError
-            For missing HPA Cal data.
-            For any zero-value BYPASS Cal data.
-
-        Warnings
-        -----
-        Issue warning message if BYPASS Cal data is missing. In that case,
-        HPA Cal data will be simply used to represent TX path weights.
-        """
-        if tx is None:
-            tx = self.polarizations[frequency][0][0]
-        # Read calibration chirp correlator and extract middle (peak) tap.
-        cal = self.getChirpCorrelator(frequency, tx)[:, :, 1]
-        # Demux the different calibration paths.
-        kind = self.getCalType(frequency, tx)
-        i_all = np.arange(cal.shape[0])
-        i_hpa = np.where(kind == CalPath.HPA)[0]
-        if i_hpa.size == 0:
-            raise RuntimeError("No HPA calibration data are available.")
-        i_byp = np.where(kind == CalPath.BYPASS)[0]
-        # Upsample each one to all pulses using (causal) nearest neighbor.
-        hcal = _interp_previous(i_all, i_hpa, cal[i_hpa])
-        if i_byp.size > 0:
-            bcal = _interp_previous(i_all, i_byp, cal[i_byp])
-            if np.isclose(abs(bcal).min(), 0):
-                raise RuntimeError(
-                    'Encountered some zero values for BYPASS cal data!')
-        else:
-            # Some simulated data are missing BCAL pulses.
-            bcal = np.ones_like(hcal)
-            warn("No BYPASS calibration data are available."
-                "  Assuming it is constant in time and equal on all channels.")
-        # Return ratio at all pulses.
-        return hcal / bcal
-
-
-def _interp_previous(xout, x, y, axis=0):
-    """1-D interpolation based on "previous" method along a desired axis"""
-    f = interp1d(x, y, kind='previous', axis=axis, fill_value='extrapolate')
-    return f(xout)
 
 # adapted from ReeUtilPy/REEout/AntPatAnalysis.py:getDCMant2sc
 def get_rcs2body(el_deg=37.0, az_deg=0.0, side='left') -> isce3.core.Quaternion:
