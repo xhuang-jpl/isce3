@@ -1,11 +1,10 @@
 import os
 from datetime import datetime
 from itertools import product
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 import h5py
 import numpy as np
-from isce3.core import DateTime
 from isce3.core.types import complex32, to_complex32
 from nisar.products.readers import SLC
 from nisar.products.readers.orbit import load_orbit_from_xml
@@ -35,10 +34,18 @@ class InSARBaseWriter(h5py.File):
         Path of the reference RSLC
     sec_h5_slc_file : str
         Path of the secondary RSLC
-    external_orbit_path : str
-        Path of the external orbit file
-    epoch : Datetime
+    external_ref_orbit_path : str
+        Path of the external reference orbit file
+    external_sec_orbit_path : str
+        Path of the external secondary orbit file
+    ref_orbit_epoch : Datetime
         The reference datetime for the orbit
+    sec_orbit_epoch : Datetime
+        The secondary datetime for the orbit
+    ref_orbit : isce3.core.Orbit
+        The reference orbit object
+    sec_orbit : isce3.core.Orbit
+        The secondary orbit object
     ref_rslc : nisar.products.readers.SLC
         nisar.products.readers.SLC object of reference RSLC file
     sec_rslc : nisar.products.readers.SLC
@@ -53,8 +60,6 @@ class InSARBaseWriter(h5py.File):
     def __init__(self,
                  runconfig_dict: dict,
                  runconfig_path: str,
-                 _external_orbit_path: Optional[str] = None,
-                 epoch: Optional[DateTime] = None,
                  **kwds):
         """
         Constructor of the InSAR Product Base class. Inheriting from h5py.File
@@ -65,11 +70,7 @@ class InSARBaseWriter(h5py.File):
         runconfig_dict : dict
             Runconfig dictionary
         runconfig_path : str
-            Path of the reference RSLC
-        external_orbit_path : str, optional
-            Path of the external orbit file
-        epoch : Datetime, optional
-            The reference datetime for the orbit
+            Path of the runconfig file
         """
         super().__init__(**kwds)
 
@@ -94,14 +95,23 @@ class InSARBaseWriter(h5py.File):
         # Product information
         self.product_info = InSARProductsInfo.Base()
 
-        # Epoch time
-        self.epoch = epoch
-
         # Check if reference and secondary exists as files
-        self.external_orbit_path = _external_orbit_path
+        orbit_files = \
+            self.cfg["dynamic_ancillary_file_group"]["orbit_files"]
+
+        self.external_ref_orbit_path = orbit_files['reference_orbit_file']
+        self.external_sec_orbit_path = orbit_files['secondary_orbit_file']
 
         self.ref_rslc = SLC(hdf5file=self.ref_h5_slc_file)
         self.sec_rslc = SLC(hdf5file=self.sec_h5_slc_file)
+
+        # Pull the radargrid of reference and secondary RSLC
+        freq = "A" if "A" in self.freq_pols else "B"
+        ref_radargrid = self.ref_rslc.getRadarGrid(freq)
+        sec_radargrid = self.sec_rslc.getRadarGrid(freq)
+
+        self.ref_orbit_epoch = ref_radargrid.ref_epoch
+        self.sec_orbit_epoch = sec_radargrid.ref_epoch
 
         self.ref_h5py_file_obj = \
             h5py.File(self.ref_h5_slc_file, "r", libver="latest", swmr=True)
@@ -109,11 +119,18 @@ class InSARBaseWriter(h5py.File):
         self.sec_h5py_file_obj = \
             h5py.File(self.sec_h5_slc_file, "r", libver="latest", swmr=True)
 
-        # Pull the orbit object
-        if self.external_orbit_path is not None:
-            self.orbit = load_orbit_from_xml(self.external_orbit_path)
+        # Create the orbit object and set their reference epochs
+        if self.external_ref_orbit_path is not None:
+            self.ref_orbit = load_orbit_from_xml(self.external_ref_orbit_path,
+                                                 self.ref_orbit_epoch)
         else:
-            self.orbit = self.ref_rslc.getOrbit()
+            self.ref_orbit = self.ref_rslc.getOrbit()
+
+        if self.external_sec_orbit_path is not None:
+            self.sec_orbit = load_orbit_from_xml(self.external_sec_orbit_path,
+                                                 self.sec_orbit_epoch)
+        else:
+            self.sec_orbit = self.sec_rslc.getOrbit()
 
     def add_root_attrs(self):
         """
@@ -219,9 +236,10 @@ class InSARBaseWriter(h5py.File):
         else:
             rfi_mitigation = None
 
-        rfi_mitigation_flag = np.string_(str(False))
-        if (rfi_mitigation is not None) and (rfi_mitigation != ""):
-            rfi_mitigation_flag = np.string_(str(True))
+        rfi_mitigation_flag = str(False)
+        if ((rfi_mitigation is not None) and
+            (rfi_mitigation.lower() not in ['', 'none', 'disabled'])):
+            rfi_mitigation_flag = str(True)
 
         # get the mixed model and update the description
         mixed_mode = self._get_mixed_mode()
@@ -231,7 +249,7 @@ class InSARBaseWriter(h5py.File):
         ds_params = [
             DatasetParams(
                 "rfiCorrectionApplied",
-                np.string_(str(rfi_mitigation_flag)),
+                rfi_mitigation_flag,
                 (
                     "Flag to indicate if RFI correction has been applied"
                     f" to {rslc_name} RSLC"
@@ -694,13 +712,12 @@ class InSARBaseWriter(h5py.File):
             np.string_("radians / second")
 
         # Orbit population based in inputs
-        if self.external_orbit_path is None:
+        if self.external_ref_orbit_path is None:
             ref_metadata_group.copy("orbit", dst_metadata_group)
         else:
             # populate orbit group with contents of external orbit file
-            orbit = load_orbit_from_xml(self.external_orbit_path, self.epoch)
             orbit_group = dst_metadata_group.require_group("orbit")
-            orbit.save_to_h5(orbit_group)
+            self.ref_orbit.save_to_h5(orbit_group)
 
         # Orbit time
         orbit_time = dst_metadata_group["orbit"]["time"]
@@ -1112,6 +1129,11 @@ class InSARBaseWriter(h5py.File):
         yds: Optional[h5py.Dataset] = None,
         xds: Optional[h5py.Dataset] = None,
         fill_value: Optional[Any] = None,
+        compression_enabled: Optional[bool] = True,
+        compression_type: Optional[str] = 'gzip',
+        compression_level: Optional[int] = 5,
+        chunk_size: Optional[List] = [128, 128],
+        shuffle_filter: Optional[bool] = True
     ):
         """
         Create an empty 2D dataset under the h5py.Group
@@ -1142,18 +1164,41 @@ class InSARBaseWriter(h5py.File):
             X coordinates
         fill_value : Any, optional
             No data value of the dataset
+        compression_enabled: bool
+            Flag to enable/disable data compression
+        compression_type: str
+            Data compression algorithm
+        compression_level: int
+            Level of data compression (1: low compression, 9: high compression)
+        chunk_size: [int, int]
+            Chunk size along rows and columns
+        shuffle_filter: bool
+            Flag to enable/disable shuffle filter
         """
-        # use the default chunk size if the chunk_size is None
-        chunks = self.default_chunk_size
-        create_with_chunks = chunks[0] < shape[0] and chunks[1] < shape[1]
+        # Use the minimum size between the predefined chunk size and dataset shape
+        # to ensure the dataset is chunked if the compression is enabled.
+        ds_chunk_size = tuple(map(min, zip(chunk_size, shape)))
 
-        if create_with_chunks:
+        # Include options for compression
+        create_dataset_kwargs = {}
+        if compression_enabled:
+            if compression_type is not None:
+                create_dataset_kwargs['compression'] = compression_type
+            if compression_level is not None:
+                create_dataset_kwargs['compression_opts'] = compression_level
+
+            # Add shuffle filter options
+            create_dataset_kwargs['shuffle'] = shuffle_filter
+
+        if compression_enabled:
             ds = h5_group.require_dataset(
-                name, dtype=dtype, shape=shape, chunks=chunks
+                name, dtype=dtype, shape=shape,
+                chunks=ds_chunk_size, **create_dataset_kwargs
             )
         else:
-            # create dataset without chunks when the dataset size is less than default chunks
-            ds = h5_group.require_dataset(name, dtype=dtype, shape=shape)
+            # create dataset without chunks
+            ds = h5_group.require_dataset(name, dtype=dtype, shape=shape,
+                                          **create_dataset_kwargs)
 
         # set attributes
         ds.attrs["description"] = np.string_(description)

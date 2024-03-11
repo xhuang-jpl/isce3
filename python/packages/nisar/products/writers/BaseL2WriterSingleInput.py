@@ -637,7 +637,8 @@ class BaseL2WriterSingleInput(BaseWriterSingleInput):
         self.flag_external_orbit_file = self.orbit_file is not None
 
         if self.flag_external_orbit_file:
-            self.orbit = load_orbit_from_xml(self.orbit_file)
+            ref_epoch = self.input_product_obj.getRadarGrid().ref_epoch
+            self.orbit = load_orbit_from_xml(self.orbit_file, ref_epoch)
         else:
             orbit_path = (f'{self.root_path}/'
                           f'{self.input_product_hdf5_group_type}'
@@ -760,23 +761,12 @@ class BaseL2WriterSingleInput(BaseWriterSingleInput):
 
     def populate_orbit(self):
 
-        # TODO: add capability to store an external orbit file
-        if self.flag_external_orbit_file:
-            warnings.warn(
-                'An external orbit file was used to create this L2 product.'
-                ' However, capability of storing the external orbit data'
-                ' into an L2 product is not yet implemented. Therefore,'
-                ' the orbit data from the RSLC will be copied from the'
-                ' input RSLC.')
+        # save the orbit ephemeris
+        orbit_hdf5_group = self.output_hdf5_obj[
+            f'{self.output_product_path}/metadata'].require_group(
+                "orbit")
 
-        # RSLC products with product specification version prior to v1.1.0 may
-        # include the H5 group "acceleration", that should not be copied to L2
-        # products
-        excludes_list = ['acceleration']
-
-        # copy orbit information group
-        self._copy_group_from_input('{PRODUCT}/metadata/orbit',
-                                    excludes=excludes_list)
+        self.orbit.save_to_h5(orbit_hdf5_group)
 
     def populate_attitude(self):
         # RSLC products with product specification version prior to v1.1.0 may
@@ -789,6 +779,26 @@ class BaseL2WriterSingleInput(BaseWriterSingleInput):
                                     excludes=excludes_list)
 
     def populate_processing_information_l2_common(self):
+
+        # Since the flag "rfiCorrectionApplied" is not present in the RSLC
+        # metadata, we populate it by reading the name of the
+        # RFI mitigation algorithm from the RSLC metadata. The flag
+        # is only True if the name of the algorithm is present in the metadata,
+        # if it's not empy, and if the substring "disabled" is not part of the
+        # algorithm name
+        rfi_mitigation_path = (
+            f'{self.output_product_path}/metadata/processingInformation/'
+            'algorithms/rfiMitigation')
+        flag_rfi_mitigation_applied = (
+            rfi_mitigation_path in self.output_hdf5_obj and
+            rfi_mitigation_path != '' and
+            'disabled' not in rfi_mitigation_path.lower())
+
+        self.set_value(
+            '{PRODUCT}/metadata/processingInformation/parameters/'
+            'rfiCorrectionApplied',
+            flag_rfi_mitigation_applied)
+
         self.set_value(
             '{PRODUCT}/metadata/processingInformation/algorithms/'
             'softwareVersion',

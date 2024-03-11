@@ -92,14 +92,15 @@ class GslcWriter(BaseL2WriterSingleInput):
             f'{parameters_group}/rangeChirpWeighting',
             skip_if_not_present=True)
 
-        # TODO: verify values below
-        self.set_value(
+        # TODO: read these values from the RSLC metadata once they are
+        # available (the RSLC datasets below are not in the specs)
+        self.copy_from_input(
             f'{parameters_group}/dryTroposphericGeolocationCorrectionApplied',
-            True)
+            default=True)
 
-        self.set_value(
+        self.copy_from_input(
             f'{parameters_group}/wetTroposphericGeolocationCorrectionApplied',
-            False)
+            default=False)
 
         tec_file = self.cfg["dynamic_ancillary_file_group"]['tec_file']
         flag_ionopheric_correction_enabled = tec_file is not None
@@ -112,12 +113,6 @@ class GslcWriter(BaseL2WriterSingleInput):
             f'{parameters_group}/'
             'azimuthIonosphericGeolocationCorrectionApplied',
             flag_ionopheric_correction_enabled)
-
-        self.copy_from_input(
-            f'{parameters_group}/rfiCorrectionApplied',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'rfiMitigation',
-            default=False)
 
         self.copy_from_runconfig(
             f'{parameters_group}/ellipsoidalFlatteningApplied',
