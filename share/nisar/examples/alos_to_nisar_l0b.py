@@ -134,13 +134,12 @@ def get_alos_orbit(ldr: LeaderFile.LeaderFile) -> isce3.core.Orbit:
             velocity = [sv.VelocityXInmpers, sv.VelocityYInmpers, sv.VelocityZInmpers]
         ))
     # Use tref as epoch, not time of first sample.
-    return isce3.core.Orbit(svs, isce3.core.DateTime(tref))
+    return isce3.core.Orbit(svs, isce3.core.DateTime(tref), type='DOE')
 
 
 def set_h5_orbit(group: h5py.Group, orbit: isce3.core.Orbit):
     orbit.save_to_h5(group)
-    # orbitType and acceleration not used/contained in Orbit object
-    group.create_dataset('orbitType', data=numpy.string_('DOE'))
+    # acceleration not used/contained in Orbit object
     dset = group.create_dataset("acceleration",
                                 data=numpy.zeros_like(orbit.velocity))
     dset.attrs["units"] = numpy.string_("meters per second squared")
@@ -190,10 +189,12 @@ def getset_attitude(group: h5py.Group, ldr: LeaderFile.LeaderFile,
     ds.attrs["units"] = numpy.string_("radians per second")
 
     ds = group.create_dataset("attitudeType", data=numpy.string_("Custom"))
-    ds.attrs["description"] = numpy.string_("PrOE (or) NOE (or) MOE (or) Custom")
+    ds.attrs["description"] = numpy.string_(
+        "PrOE (or) NOE (or) MOE (or) POE (or) Custom")
 
     ds = group.create_dataset("eulerAngles", data=numpy.array(rpys))
-    ds.attrs["description"] = numpy.string_("Attitude Euler angles (roll, pitch, yaw")
+    ds.attrs["description"] = numpy.string_(
+        "Attitude Euler angles (roll, pitch, yaw)")
     ds.attrs["units"] = numpy.string_("degrees")
 
     ds = group.create_dataset("quaternions", data=numpy.array(qs))
@@ -202,7 +203,8 @@ def getset_attitude(group: h5py.Group, ldr: LeaderFile.LeaderFile,
 
     ds = group.create_dataset("time", data=numpy.array(times))
     ds.attrs["description"] = numpy.string_(
-        "Time vector record. This record contains the time")
+        "Time vector record. This record contains the time corresponding to"
+        " attitude and quaternion records")
     ds.attrs["units"] = numpy.string_(
         f"seconds since {orbit.reference_epoch.isoformat()}")
 

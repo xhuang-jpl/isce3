@@ -58,11 +58,10 @@ class L1InSARWriter(InSARBaseWriter):
 
         # Retrieve the group
         geolocationGrid_path = self.group_paths.GeolocationGridPath
-        self.require_group(geolocationGrid_path)
 
         # Pull the radar frequency
         cube_freq = "A" if "A" in self.freq_pols else "B"
-        radargrid = RadarGridParameters(self.ref_h5_slc_file)
+        radargrid = self.ref_rslc.getRadarGrid(cube_freq)
 
         # Figure out decimation factors that give < 500 m spacing.
         # NOTE: same with the RSLC, the max spacing = 500m is hardcoded.
@@ -70,36 +69,58 @@ class L1InSARWriter(InSARBaseWriter):
         # and range directions.
         max_spacing = 500.0
         t = radargrid.sensing_mid + \
-            (radargrid.ref_epoch - self.orbit.reference_epoch).total_seconds()
+            (radargrid.ref_epoch - self.ref_orbit.reference_epoch).total_seconds()
 
-        _, v = self.orbit.interpolate(t)
+        _, v = self.ref_orbit.interpolate(t)
         dx = np.linalg.norm(v) / radargrid.prf
-        tskip = int(np.floor(max_spacing / dx))
-        rskip = int(np.floor(max_spacing / radargrid.range_pixel_spacing))
-        radargrid = radargrid[::tskip, ::rskip]
 
         grid_doppler = LUT2d()
         native_doppler = self.ref_rslc.getDopplerCentroid(
             frequency=cube_freq
         )
+
         native_doppler.bounds_error = False
 
         geo2rdr_params = dict(threshold_geo2rdr=1e-8,
                               numiter_geo2rdr=50,
                               delta_range=10)
 
+        # Create a new geolocation radar grid with 5 extra points
+        # before and after the starting and ending
+        # zeroDopplerTime and slantRange
+        extra_points = 5
+
+        # Total number of samples along the azimuth and slant range
+        # using around 500m sampling interval
+        ysize = int(np.ceil(radargrid.length / (max_spacing / dx)))
+        xsize = int(np.ceil(radargrid.width / \
+            (max_spacing / radargrid.range_pixel_spacing)))
+
+        # New geolocation grid
+        geolocation_radargrid = \
+            radargrid.resize_and_keep_startstop(ysize, xsize)
+        geolocation_radargrid = \
+            geolocation_radargrid.add_margin(extra_points,
+                                             extra_points)
+
         # Add geolocation grid cubes to hdf5
         add_geolocation_grid_cubes_to_hdf5(
             self,
             geolocationGrid_path,
-            radargrid,
+            geolocation_radargrid,
             heights,
-            self.orbit,
+            self.ref_orbit,
             native_doppler,
             grid_doppler,
             epsg,
             **geo2rdr_params,
         )
+
+        geolocationGrid_group = self.require_group(geolocationGrid_path)
+        # Add baseline to the geolocation grid
+        self.add_baseline_info_to_cubes(geolocationGrid_group,
+                                        geolocation_radargrid,
+                                        is_geogrid= False)
 
         # Add the min and max attributes to the following dataset
         ds_names = ["incidenceAngle",
@@ -330,6 +351,7 @@ class L1InSARWriter(InSARBaseWriter):
         """
         Add datasets to pixel offsets group
         """
+        pcfg = self.cfg['processing']
         for freq, pol_list, _ in get_cfg_freq_pols(self.cfg):
             # create the swath group
             swaths_freq_group_name = \
@@ -374,7 +396,12 @@ class L1InSARWriter(InSARBaseWriter):
                         off_shape,
                         np.float32,
                         ds_description,
-                        units=ds_unit)
+                        units=ds_unit,
+                        compression_enabled=self.cfg['output']['compression_enabled'],
+                        compression_level=self.cfg['output']['compression_level'],
+                        chunk_size=self.cfg['output']['chunk_size'],
+                        shuffle_filter=self.cfg['output']['shuffle']
+                    )
 
     def add_pixel_offsets_to_swaths_group(self):
         """
@@ -445,6 +472,26 @@ class L1InSARWriter(InSARBaseWriter):
                     "Slant range spacing of the offset grid",
                     {'units': Units.meter},
                 ),
+                DatasetParams(
+                    "sceneCenterAlongTrackSpacing",
+                    rslc_freq_group["sceneCenterAlongTrackSpacing"][()]
+                    * az_skip,
+                    (
+                        "Nominal along-track spacing in meters between"
+                        " consecutive lines near mid-swath of the product images"
+                    ),
+                    {"units": Units.meter},
+                ),
+                DatasetParams(
+                    "sceneCenterGroundRangeSpacing",
+                    rslc_freq_group["sceneCenterGroundRangeSpacing"][()]
+                    * rg_skip,
+                    (
+                        "Nominal ground range spacing in meters between"
+                        " consecutive pixels near mid-swath of the product images"
+                    ),
+                    {"units": Units.meter},
+                ),
             ]
             offset_group_name = f"{swaths_freq_group_name}/pixelOffsets"
             offset_group = self.require_group(offset_group_name)
@@ -458,6 +505,7 @@ class L1InSARWriter(InSARBaseWriter):
         """
         Add the interferogram group to the swaths group
         """
+        pcfg = self.cfg['processing']
         for freq, pol_list, _ in get_cfg_freq_pols(self.cfg):
             # Create the swath group
             swaths_freq_group_name = (
@@ -472,32 +520,6 @@ class L1InSARWriter(InSARBaseWriter):
             rslc_freq_group = self.ref_h5py_file_obj[
                 f"{self.ref_rslc.SwathPath}/frequency{freq}"
             ]
-
-            # add scene center parameters
-            scene_center_params = [
-                DatasetParams(
-                    "sceneCenterAlongTrackSpacing",
-                    rslc_freq_group["sceneCenterAlongTrackSpacing"][()]
-                    * self.igram_azimuth_looks,
-                    (
-                        "Nominal along-track spacing in meters "
-                        "between consecutive lines near mid-swath of the product images"
-                    ),
-                    {"units": Units.meter},
-                ),
-                DatasetParams(
-                    "sceneCenterGroundRangeSpacing",
-                    rslc_freq_group["sceneCenterGroundRangeSpacing"][()]
-                    * self.igram_range_looks,
-                    (
-                        "Nominal ground range spacing in meters between "
-                        "consecutive pixels near mid-swath of the product images"
-                    ),
-                    {"units": Units.meter},
-                ),
-            ]
-            for ds_param in scene_center_params:
-                add_dataset_and_attrs(swaths_freq_group, ds_param)
 
             # shape of the interferogram product
             igram_shape = self._get_interferogram_dataset_shape(freq,
@@ -570,7 +592,28 @@ class L1InSARWriter(InSARBaseWriter):
                     ),
                     {'units': Units.meter},
                 ),
+                DatasetParams(
+                    "sceneCenterAlongTrackSpacing",
+                    rslc_freq_group["sceneCenterAlongTrackSpacing"][()]
+                    * self.igram_azimuth_looks,
+                    (
+                        "Nominal along-track spacing in meters "
+                        "between consecutive lines near mid-swath of the product images"
+                    ),
+                    {"units": Units.meter},
+                ),
+                DatasetParams(
+                    "sceneCenterGroundRangeSpacing",
+                    rslc_freq_group["sceneCenterGroundRangeSpacing"][()]
+                    * self.igram_range_looks,
+                    (
+                        "Nominal ground range spacing in meters between "
+                        "consecutive pixels near mid-swath of the product images"
+                    ),
+                    {"units": Units.meter},
+                ),
             ]
+
             igram_group_name = f"{swaths_freq_group_name}/interferogram"
             igram_group = self.require_group(igram_group_name)
             for ds_param in ds_igram_params:
@@ -601,7 +644,12 @@ class L1InSARWriter(InSARBaseWriter):
                         igram_shape,
                         ds_dtype,
                         ds_description,
-                        units=ds_unit)
+                        units=ds_unit,
+                        compression_enabled=self.cfg['output']['compression_enabled'],
+                        compression_level=self.cfg['output']['compression_level'],
+                        chunk_size=self.cfg['output']['chunk_size'],
+                        shuffle_filter=self.cfg['output']['shuffle']
+                    )
 
 
     def add_subswaths_to_swaths_group(self):

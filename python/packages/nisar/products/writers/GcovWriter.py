@@ -1,6 +1,7 @@
 import journal
 import isce3
 
+import numpy as np
 import nisar.workflows.helpers as helpers
 from nisar.products.writers import BaseL2WriterSingleInput
 
@@ -68,145 +69,6 @@ class GcovWriter(BaseL2WriterSingleInput):
                 f'frequency{frequency}/numberOfSubSwaths',
                 skip_if_not_present=True)
 
-    def populate_source_data(self):
-        """
-        Populate the `sourceData` group of the GCOV product
-        """
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/productVersion',
-            'identification/productVersion',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/lookDirection',
-            'identification/lookDirection',
-            format_function=str.title)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/productLevel',
-            'identification/productLevel',
-            default='L1')
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingDateTime',
-            'identification/processingDateTime',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingInformation/'
-            'parameters/runConfigurationContents',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingInformation/'
-            'algorithms/rfiDetection',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'rfiDetection',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingInformation/'
-            'algorithms/rfiMitigation',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'rfiMitigation',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingInformation/'
-            'algorithms/rangeCompression',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'rangeCompression',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingInformation/'
-            'algorithms/elevationAntennaPatternCorrection',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'elevationAntennaPatternCorrection',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingInformation/'
-            'algorithms/rangeSpreadingLossCorrection',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'rangeSpreadingLossCorrection',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingInformation/'
-            'algorithms/dopplerCentroidEstimation',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'dopplerCentroidEstimation',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingInformation/'
-            'algorithms/azimuthPresumming',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'azimuthPresumming',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingInformation/'
-            'algorithms/azimuthCompression',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'azimuthCompression',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/processingInformation/'
-            'algorithms/softwareVersion',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'softwareVersion',
-            skip_if_not_present=True)
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/swaths/zeroDopplerStartTime',
-            'identification/zeroDopplerStartTime')
-
-        self.copy_from_input(
-            '{PRODUCT}/metadata/sourceData/swaths/zeroDopplerTimeSpacing',
-            '{PRODUCT}/swaths/zeroDopplerTimeSpacing')
-
-        for i, (frequency, _) in enumerate(self.freq_pols_dict.items()):
-            radar_grid_obj = self.input_product_obj.getRadarGrid(frequency)
-
-            output_swaths_freq_path = ('{PRODUCT}/metadata/sourceData/'
-                                       f'swaths/frequency{frequency}')
-            input_swaths_freq_path = ('{PRODUCT}/swaths/'
-                                      f'frequency{frequency}')
-
-            if i == 0:
-                self.set_value(
-                    '{PRODUCT}/metadata/sourceData/swaths/'
-                    'numberOfAzimuthLines',
-                    radar_grid_obj.length)
-
-            self.copy_from_input(
-                f'{output_swaths_freq_path}/rangeBandwidth',
-                f'{input_swaths_freq_path}/processedRangeBandwidth')
-
-            self.copy_from_input(
-                f'{output_swaths_freq_path}/azimuthBandwidth',
-                f'{input_swaths_freq_path}/processedAzimuthBandwidth')
-
-            self.copy_from_input(
-                f'{output_swaths_freq_path}/centerFrequency',
-                f'{input_swaths_freq_path}/processedCenterFrequency')
-
-            self.set_value(
-                f'{output_swaths_freq_path}/slantRangeStart',
-                radar_grid_obj.starting_range)
-
-            self.copy_from_input(
-                f'{output_swaths_freq_path}/slantRangeSpacing',
-                f'{input_swaths_freq_path}/slantRangeSpacing')
-
-            self.set_value(
-                f'{output_swaths_freq_path}/numberOfRangeSamples',
-                radar_grid_obj.width)
-
     def populate_processing_information(self):
         """
         Populate the `processingInformation` group of the GCOV product
@@ -237,13 +99,15 @@ class GcovWriter(BaseL2WriterSingleInput):
             f'{parameters_group}/radiometricTerrainCorrectionApplied',
             'processing/geocode/apply_rtc')
 
-        self.copy_from_runconfig(
+        # TODO: read these values from the RSLC metadata once they are
+        # available (the RSLC datasets below are not in the specs)
+        self.copy_from_input(
             f'{parameters_group}/dryTroposphericGeolocationCorrectionApplied',
-            'processing/geocode/apply_dry_tropospheric_delay_correction')
+            default=True)
 
-        self.copy_from_runconfig(
+        self.copy_from_input(
             f'{parameters_group}/wetTroposphericGeolocationCorrectionApplied',
-            'processing/geocode/apply_wet_tropospheric_delay_correction')
+            default=False)
 
         self.copy_from_runconfig(
             f'{parameters_group}/rangeIonosphericGeolocationCorrectionApplied',
@@ -253,12 +117,6 @@ class GcovWriter(BaseL2WriterSingleInput):
             f'{parameters_group}/'
             'azimuthIonosphericGeolocationCorrectionApplied',
             'processing/geocode/apply_azimuth_ionospheric_delay_correction')
-
-        self.copy_from_input(
-            f'{parameters_group}/rfiCorrectionApplied',
-            '{PRODUCT}/metadata/processingInformation/algorithms/'
-            'rfiMitigation',
-            default=False)
 
         self.set_value(
             f'{parameters_group}/postProcessingFilteringApplied',
@@ -397,6 +255,8 @@ class GcovWriter(BaseL2WriterSingleInput):
                  ' Terrain Correction and Geocoding," in IEEE Transactions'
                  ' on Geoscience and Remote Sensing, vol. 60, pp. 1-23, 2022,'
                  ' Art no. 5222723, doi: 10.1109/TGRS.2022.3147472.')
+        else:
+            geocoding_algorithm_reference = '(NOT SPECIFIED)'
 
         self.set_value(
             '{PRODUCT}/metadata/processingInformation/algorithms/'
@@ -409,10 +269,12 @@ class GcovWriter(BaseL2WriterSingleInput):
                 f'{parameters_group}/preprocessing/frequency{frequency}/'
             self.copy_from_runconfig(
                 f'{preprocessing_group_path}/numberOfRangeLooks',
-                'processing/pre_process/range_looks')
+                'processing/pre_process/range_looks',
+                format_function=np.uint64)
             self.copy_from_runconfig(
                 f'{preprocessing_group_path}/numberOfAzimuthLooks',
-                'processing/pre_process/azimuth_looks')
+                'processing/pre_process/azimuth_looks',
+                format_function=np.uint64)
 
         # populate rtc parameters
         self.copy_from_runconfig(
@@ -462,12 +324,14 @@ class GcovWriter(BaseL2WriterSingleInput):
         self.copy_from_runconfig(
             f'{parameters_group}/geocoding/minBlockSize',
             'processing/geocode/min_block_size',
-            default=isce3.core.default_min_block_size)
+            default=isce3.core.default_min_block_size,
+            format_function=np.uint64)
 
         self.copy_from_runconfig(
             f'{parameters_group}/geocoding/maxBlockSize',
             'processing/geocode/max_block_size',
-            default=isce3.core.default_max_block_size)
+            default=isce3.core.default_max_block_size,
+            format_function=np.uint64)
 
         self.copy_from_runconfig(
             f'{parameters_group}/geocoding/isSourceDataUpsampled',
@@ -480,7 +344,8 @@ class GcovWriter(BaseL2WriterSingleInput):
 
         self.copy_from_runconfig(
             f'{parameters_group}/geo2rdr/maxNumberOfIterations',
-            'processing/geo2rdr/maxiter')
+            'processing/geo2rdr/maxiter',
+            format_function=np.uint64)
 
         # this value is hard-coded in the GeocodeCov module
         self.set_value(
@@ -492,27 +357,14 @@ class GcovWriter(BaseL2WriterSingleInput):
         Populate GCOV-specific `orbit` datasets `interpMethod` and
         `referenceEpoch`
         """
-        # TODO: update the code below once the capability of storing an
-        # external orbit file is implemented
-
         error_channel = journal.error(
             'GcovWriter.populate_orbit_gcov_specific')
-        rslc_orbit_path = f'{self.output_product_path}/metadata/orbit'
-        orbit = isce3.core.load_orbit_from_h5_group(
-            self.output_hdf5_obj[rslc_orbit_path])
 
-        # The orbit `interpMethod`` was removed from the RSLC product
-        # specification in ISCE3 Release 4. However, RSLC products
-        # with previous version may include the dataset. If the field
-        # is not present in the GCOV orbit group, i.e., if it was not
-        # copied from the RSLC orbit
-        # group, add it.
-        input_orbit_group_path = \
-            (f'{self.root_path}/{self.input_product_hdf5_group_type}'
-             '/metadata/orbit/interpMethod')
-
-        if input_orbit_group_path not in self.input_hdf5_obj:
-            orbit_interp_method = orbit.get_interp_method()
+        # save the orbit interp method
+        interp_method_path = (f'{self.output_product_path}/metadata/orbit/'
+                              'interpMethod')
+        if interp_method_path not in self.output_hdf5_obj:
+            orbit_interp_method = self.orbit.get_interp_method()
             if orbit_interp_method == isce3.core.OrbitInterpMethod.HERMITE:
                 orbit_interp_method_str = 'Hermite'
             elif orbit_interp_method == isce3.core.OrbitInterpMethod.LEGENDRE:
@@ -527,4 +379,4 @@ class GcovWriter(BaseL2WriterSingleInput):
 
         self.set_value(
             '{PRODUCT}/metadata/orbit/referenceEpoch',
-            orbit.reference_epoch.isoformat_usec())
+            self.orbit.reference_epoch.isoformat_usec())

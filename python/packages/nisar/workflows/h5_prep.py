@@ -52,7 +52,7 @@ def get_dataset_output_options(cfg: dict):
 def get_complex_output_dtype(cfg: dict, dst_h5: h5py.File):
     '''
     Get the dtype for the complex output and the corresponding NaN fill value.
-    
+
     The dtype is specified in `cfg`. `fill_value` will have a dtype of `ctype`.
     This custom ctype will be added as a new object in the root of `dst_h5` file,
     to teach tools like GDAL/netCDF how to read datasets with these custom dtypes.
@@ -671,9 +671,9 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None,
         descr = (f'Nominal spacing in {x_coord_units}'
                  ' between consecutive pixels')
         xds_spacing_name = os.path.join(root_ds, 'xCoordinateSpacing')
-        if xds_spacing_name in hdf5_obj:
-            del hdf5_obj[xds_spacing_name]
-        xds_spacing = hdf5_obj.create_dataset(xds_spacing_name, data=dx)
+        xds_spacing = hdf5_obj.require_dataset(xds_spacing_name,
+                                               shape=(),
+                                               dtype=np.float64, data=dx)
         xds_spacing.attrs["description"] = np.string_(descr)
         xds_spacing.attrs["units"] = np.string_(x_coord_units)
         xds_spacing.attrs["long_name"] = np.string_("x coordinate spacing")
@@ -682,9 +682,9 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None,
         descr = (f'Nominal spacing in {y_coord_units}'
                  ' between consecutive lines')
         yds_spacing_name = os.path.join(root_ds, 'yCoordinateSpacing')
-        if yds_spacing_name in hdf5_obj:
-            del hdf5_obj[yds_spacing_name]
-        yds_spacing = hdf5_obj.create_dataset(yds_spacing_name, data=dy)
+        yds_spacing = hdf5_obj.require_dataset(yds_spacing_name,
+                                               shape=(),
+                                               dtype=np.float64, data=dy)
         yds_spacing.attrs["description"] = np.string_(descr)
         yds_spacing.attrs["units"] = np.string_(y_coord_units)
         yds_spacing.attrs["long_name"] = np.string_("y coordinates spacing")
@@ -692,9 +692,10 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None,
     # xCoordinates
     descr = 'X coordinates in specified projection'
     xds_name = os.path.join(root_ds, 'xCoordinates')
-    if xds_name in hdf5_obj:
-        del hdf5_obj[xds_name]
-    xds = hdf5_obj.create_dataset(xds_name, data=x_vect)
+    xds = hdf5_obj.require_dataset(xds_name,
+                                   shape=x_vect.shape,
+                                   dtype=x_vect.dtype,
+                                   data=x_vect)
     xds.attrs['standard_name'] = x_standard_name
     xds.attrs["description"] = np.string_(descr)
     xds.attrs["units"] = np.string_(x_coord_units)
@@ -704,9 +705,11 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None,
     descr = 'Y coordinates in specified projection'
 
     yds_name = os.path.join(root_ds, 'yCoordinates')
-    if yds_name in hdf5_obj:
-        del hdf5_obj[yds_name]
-    yds = hdf5_obj.create_dataset(yds_name, data=y_vect)
+    yds = hdf5_obj.require_dataset(yds_name,
+                                   shape=y_vect.shape,
+                                   dtype=y_vect.dtype,
+                                   data=y_vect)
+
     yds.attrs['standard_name'] = y_standard_name
     yds.attrs["description"] = np.string_(descr)
     yds.attrs["units"] = np.string_(y_coord_units)
@@ -719,9 +722,11 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None,
         descr = ('Height values above WGS84 Ellipsoid corresponding to the'
                  ' radar grid')
         zds_name = os.path.join(root_ds, 'heightAboveEllipsoid')
-        if zds_name in hdf5_obj:
-            del hdf5_obj[zds_name]
-        zds = hdf5_obj.create_dataset(zds_name, data=z_vect, dtype='f8')
+        z_vect = np.array(z_vect)
+        zds = hdf5_obj.require_dataset(zds_name,
+                                       shape=z_vect.shape,
+                                       dtype=np.float64,
+                                       data=z_vect)
         zds.attrs['standard_name'] = np.string_(
             "height_above_reference_ellipsoid")
         zds.attrs["description"] = np.string_(descr)
@@ -738,11 +743,10 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None,
     projection_ds_name = os.path.join(root_ds, "projection")
 
     # Create a new single int dataset for projections
-    if projection_ds_name in hdf5_obj:
-        del hdf5_obj[projection_ds_name]
-    projds = hdf5_obj.create_dataset(projection_ds_name, (), dtype='i')
-    projds[()] = epsg_code
-
+    projds = hdf5_obj.require_dataset(projection_ds_name,
+                                      shape=(),
+                                      dtype='i',
+                                      data=epsg_code)
     # Set up osr for wkt
     srs = osr.SpatialReference()
     srs.ImportFromEPSG(epsg_code)
@@ -876,38 +880,38 @@ def add_radar_grid_cubes_to_hdf5(hdf5_obj, cube_group_name, geogrid,
         long_name='incidence angle',
         descr=('Incidence angle is defined as the angle between the LOS vector'
                ' and the normal to the ellipsoid at the target height'),
-        units='degrees')
+        units='degrees', valid_min=0.0, valid_max=90.0)
     los_unit_vector_x_raster = _get_raster_from_hdf5_ds(
         cube_group, 'losUnitVectorX', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='LOS unit vector X',
         descr='East component of unit vector of LOS from target to sensor',
-        units='1')
+        units='1', valid_min=-1.0, valid_max=1.0)
     los_unit_vector_y_raster = _get_raster_from_hdf5_ds(
         cube_group, 'losUnitVectorY', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='LOS unit vector Y',
         descr='North component of unit vector of LOS from target to sensor',
-        units='1')
+        units='1', valid_min=-1.0, valid_max=1.0)
     along_track_unit_vector_x_raster = _get_raster_from_hdf5_ds(
         cube_group, 'alongTrackUnitVectorX', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Along-track unit vector X',
         descr='East component of unit vector along ground track',
-        units='1')
+        units='1', valid_min=-1.0, valid_max=1.0)
     along_track_unit_vector_y_raster = _get_raster_from_hdf5_ds(
         cube_group, 'alongTrackUnitVectorY', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Along-track unit vector Y',
         descr='North component of unit vector along ground track',
-        units='1')
+        units='1', valid_min=-1.0, valid_max=1.0)
     elevation_angle_raster = _get_raster_from_hdf5_ds(
         cube_group, 'elevationAngle', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Elevation angle',
         descr=('Elevation angle is defined as the angle between the LOS vector'
                ' and the normal to the ellipsoid at the sensor'),
-        units='degrees')
+        units='degrees', valid_min=0.0, valid_max=90.0)
     ground_track_velocity_raster = _get_raster_from_hdf5_ds(
         cube_group, 'groundTrackVelocity', np.float64, cube_shape,
         zds=zds, yds=yds, xds=xds,
@@ -1030,38 +1034,38 @@ def add_geolocation_grid_cubes_to_hdf5(hdf5_obj, cube_group_name, radar_grid,
         long_name='incidence angle',
         descr='Incidence angle is defined as the angle between the LOS '
               'vector and the normal to the ellipsoid at the target height',
-        units='degrees')
+        units='degrees', valid_min=0.0, valid_max=90.0)
     los_unit_vector_x_raster = _get_raster_from_hdf5_ds(
         cube_group, 'losUnitVectorX', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='LOS unit vector X',
         descr='East component of unit vector of LOS from target to sensor',
-        units='1')
+        units='1', valid_min=-1.0, valid_max=1.0)
     los_unit_vector_y_raster = _get_raster_from_hdf5_ds(
         cube_group, 'losUnitVectorY', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='LOS unit vector Y',
         descr='North component of unit vector of LOS from target to sensor',
-        units='1')
+        units='1', valid_min=-1.0, valid_max=1.0)
     along_track_unit_vector_x_raster = _get_raster_from_hdf5_ds(
         cube_group, 'alongTrackUnitVectorX', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Along-track unit vector X',
         descr='East component of unit vector along ground track',
-        units='1')
+        units='1', valid_min=-1.0, valid_max=1.0)
     along_track_unit_vector_y_raster = _get_raster_from_hdf5_ds(
         cube_group, 'alongTrackUnitVectorY', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Along-track unit vector Y',
         descr='North component of unit vector along ground track',
-        units='1')
+        units='1', valid_min=-1.0, valid_max=1.0)
     elevation_angle_raster = _get_raster_from_hdf5_ds(
         cube_group, 'elevationAngle', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Elevation angle',
         descr='Elevation angle is defined as the angle between the LOS vector '
               'and the normal to the ellipsoid at the sensor',
-        units='degrees')
+        units='degrees', valid_min=0.0, valid_max=90.0)
     ground_track_velocity_raster = _get_raster_from_hdf5_ds(
         cube_group, 'groundTrackVelocity', np.float64, cube_shape,
         zds=zds, yds=yds, xds=xds,

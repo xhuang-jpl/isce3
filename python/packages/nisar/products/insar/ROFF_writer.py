@@ -302,12 +302,12 @@ class ROFFWriter(L1InSARWriter):
                 (
                     "alongTrackOffsetVariance",
                     "Along-track pixel offsets variance",
-                    Units.unitless,
+                    Units.meter2,
                 ),
                 (
                     "slantRangeOffsetVariance",
                     "Slant range pixel offsets variance",
-                    Units.unitless,
+                    Units.meter2,
                 ),
                 (
                     "correlationSurfacePeak",
@@ -317,7 +317,7 @@ class ROFFWriter(L1InSARWriter):
                 (
                     "crossOffsetVariance",
                     "Off-diagonal term of the pixel offsets covariance matrix",
-                    Units.unitless,
+                    Units.meter2,
                 ),
                 (
                     "slantRangeOffset",
@@ -345,7 +345,7 @@ class ROFFWriter(L1InSARWriter):
                         layer_group_name = f"{offset_pol_group_name}/{layer}"
                         layer_group = self.require_group(layer_group_name)
 
-                         # Create the pixel offsets dataset
+                        # Create the pixel offsets dataset
                         for pixel_offsets_ds_param in pixel_offsets_ds_params:
                             ds_name, ds_description, ds_unit = pixel_offsets_ds_param
                             self._create_2d_dataset(
@@ -355,6 +355,10 @@ class ROFFWriter(L1InSARWriter):
                                 np.float32,
                                 ds_description,
                                 units=ds_unit,
+                                compression_enabled=self.cfg['output']['compression_enabled'],
+                                compression_level=self.cfg['output']['compression_level'],
+                                chunk_size=self.cfg['output']['chunk_size'],
+                                shuffle_filter=self.cfg['output']['shuffle']
                             )
 
 
@@ -388,51 +392,3 @@ class ROFFWriter(L1InSARWriter):
         freq_group['listOfLayers'].attrs['units'] = Units.unitless
         freq_group['listOfLayers'].attrs['description'] =\
             np.string_('List of pixel offsets layers')
-
-    def add_swaths_to_hdf5(self):
-        """
-        Add swaths to the HDF5
-        """
-        super().add_swaths_to_hdf5()
-
-        # pull the offset parameters
-        is_roff,  margin, rg_start, az_start,\
-        rg_skip, az_skip, rg_search, az_search,\
-        rg_chip, az_chip, ovs_factor = self._pull_pixel_offsets_params()
-
-        for freq, pol_list, _ in get_cfg_freq_pols(self.cfg):
-            # Create the swath group
-            swaths_freq_group_name = (
-                f"{self.group_paths.SwathsPath}/frequency{freq}"
-            )
-            swaths_freq_group = self.require_group(swaths_freq_group_name)
-
-            rslc_freq_group = self.ref_h5py_file_obj[
-                f"{self.ref_rslc.SwathPath}/frequency{freq}"
-            ]
-
-            # add scene center parameters
-            scene_center_params = [
-                DatasetParams(
-                    "sceneCenterAlongTrackSpacing",
-                    rslc_freq_group["sceneCenterAlongTrackSpacing"][()]
-                    * az_skip,
-                    (
-                        "Nominal along-track spacing in meters between"
-                        " consecutive lines near mid-swath of the product images"
-                    ),
-                    {"units": Units.meter},
-                ),
-                DatasetParams(
-                    "sceneCenterGroundRangeSpacing",
-                    rslc_freq_group["sceneCenterGroundRangeSpacing"][()]
-                    * rg_skip,
-                    (
-                        "Nominal ground range spacing in meters between"
-                        " consecutive pixels near mid-swath of the product images"
-                    ),
-                    {"units": Units.meter},
-                ),
-            ]
-            for ds_param in scene_center_params:
-                add_dataset_and_attrs(swaths_freq_group, ds_param)

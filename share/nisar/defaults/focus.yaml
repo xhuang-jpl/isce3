@@ -122,6 +122,13 @@ runconfig:
                 kind: Kaiser
                 shape: 0.0
 
+            # Elevation antenna pattern, optional.
+            elevation_antenna_pattern:
+                # Range spacing in meters of resampled antenna pattern grid
+                # Defaults to 5 MHz bandwidth.
+                # 5 MHz bandwidth has 6 MHz sample rate -> c / 2 / 6e6 spacing
+                spacing: 24.982704833333333
+
             radio_frequency_interference:
                 # Whether to attempt RFI detection and record related metadata.
                 # Defaults to True
@@ -172,7 +179,7 @@ runconfig:
                     # larger value of y, therefore relaxing the final threshold.
                     # The values of x outside of the defined range of y are
                     # extrapolated.
-                    y: [5.0, 20.0]
+                    y: [5.0, 2.0]
 
             # Range filter parameters for mixed-mode cases.
             range_common_band_filter:

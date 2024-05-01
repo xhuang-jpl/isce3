@@ -9,6 +9,7 @@ import time
 
 import h5py
 import isce3
+from isce3.core import crop_external_orbit
 import isce3.unwrap.snaphu as snaphu
 import journal
 import numpy as np
@@ -62,6 +63,9 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
         err_str = f"{crossmul_path} is invalid; needs to be a file"
         error_channel.log(err_str)
         raise ValueError(err_str)
+
+    # Open reference RSLC object
+    ref_slc = SLC(hdf5file=ref_slc_hdf5)
 
     # Start to track time
     t_all = time.time()
@@ -272,7 +276,7 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
                         rg_spac = \
                             src_h5[f"{src_freq_group_path}/interferogram/slantRangeSpacing"][()]
                         az_spac = \
-                            src_h5[f"{src_freq_group_path}/""sceneCenterAlongTrackSpacing"][()]
+                            src_h5[f"{src_freq_group_path}/interferogram/sceneCenterAlongTrackSpacing"][()]
                         rg_bw = \
                             src_h5[f"{src_freq_bandwidth_group_path}/rangeBandwidth"][()]
                         # Note, this is the single-look range resolution
@@ -280,13 +284,15 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
                         # To compute azimuth resolution, get sensor speed at mid-scene
                         # And use azimuth processed bandwidth (copied from RSLC)
                         ref_orbit = cfg['dynamic_ancillary_file_group']['orbit_files']['reference_orbit_file']
-                        if ref_orbit is not None:
-                            orbit = load_orbit_from_xml(ref_orbit)
-                        else:
-                            ref_slc = SLC(hdf5file=ref_slc_hdf5)
-                            orbit = ref_slc.getOrbit()
 
                         radar_grid = ref_slc.getRadarGrid(freq)
+
+                        # Get reference orbit
+                        orbit = ref_slc.getOrbit()
+                        if ref_orbit is not None:
+                            external_orbit = load_orbit_from_xml(ref_orbit, radar_grid.ref_epoch)
+                            orbit = crop_external_orbit(external_orbit, orbit)
+
                         _, v_mid = orbit.interpolate(radar_grid.sensing_mid)
                         vs = np.linalg.norm(v_mid)
                         # Note this is the single-look azimuth resolution

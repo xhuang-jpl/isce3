@@ -11,6 +11,7 @@ from osgeo import gdal
 
 import journal
 import isce3
+from isce3.core import crop_external_orbit
 from nisar.products.readers import SLC
 from nisar.products.readers.orbit import load_orbit_from_xml
 from nisar.workflows.rdr2geo_runconfig import Rdr2geoRunConfig
@@ -45,10 +46,14 @@ def run(cfg):
 
     # get params from SLC
     slc = SLC(hdf5file=input_hdf5)
+
+    # Get orbit
+    orbit = slc.getOrbit()
     if ref_orbit is not None:
-        orbit = load_orbit_from_xml(ref_orbit)
-    else:
-        orbit = slc.getOrbit()
+        # SLC will get first radar grid whose frequency is available.
+        # Reference epoch and orbit have no frequency dependency.
+        external_orbit = load_orbit_from_xml(ref_orbit, slc.getRadarGrid().ref_epoch)
+        orbit = crop_external_orbit(external_orbit, orbit)
 
     # set defaults shared by both frequencies
     dem_raster = isce3.io.Raster(dem_file)

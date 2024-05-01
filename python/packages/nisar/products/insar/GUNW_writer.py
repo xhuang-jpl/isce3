@@ -57,18 +57,33 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
 
         ## Add the radar grid cubes of solid eath tide phase for along-track and along-slant range.
         proc_cfg = self.cfg["processing"]
+        tropo_cfg = proc_cfg['troposphere_delay']
         radar_grid_cubes_geogrid = proc_cfg["radar_grid_cubes"]["geogrid"]
         radar_grid_cubes_heights = proc_cfg["radar_grid_cubes"]["heights"]
 
         radar_grid = self[self.group_paths.RadarGridPath]
         descrs = ["Solid Earth tides phase along slant range direction",
                   'Solid Earth tides phase in along-track direction']
-        product_names = ['slantRangeSolidEarthTidesPhase',
-                         'alongTrackSolidEarthTidesPhase']
+        product_names = ['slantRangeSolidEarthTidesPhase']
+
+        # Add the troposphere datasets to the radarGrid cube
+        if tropo_cfg['enabled']:
+            for delay_type in ['wet', 'hydrostatic', 'comb']:
+                if tropo_cfg[f'enable_{delay_type}_product']:
+                    descrs.append(f"{delay_type.capitalize()} component "
+                                  "of the troposphere phase screen")
+                    product_names.append(f'{delay_type}TroposphericPhaseScreen')
 
         cube_shape = [len(radar_grid_cubes_heights),
                       radar_grid_cubes_geogrid.length,
                       radar_grid_cubes_geogrid.width]
+
+        # Retrieve the x, y, and z coordinates from the radargrid cube
+        # Since the radargrid cube has been added, it is safe to
+        # access those coordinates here.
+        xds = radar_grid['xCoordinates']
+        yds = radar_grid['yCoordinates']
+        zds = radar_grid['heightAboveEllipsoid']
 
         for product_name, descr in zip(product_names,descrs):
             if product_name not in radar_grid:
@@ -76,7 +91,11 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                                                 shape=cube_shape,
                                                 dtype=np.float64)
                 ds.attrs['description'] = np.string_(descr)
-                ds.attrs['units'] = np.string_("radians")
+                ds.attrs['units'] = Units.radian
+                ds.attrs['grid_mapping'] = np.string_('projection')
+                ds.dims[0].attach_scale(zds)
+                ds.dims[1].attach_scale(yds)
+                ds.dims[2].attach_scale(xds)
 
     def add_algorithms_to_procinfo_group(self):
         """
@@ -200,7 +219,12 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                     Units.dn,
                     grids_val,
                     xds=xds,
-                    yds=yds)
+                    yds=yds,
+                    compression_enabled=self.cfg['output']['compression_enabled'],
+                    compression_level=self.cfg['output']['compression_level'],
+                    chunk_size=self.cfg['output']['chunk_size'],
+                    shuffle_filter=self.cfg['output']['shuffle']
+                )
 
             for pol in pol_list:
                 unwrapped_pol_name = f"{unwrapped_group_name}/{pol}"
@@ -218,7 +242,7 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                     ("coherenceMagnitude", np.float32,
                      f"Coherence magnitude between {pol} layers",
                      Units.unitless),
-                    ("connectedComponents", np.uint32,
+                    ("connectedComponents", np.uint16,
                      f"Connected components for {pol} layers",
                      Units.dn),
                     ("ionospherePhaseScreen", np.float32,
@@ -244,7 +268,12 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                         ds_unit,
                         grids_val,
                         xds=xds,
-                        yds=yds)
+                        yds=yds,
+                        compression_enabled=self.cfg['output']['compression_enabled'],
+                        compression_level=self.cfg['output']['compression_level'],
+                        chunk_size=self.cfg['output']['chunk_size'],
+                        shuffle_filter=self.cfg['output']['shuffle']
+                    )
 
                 wrapped_pol_name = f"{wrapped_group_name}/{pol}"
                 wrapped_pol_group = self.require_group(wrapped_pol_name)
@@ -279,6 +308,10 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                         grids_val,
                         xds=xds,
                         yds=yds,
+                        compression_enabled=self.cfg['output']['compression_enabled'],
+                        compression_level=self.cfg['output']['compression_level'],
+                        chunk_size=self.cfg['output']['chunk_size'],
+                        shuffle_filter=self.cfg['output']['shuffle']
                     )
 
                 pixeloffsets_pol_name = f"{pixeloffsets_group_name}/{pol}"
@@ -319,4 +352,8 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                         grids_val,
                         xds=xds,
                         yds=yds,
+                        compression_enabled=self.cfg['output']['compression_enabled'],
+                        compression_level=self.cfg['output']['compression_level'],
+                        chunk_size=self.cfg['output']['chunk_size'],
+                        shuffle_filter=self.cfg['output']['shuffle']
                     )

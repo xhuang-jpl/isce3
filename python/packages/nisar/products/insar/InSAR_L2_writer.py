@@ -1,7 +1,6 @@
 import isce3
 import numpy as np
 from isce3.core import LUT2d
-from nisar.products.readers.orbit import load_orbit_from_xml
 from nisar.workflows.h5_prep import (_get_raster_from_hdf5_ds,
                                      add_radar_grid_cubes_to_hdf5,
                                      set_get_geo_info)
@@ -13,6 +12,7 @@ from .InSAR_L1_writer import L1InSARWriter
 from .product_paths import L2GroupsPaths
 from .units import Units
 from .utils import extract_datetime_from_string
+
 
 class L2InSARWriter(L1InSARWriter):
     """
@@ -73,9 +73,10 @@ class L2InSARWriter(L1InSARWriter):
         cube_group = self.require_group(sec_cube_group_path)
         cube_shape = [len(heights), geogrid.length, geogrid.width]
 
-        zds, yds, xds = set_get_geo_info(self, sec_cube_group_path, geogrid,
-                                        z_vect=heights, flag_cube=True)
-
+        zds, yds, xds = set_get_geo_info(self, sec_cube_group_path,
+                                         geogrid,
+                                         z_vect=heights,
+                                         flag_cube=True)
         # seconds since ref epoch
         ref_epoch = radar_grid.ref_epoch
         ref_epoch_str = ref_epoch.isoformat()
@@ -110,11 +111,6 @@ class L2InSARWriter(L1InSARWriter):
         """
         Add the radar grid cubes
         """
-        orbit_file = self.cfg["dynamic_ancillary_file_group"]\
-            ["orbit_files"].get("reference_orbit_file")
-        sec_orbit_file = self.cfg["dynamic_ancillary_file_group"]\
-            ["orbit_files"].get("secondary_orbit_file")
-
         proc_cfg = self.cfg["processing"]
         radar_grid_cubes_geogrid = proc_cfg["radar_grid_cubes"]["geogrid"]
         radar_grid_cubes_heights = proc_cfg["radar_grid_cubes"]["heights"]
@@ -125,12 +121,6 @@ class L2InSARWriter(L1InSARWriter):
         # Retrieve the group
         radar_grid_path = self.group_paths.RadarGridPath
         radar_grid = self.require_group(radar_grid_path)
-
-        # Pull the orbit object
-        if orbit_file is not None:
-            orbit = load_orbit_from_xml(orbit_file)
-        else:
-            orbit = self.ref_rslc.getOrbit()
 
         # Pull the doppler information
         cube_freq = "A" if "A" in self.freq_pols else "B"
@@ -147,16 +137,16 @@ class L2InSARWriter(L1InSARWriter):
             radar_grid_cubes_geogrid,
             radar_grid_cubes_heights,
             cube_rdr_grid,
-            orbit,
+            self.ref_orbit,
             cube_native_doppler,
             grid_zero_doppler,
             threshold_geo2rdr,
             iteration_geo2rdr,
-        )
+            )
 
         # Update the radar grids attributes
         radar_grid['slantRange'].attrs['description'] = \
-            np.string_("Slant range in meters")
+            np.string_("Slant range of the reference RSLC in meters")
         radar_grid['slantRange'].attrs['units'] = Units.meter
 
         zero_dopp_azimuth_time_units = \
@@ -168,6 +158,12 @@ class L2InSARWriter(L1InSARWriter):
             zero_dopp_azimuth_time_units = time_str
         radar_grid['zeroDopplerAzimuthTime'].attrs['units'] = \
             np.string_(zero_dopp_azimuth_time_units)
+        radar_grid['zeroDopplerAzimuthTime'].attrs['description'] = \
+            np.string_("Zero doppler azimuth time of the reference RSLC image")
+
+        # Rename the dataset names
+        radar_grid.move('slantRange','referenceSlantRange')
+        radar_grid.move('zeroDopplerAzimuthTime', 'referenceZeroDopplerAzimuthTime')
 
         radar_grid['projection'][...] = \
             radar_grid['projection'][()].astype(np.uint32)
@@ -179,7 +175,7 @@ class L2InSARWriter(L1InSARWriter):
                        " corresponding to the radar grid")
         radar_grid['heightAboveEllipsoid'].attrs['units'] = \
             Units.meter
-            
+
         radar_grid['xCoordinates'].attrs['description'] = \
             np.string_("X coordinates corresponding to the radar grid")
         radar_grid['xCoordinates'].attrs['long_name'] = \
@@ -223,13 +219,13 @@ class L2InSARWriter(L1InSARWriter):
         radar_grid["groundTrackVelocity"].attrs["units"] = \
             np.string_("meters / second")
 
+        # Add the baseline dataset to radargrid
+        self.add_baseline_info_to_cubes(radar_grid,
+                                        radar_grid_cubes_geogrid,
+                                        is_geogrid = True)
+
         # Add the secondary slant range and azimuth time cubes to the radarGrid cubes
         sec_cube_rdr_grid = self.sec_rslc.getRadarGrid(cube_freq)
-        if sec_orbit_file is not None:
-            sec_orbit = load_orbit_from_xml(sec_orbit_file)
-        else:
-            sec_orbit = self.sec_rslc.getOrbit()
-
         sec_cube_native_doppler = self.sec_rslc.getDopplerCentroid(
             frequency=cube_freq
         )
@@ -238,7 +234,7 @@ class L2InSARWriter(L1InSARWriter):
                                             radar_grid_cubes_geogrid,
                                             radar_grid_cubes_heights,
                                             sec_cube_rdr_grid,
-                                            sec_orbit, sec_cube_native_doppler,
+                                            self.sec_orbit, sec_cube_native_doppler,
                                             grid_zero_doppler,
                                             threshold_geo2rdr,
                                             iteration_geo2rdr,

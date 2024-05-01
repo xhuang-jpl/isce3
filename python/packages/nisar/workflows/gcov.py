@@ -14,10 +14,12 @@ import journal
 import numpy as np
 
 import isce3
+from isce3.core import crop_external_orbit
 from isce3.core.types import complex32, read_complex_dataset
 from nisar.products.readers import SLC
 from nisar.workflows.h5_prep import add_radar_grid_cubes_to_hdf5
-from nisar.workflows.geocode_corrections import get_az_srg_corrections
+from isce3.atmosphere.tec_product import (tec_lut2d_from_json_srg,
+                                          tec_lut2d_from_json_az)
 from nisar.workflows.yaml_argparse import YamlArgparse
 from nisar.workflows.gcov_runconfig import GCOVRunConfig
 from nisar.workflows.h5_prep import set_get_geo_info
@@ -68,7 +70,7 @@ def prepare_rslc(in_file, freq, pol, out_file, lines_per_block,
     '''
     Copy RSLC dataset to GDAL format converting RSLC real and
     imaginary parts from float16 to float32. If the flag
-    flag_rslc_to_backscatter is enabled, the 
+    flag_rslc_to_backscatter is enabled, the
     RSLC complex values are converted to radar backscatter (square of
     the RSLC magnitude): out = abs(RSLC)**2
 
@@ -180,7 +182,7 @@ def read_and_validate_rtc_anf_flags(geocode_dict, flag_apply_rtc):
         Flag indicating whether the radiometric terrain correction (RTC)
         area normalization factor (ANF) layer should be created.
         This RTC ANF layer provides the conversion factor from
-        from gamma0 backscatter normalization convention 
+        from gamma0 backscatter normalization convention
         to input backscatter normalization convention
         (e.g., beta0 or sigma0-ellipsoid)
     save_rtc_anf_gamma0_to_sigma0: bool
@@ -326,6 +328,13 @@ def _run(cfg, raster_scratch_dir):
     geocode_algorithm = geocode_dict['algorithm_type']
     output_mode = geocode_dict['output_mode']
     flag_apply_rtc = geocode_dict['apply_rtc']
+
+    apply_range_ionospheric_delay_correction = \
+        geocode_dict['apply_range_ionospheric_delay_correction']
+
+    apply_azimuth_ionospheric_delay_correction = \
+        geocode_dict['apply_azimuth_ionospheric_delay_correction']
+
     apply_valid_samples_sub_swath_masking = \
         geocode_dict['apply_valid_samples_sub_swath_masking']
     memory_mode = geocode_dict['memory_mode_enum']
@@ -504,16 +513,25 @@ def _run(cfg, raster_scratch_dir):
 
         # if provided, load an external orbit from the runconfig file;
         # othewise, load the orbit from the RSLC metadata
+        orbit = slc.getOrbit()
         if orbit_file is not None:
-            orbit = load_orbit_from_xml(orbit_file)
-        else:
-            orbit = slc.getOrbit()
+            external_orbit = load_orbit_from_xml(orbit_file, radar_grid.ref_epoch)
+            orbit = crop_external_orbit(external_orbit, orbit)
 
-        if tec_file:
-            # get azimuth and slant range geocoding corrections
-            az_correction, rg_correction = \
-                get_az_srg_corrections(cfg, slc, frequency, orbit)
+        # get azimuth ionospheric delay LUTs (if applicable)
+        center_freq = \
+            slc.getSwathMetadata(frequency).processed_center_frequency
+
+        if apply_azimuth_ionospheric_delay_correction:
+            az_correction = tec_lut2d_from_json_az(tec_file, center_freq,
+                                                   orbit, radar_grid)
             optional_geo_kwargs['az_time_correction'] = az_correction
+
+        # get slant-range ionospheric delay LUTs (if applicable)
+        if apply_range_ionospheric_delay_correction:
+            rg_correction = tec_lut2d_from_json_srg(tec_file, center_freq,
+                                                    orbit, radar_grid,
+                                                    zero_doppler, dem_file)
             optional_geo_kwargs['slant_range_correction'] = rg_correction
 
         # init geocode members

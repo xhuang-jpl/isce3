@@ -253,16 +253,16 @@ def check_h5_dtype_vs_xml_spec(xml_metadata_entry, h5_dataset_obj,
     elif (hdf5_dtype_is_numeric and not hdf5_dtype_is_complex and
             hdf5_dtype.itemsize != int(xml_width)/8):
         warning_channel.log(f'The metadata field {full_h5_ds_path}'
-                            f' has data type "{hdf5_dtype}" but the width of'
-                            ' the corresponding XML entry is set to'
+                            f' has data type "{hdf5_dtype}" whereas the width'
+                            ' of the corresponding XML entry is set to'
                             f' "{xml_width}"')
 
     # verify the width of complex values
     elif (hdf5_dtype_is_numeric and hdf5_dtype_is_complex and
             hdf5_dtype.itemsize != 2 * int(xml_width)/8):
         warning_channel.log(f'The metadata field {full_h5_ds_path}'
-                            f' has data type "{hdf5_dtype}" but the width of'
-                            ' the corresponding XML entry is set to'
+                            f' has data type "{hdf5_dtype}" whereas the width'
+                            ' of the corresponding XML entry is set to'
                             f' "{xml_width}"')
 
     if verbose:
@@ -389,7 +389,7 @@ def write_xml_description_to_hdf5(xml_metadata_entry, h5_dataset_obj):
         if (not existing_h5_description and
                 'description' in h5_dataset_obj.attrs.keys()):
             existing_h5_description = h5_dataset_obj.attrs[
-                'description'].tostring().decode()
+                'description'].tobytes().decode()
 
         # update the metadata field description from XML description
         xml_description = annotation_et.text
@@ -607,6 +607,12 @@ class BaseWriterSingleInput():
         self.copy_from_input('identification/isDithered', default=False)
         self.copy_from_input('identification/isMixedMode', default=False)
 
+        # Copy CRID from runconfig (defaults to "A10000")
+        self.copy_from_runconfig(
+            'identification/compositeReleaseId',
+            'primary_executable/composite_release_id',
+            default="A10000")
+
     def set_value(self, h5_field, data, default=None, format_function=None):
         """
         Create an HDF5 dataset with a value set by the user
@@ -724,23 +730,42 @@ class BaseWriterSingleInput():
             input_h5_field_path.replace(
                 '{PRODUCT}', self.input_product_hdf5_group_type)
 
-        try:
-            data = self.input_hdf5_obj[input_h5_field_path][...]
-        except KeyError:
-            # if a default value was not provided and flag
-            # `skip_if_not_present`, skip
-            if default is None and skip_if_not_present:
+        # check if the dataset is not present in the input product
+        if input_h5_field_path not in self.input_hdf5_obj:
+
+            # if the dataset is not present in the input product and
+            # a default value was not provided and the flag
+            # `skip_if_not_present` is set, print a warning and skip
+            if (default is None and skip_if_not_present):
                 warnings.warn('Metadata entry not found in the input'
                               ' product: ' + input_h5_field_path)
                 return
 
-            # otherwise, if a default value was not provided, raise an error
-            elif default is None:
+            # if the dataset is not present in the input product and
+            # a default value was not provided, raise an error
+            if default is None:
                 raise KeyError('Metadata entry not found in the input'
                                ' product: ' + input_h5_field_path)
 
-            # otherwise, assign the default value to data
-            data = default
+            # if the dataset is not present in the input product and
+            # a default value is provided, assign the default value to data
+            else:
+                data = default
+
+        # othewise, if the dataset is present in the input product,
+        # read it as the variable `h5_data_obj`
+        else:
+            h5_data_obj = self.input_hdf5_obj[input_h5_field_path]
+
+            # check if dataset contains a string. If so, read it using method
+            # `asstr()``
+            if h5py.check_string_dtype(h5_data_obj.dtype):
+                # use asstr() to read the dataset
+                data = str(h5_data_obj.asstr()[...])
+
+            # otherwise, read it directly without changing the datatype
+            else:
+                data = self.input_hdf5_obj[input_h5_field_path][...]
 
         self.set_value(output_h5_field, data=data, **kwargs)
 
@@ -791,6 +816,8 @@ class BaseWriterSingleInput():
         # update product root attributes
         annotation_et = specs.find('./product/science/annotation')
         for key, value in annotation_et.items():
+            if key == 'app':
+                continue
             self.output_hdf5_obj.attrs[key] = np.string_(value)
 
         # iterate over all XML specs parameters

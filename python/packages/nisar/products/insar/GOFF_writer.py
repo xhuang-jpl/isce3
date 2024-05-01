@@ -142,13 +142,13 @@ class GOFFWriter(ROFFWriter, L2InSARWriter):
                          Units.meter),
                         ("alongTrackOffsetVariance",
                          "Along-track pixel offsets variance",
-                         Units.unitless),
+                         Units.meter2),
                         ("slantRangeOffsetVariance",
                          "Slant range pixel offsets variance",
-                         Units.unitless),
+                         Units.meter2),
                         ("crossOffsetVariance",
                          "Off-diagonal term of the pixel offsets covariance matrix",
-                         Units.unitless),
+                         Units.meter2),
                         ("correlationSurfacePeak",
                          "Normalized correlation surface peak",
                          Units.unitless),
@@ -168,4 +168,9 @@ class GOFFWriter(ROFFWriter, L2InSARWriter):
                             ds_units,
                             grids_val,
                             xds=xds,
-                            yds=yds)
+                            yds=yds,
+                            compression_enabled=self.cfg['output']['compression_enabled'],
+                            compression_level=self.cfg['output']['compression_level'],
+                            chunk_size=self.cfg['output']['chunk_size'],
+                            shuffle_filter=self.cfg['output']['shuffle']
+                        )

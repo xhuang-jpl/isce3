@@ -11,6 +11,7 @@ import numpy as np
 from osgeo import gdal
 from scipy.interpolate import griddata
 
+from isce3.core import crop_external_orbit
 from nisar.products.insar.product_paths import CommonPaths
 from nisar.products.readers import SLC
 from nisar.products.readers.orbit import load_orbit_from_xml
@@ -201,17 +202,18 @@ def _get_rgrid_dopp_orbit(slc_obj, orbit_path=None):
     orbit: isce3.core.Orbit
         orbit object
     """
-    # import external orbit if file exists
-    if orbit_path is not None:
-        orbit = load_orbit_from_xml(orbit_path)
-    else:
-        orbit = slc_obj.getOrbit()
 
     # if frequency A exists, use frequencyA doppler,
     # if not, use frequency B instead.
     freq = 'A' if 'A' in slc_obj.frequencies else 'B'
     radargrid = slc_obj.getRadarGrid(freq)
 
+    # import external orbit if file exists
+    orbit = slc_obj.getOrbit()
+    if orbit_path is not None:
+        external_orbit = load_orbit_from_xml(orbit_path, radargrid.ref_epoch)
+        orbit = crop_external_orbit(external_orbit, orbit)
+        
     # baseline is estimated assuming native-doppler
     doppler = slc_obj.getDopplerCentroid(frequency=freq)
     doppler.bounds_error = False
@@ -508,7 +510,7 @@ def add_baseline(output_paths,
         cube_ref_dataset = f'{grid_path}/coordinateX'
     else:
         grid_path = f"{dst_meta_path}/radarGrid"
-        cube_ref_dataset = f'{grid_path}/slantRange'
+        cube_ref_dataset = f'{grid_path}/referenceSlantRange'
 
     # Remove product_id from copy of output_paths to track
     # other products to insert baseline into.
@@ -771,8 +773,8 @@ def run(cfg: dict, output_paths):
         grid_path = f"{dst_meta_path}/radarGrid"
         metadata_path_dict = {
             "heights": f"{grid_path}/heightAboveEllipsoid",
-            "azimuthTime": f"{grid_path}/zeroDopplerAzimuthTime",
-            "slantRange": f"{grid_path}/slantRange",
+            "azimuthTime": f"{grid_path}/referenceZeroDopplerAzimuthTime",
+            "slantRange": f"{grid_path}/referenceSlantRange",
             "coordX": f"{grid_path}/xCoordinates",
             "coordY": f"{grid_path}/yCoordinates",
             "perpendicularBaseline": f"{grid_path}/perpendicularBaseline",
