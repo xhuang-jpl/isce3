@@ -1,8 +1,7 @@
 <?xml version="1.0"?>
 <!-- product specification version is 1.1.0 -->
 <algorithm name="L2_GeocodedCovariance"
-           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-           xsi:noNamespaceSchemaLocation="../../SDS/pix/schema.xsd">
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <product template="L2_GCOV_template">
     <!-- Start of the science section of product -->
     <science uid="sci_1">
@@ -150,7 +149,7 @@
                 <annotation app="conformance"
                             ogr_geometry="polygon"
                             epsg="4326"
-                            lang="en">OGR compatible WKT representation of bounding polygon of the image</annotation>
+                            lang="en">OGR compatible WKT representing the bounding polygon of the image. Horizontal coordinates are WGS84 longitude followed by latitude (both in degrees), and the vertical coordinate is the height above the WGS84 ellipsoid in meters. The first point corresponds to the start-time, near-range radar coordinate, and the perimeter is traversed in counterclockwise order on the map. This means the traversal order in radar coordinates differs for left-looking and right-looking sensors. The polygon includes the four corners of the radar grid, with equal numbers of points distributed evenly in radar coordinates along each edge</annotation>
         </string>
         <string length="27"
               name="/science/LSAR/identification/processingDateTime"
@@ -1241,6 +1240,92 @@
                           units="radians">Faraday rotation correction applied in processing</annotation>
         </real>
 
+      <!-- RFI results -->
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyA/HH/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyA/HV/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyA/VH/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyA/VV/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyA/RH/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyA/RV/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyB/HH/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyB/HV/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyB/VH/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyB/VV/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyB/RH/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+      <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyB/RV/rfiLikelihood"
+            shape="scalar"
+            width="64">
+            <annotation app="conformance"
+                        lang="en"
+                        units="1">Severity of radio frequency interference (RFI) contamination in the data. Value is in the interval [0,1], where 0: lowest severity, and 1: highest severity (or NaN if RFI detection was skipped)</annotation>
+      </real>
+
         <!-- channel-specific corrections -->
         <!-- HH -->
         <real name="/science/LSAR/GCOV/metadata/calibrationInformation/frequencyA/HH/differentialDelay"
@@ -1992,12 +2077,6 @@
                       lang="en">Radiometric terrain correction (RTC) algorithm</annotation>
         </string>
         <string length="0"
-              name="/science/LSAR/GCOV/metadata/processingInformation/algorithms/rfiCorrection"
-              shape="scalar">
-          <annotation app="conformance"
-                      lang="en">RFI correction algorithm</annotation>
-        </string>
-        <string length="0"
               name="/science/LSAR/GCOV/metadata/processingInformation/algorithms/polarimetricSymmetrization"
               shape="scalar">
           <annotation app="conformance"
@@ -2027,7 +2106,7 @@
                 name="/science/LSAR/GCOV/metadata/orbit/interpMethod"
                 shape="scalar">
                 <annotation app="conformance"
-                            lang="en">Orbit interpolation method</annotation>
+                            lang="en">Orbit interpolation method, either "Hermite" or "Legendre"</annotation>
        </string>
         <real name="/science/LSAR/GCOV/metadata/orbit/time"
               shape="orbitListLength"
@@ -2083,7 +2162,7 @@
                 name="/science/LSAR/GCOV/metadata/attitude/attitudeType"
                 shape="scalar">
                 <annotation app="conformance"
-                            lang="en">PrOE (or) NOE (or) MOE (or) POE (or) Custom</annotation>
+                            lang="en">Attitude type, either "FRP", "NRP", "PRP, or "Custom", where "FRP" stands for Forecast Radar Pointing, "NRP" is Near Real-time Pointing, and "PRP" is Precise Radar Pointing</annotation>
         </string>
 
         <!-- Versions of various algorithm modules used -->
@@ -2149,67 +2228,131 @@
               name="/science/LSAR/GCOV/metadata/sourceData/processingDateTime"
               shape="scalar">
               <annotation app="conformance"
-                          lang="en">Source data Processing UTC date and time in the format YYYY-mm-ddTHH:MM:SS</annotation>
+                          lang="en">Source data processing UTC date and time in the format YYYY-mm-ddTHH:MM:SS</annotation>
         </string>
         <string name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/parameters/runConfigurationContents"
               length="0"
               shape="scalar">
               <annotation app="conformance"
-                          lang="en">Contents of the run configuration file with parameters used for processing of the source data product</annotation>
+                          lang="en">Contents of the run configuration file associated with the processing of the source data</annotation>
         </string>
+
+        <real name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/parameters/referenceTerrainHeight"
+              shape="dopplerCentroidTimeLength"
+              width="32">
+              <annotation app="conformance"
+                          lang="en"
+                          units="meters">Reference terrain height corresponding to the source data processing information records</annotation>
+        </real>
+        <real name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/parameters/zeroDopplerTime"
+              shape="dopplerCentroidTimeLength"
+              width="64">
+              <annotation app="conformance"
+                          lang="en"
+                          units="seconds since YYYY-mm-ddTHH:MM:SS">Zero doppler time dimension corresponding to source data processing information records</annotation>
+        </real>
+        <real name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/parameters/slantRange"
+              shape="dopplerCentroidSlantRangeWidth"
+              width="64">
+              <annotation app="conformance"
+                          lang="en"
+                          units="meters">Slant range dimension corresponding to source data processing information records</annotation>
+        </real>
+        <real name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/parameters/frequencyA/zeroDopplerTime"
+              shape="dopplerCentroidTimeLength"
+              width="64">
+              <annotation app="conformance"
+                          lang="en"
+                          units="seconds since YYYY-mm-ddTHH:MM:SS">Zero doppler time dimension corresponding to source data processing information records</annotation>
+        </real>
+        <real name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/parameters/frequencyA/slantRange"
+              shape="dopplerCentroidSlantRangeWidth"
+              width="64">
+              <annotation app="conformance"
+                          lang="en"
+                          units="meters">Slant range dimension corresponding to the source data processing information records</annotation>
+        </real>
+        <real name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/parameters/frequencyA/dopplerCentroid"
+              shape="dopplerCentroidShape"
+              width="64">
+          <annotation app="conformance"
+                      lang="en"
+                      units="hertz">2D LUT of Doppler centroid for frequency A corresponding to the source data processing information records</annotation>
+        </real>
+        <real name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/parameters/frequencyB/zeroDopplerTime"
+              shape="dopplerCentroidTimeLength"
+              width="64">
+              <annotation app="conformance"
+                          lang="en"
+                          units="seconds since YYYY-mm-ddTHH:MM:SS">Zero doppler time dimension corresponding to source data processing information records</annotation>
+        </real>
+        <real name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/parameters/frequencyB/slantRange"
+              shape="dopplerCentroidSlantRangeWidth"
+              width="64">
+              <annotation app="conformance"
+                          lang="en"
+                          units="meters">Slant range dimension corresponding to source data processing information records</annotation>
+        </real>
+        <real name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/parameters/frequencyB/dopplerCentroid"
+              shape="dopplerCentroidShape"
+              width="64">
+          <annotation app="conformance"
+                      lang="en"
+                      units="hertz">2D LUT of Doppler centroid for frequency B corresponding to the source data processing information records</annotation>
+        </real>
         <string length="0"
               name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/algorithms/rfiDetection"
               shape="scalar">
           <annotation app="conformance"
-                      lang="en">Algorithm used for radio frequency interference (RFI) detection</annotation>
+                      lang="en">Algorithm used for radio frequency interference (RFI) detection corresponding to the source data processing information records</annotation>
         </string>
         <string length="0"
               name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/algorithms/rfiMitigation"
               shape="scalar">
           <annotation app="conformance"
-                      lang="en">Algorithm used for radio frequency interference (RFI) mitigation</annotation>
+                      lang="en">Algorithm used for radio frequency interference (RFI) mitigation corresponding to the source data processing information records</annotation>
         </string>
         <string length="0"
                 name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/algorithms/rangeCompression"
                 shape="scalar">
           <annotation algorithm_type="range processing"
                       app="conformance"
-                      lang="en">Algorithm for focusing the data in the range direction</annotation>
+                      lang="en">Algorithm for focusing the data in the range direction corresponding to the source data processing information records</annotation>
         </string>
         <string length="0"
                 name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/algorithms/elevationAntennaPatternCorrection"
                 shape="scalar">
           <annotation algorithm_type="range processing"
                       app="conformance"
-                      lang="en">Algorithm for calibrating the antenna pattern</annotation>
+                      lang="en">Algorithm for calibrating the antenna pattern corresponding to the source data processing information records</annotation>
         </string>
         <string length="0"
                 name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/algorithms/rangeSpreadingLossCorrection"
                 shape="scalar">
           <annotation algorithm_type="range processing"
                       app="conformance"
-                      lang="en">Algorithm for calibrating range fading</annotation>
+                      lang="en">Algorithm for calibrating range fading corresponding to the source data processing information records</annotation>
         </string>
         <string length="0"
                 name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/algorithms/dopplerCentroidEstimation"
                 shape="scalar">
           <annotation algorithm_type="doppler centroid estimation"
                       app="conformance"
-                      lang="en">Algorithm for calculating Doppler centroid</annotation>
+                      lang="en">Algorithm for calculating Doppler centroid corresponding to the source data processing information records</annotation>
         </string>
         <string length="0"
                 name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/algorithms/azimuthPresumming"
                 shape="scalar">
           <annotation algorithm_type="azimuth regridding"
                       app="conformance"
-                      lang="en">Algorithm for regridding and filling gaps in the raw data in azimuth</annotation>
+                      lang="en">Algorithm for regridding and filling gaps in the raw data in azimuth corresponding to the source data processing information records</annotation>
         </string>
         <string length="0"
                 name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/algorithms/azimuthCompression"
                 shape="scalar">
           <annotation algorithm_type="azimuth regridding"
                       app="conformance"
-                      lang="en">Algorithm for focusing the data in the azimuth direction</annotation>
+                      lang="en">Algorithm for focusing the data in the azimuth direction corresponding to the source data processing information records</annotation>
         </string>
         <string length="0"
                 name="/science/LSAR/GCOV/metadata/sourceData/processingInformation/algorithms/softwareVersion"
@@ -2567,7 +2710,30 @@
                        lang="en">Shape of crosstalk datasets</annotation>
            <dimension name="complex" extent="2"/>
     </shape>
-
+     <!-- Source data related shape -->
+    <shape name="dopplerCentroidTimeLength"
+    order="slowest...fastest">
+    <annotation app="conformance"
+                lang="en">Length dimension of Doppler centroid grid</annotation>
+    <dimension extent="0"
+               name="dopplerCentroidTimeLength"/>
+    </shape>
+    <shape name="dopplerCentroidSlantRangeWidth"
+    order="slowest...fastest">
+    <annotation app="conformance"
+                lang="en">Length dimension of Doppler centroid grid</annotation>
+    <dimension extent="0"
+               name="dopplerCentroidSlantRangeWidth"/>
+    </shape>
+    <shape name="dopplerCentroidShape"
+    order="slowest...fastest">
+    <annotation app="conformance"
+                lang="en">Shape of the Doppler centroid grid</annotation>
+    <dimension extent="0"
+               name="dopplerCentroidTimeLength"/>
+    <dimension extent="0"
+               name="dopplerCentroidSlantRangeWidth"/>
+    </shape>
     <!-- Orbit related shape -->
     <shape name="orbitListLength"
            order="slowest...fastest">

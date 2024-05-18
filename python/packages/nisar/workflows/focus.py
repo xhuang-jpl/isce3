@@ -304,8 +304,6 @@ def get_dem(cfg: Struct):
     fn = cfg.dynamic_ancillary_file_group.dem_file
     if fn:
         log.info(f"Loading DEM {fn}")
-        log.info("Out-of-bound DEM values will be set to "
-                 f"{cfg.processing.dem.reference_height} (m).")
         dem.load_dem(RasterIO(fn))
         dem.compute_min_max_mean_height()
     else:
@@ -431,11 +429,20 @@ def make_doppler_lut(rawfiles: list[str],
     return fc, lut
 
 
-def make_doppler(cfg: Struct, epoch: Optional[DateTime] = None):
+def make_doppler(cfg: Struct, *, epoch: Optional[DateTime] = None,
+        orbit: Optional[Orbit] = None, attitude: Optional[Attitude] = None,
+        dem: Optional[DEMInterpolator] = None):
+    """
+    Generate Doppler LUT based on RSLC config file.  Optional inputs can
+    be used to avoid unnecessarily loading files again.
+    """
     log.info("Generating Doppler LUT from pointing")
-    orbit = get_orbit(cfg)
-    attitude = get_attitude(cfg)
-    dem = get_dem(cfg)
+    if orbit is None:
+        orbit = get_orbit(cfg)
+    if attitude is None:
+        attitude = get_attitude(cfg)
+    if dem is None:
+        dem = get_dem(cfg)
     opt = cfg.processing.doppler
     az = np.radians(opt.azimuth_boresight_deg)
     rawfiles = cfg.input_file_group.input_file_path
@@ -1054,9 +1061,9 @@ def process_rfi(cfg: Struct, raw_data: np.ndarray,
             raise ValueError("Requested RFI mitigation but disabled detection.")
         log.info("Configured to skip RFI processing")
         return raw_data, np.nan
-    if opt.mitigation_algorithm != "ST-EVD":
-        raise NotImplementedError("Only ST-EVD RFI algorithm is supported")
-    msg = "Running radio frequency interference (RFI) detection"
+    if opt.mitigation_algorithm != "ST-EVD" and opt.mitigation_algorithm != "FDNF":
+        raise NotImplementedError("Only ST-EVD and FDNF RFI algorithms are supported")
+    msg = f"Running {opt.mitigation_algorithm} radio frequency interference (RFI) detection"
     if opt.mitigation_enabled:
         msg += " and mitigation"
     log.info(msg)
@@ -1071,21 +1078,39 @@ def process_rfi(cfg: Struct, raw_data: np.ndarray,
         raw_data_mitigated = np.memmap(fd, mode="w+", shape=raw_data.shape,
                            dtype=np.complex64)
 
-    threshold_params = isce3.signal.rfi_detection_evd.ThresholdParams(
-        opt.threshold_hyperparameters.x, opt.threshold_hyperparameters.y)
+    if opt.mitigation_algorithm == "ST-EVD":
+        opt_evd = opt.slow_time_evd
+        threshold_params = isce3.signal.rfi_detection_evd.ThresholdParams(
+            opt_evd.threshold_hyperparameters.x, opt_evd.threshold_hyperparameters.y)
 
-    rfi_likelihood = isce3.signal.rfi_process_evd.run_slow_time_evd(
-        raw_data,
-        opt.cpi_length,
-        opt.max_emitters,
-        num_max_trim=opt.num_max_trim,
-        num_min_trim=opt.num_min_trim,
-        max_num_rfi_ev=opt.max_num_rfi_ev,
-        num_rng_blks=opt.num_range_blocks,
-        threshold_params=threshold_params,
-        num_cpi_tb=opt.num_cpi_per_threshold_block,
-        mitigate_enable=opt.mitigation_enabled,
-        raw_data_mitigated=raw_data_mitigated)
+        rfi_likelihood = isce3.signal.rfi_process_evd.run_slow_time_evd(
+            raw_data,
+            opt_evd.cpi_length,
+            opt_evd.max_emitters,
+            num_max_trim=opt_evd.num_max_trim,
+            num_min_trim=opt_evd.num_min_trim,
+            max_num_rfi_ev=opt_evd.max_num_rfi_ev,
+            num_rng_blks=opt.num_range_blocks,
+            threshold_params=threshold_params,
+            num_cpi_tb=opt_evd.num_cpi_per_threshold_block,
+            mitigate_enable=opt.mitigation_enabled,
+            raw_data_mitigated=raw_data_mitigated)
+    else:
+        opt_fnf = opt.freq_notch_filter
+        rfi_likelihood = isce3.signal.rfi_freq_null.run_freq_notch(
+            raw_data,
+            opt_fnf.num_pulses_az,
+            num_rng_blks=opt.num_range_blocks,
+            az_winsize=opt_fnf.az_winsize,
+            rng_winsize=opt_fnf.rng_winsize,
+            trim_frac=opt_fnf.trim_frac,
+            pvalue_threshold=opt_fnf.pvalue_threshold,
+            cdf_threshold=opt_fnf.cdf_threshold,
+            nb_detect=opt_fnf.nb_detect,
+            wb_detect=opt_fnf.wb_detect,
+            mitigate_enable=opt.mitigation_enabled,
+            raw_data_mitigated=raw_data_mitigated)
+
 
     log.info(f"RFI likelihood = {rfi_likelihood}")
     return raw_data_mitigated, rfi_likelihood
@@ -1122,18 +1147,6 @@ def require_ephemeris_overlap(ephemeris: Ephemeris,
     raise ValueError(msg)
 
 
-def require_frequency_stability(rawlist: Iterable[Raw]) -> None:
-    """Check that center frequency doesn't depend on TX polarization since
-    this is assumed in RSLC Doppler metadata.
-    """
-    for raw in rawlist:
-        for frequency, polarizations in raw.polarizations.items():
-            fc_set = {raw.getCenterFrequency(frequency, pol[0])
-                for pol in polarizations}
-            if len(fc_set) > 1:
-                raise NotImplementedError("TX frequency agility not supported")
-
-
 def require_constant_look_side(rawlist: Iterable[Raw]) -> str:
     side_set = {raw.identification.lookDirection for raw in rawlist}
     if len(side_set) > 1:
@@ -1144,7 +1157,9 @@ def require_constant_look_side(rawlist: Iterable[Raw]) -> str:
 def get_common_mode(rawlist: list[Raw]) -> PolChannelSet:
     assert len(rawlist) > 0
     modes = [PolChannelSet.from_raw(raw) for raw in rawlist]
-    return reduce(lambda mode1, mode2: mode1.intersection(mode2), modes)
+    common = reduce(lambda mode1, mode2: mode1.intersection(mode2), modes)
+    # Make sure we regularize even if only one mode.
+    return common.regularized()
 
 
 def get_bands(mode: PolChannelSet) -> dict[str, Band]:
@@ -1422,10 +1437,13 @@ def get_output_range_spacings(rawlist: list[Raw], common_mode: PolChannelSet):
         Range spacing in m for each subband.
     """
     # Get a PolChannel associated with the largest output bandwidth, e.g., a
-    # 20 MHz channel if we're generating 20+5 output.
-    big_channel = max(common_mode, key = lambda channel: channel.band.width)
-    # ... and smallest bandwidth
-    small_channel = min(common_mode, key = lambda channel: channel.band.width)
+    # 20 MHz channel if we're generating 20+5 output.  Also want the smallest
+    # bandwidth channel.  If these are equal, e.g., 20+20 or 5+5 mode, make
+    # sure we get one from each frequency.
+    channels = sorted(common_mode,
+        key = lambda channel: (channel.band.width, channel.freq_id))
+    big_channel = channels[-1]
+    small_channel = channels[0]
     # (These will be the same if there's no secondary band).
 
     range_spacings = dict()
@@ -1434,7 +1452,7 @@ def get_output_range_spacings(rawlist: list[Raw], common_mode: PolChannelSet):
         # corresponding to [20, 40, 20] MHz bands.
         raw_spacings = []
         for raw in rawlist:
-            raw_channel = find_overlapping_channel(raw, big_channel)
+            raw_channel = find_overlapping_channel(raw, channel)
             freq, tx = raw_channel.freq_id, raw_channel.pol[0]
             # Get the range spacing (sample rate) for the associated raw data.
             raw_spacings.append(raw.getRanges(freq, tx).spacing)
@@ -1463,7 +1481,6 @@ def focus(runconfig, runconfig_path=""):
     scale = cfg.processing.encoding_scale_factor
     antparser, instparser = get_antpat_inst(cfg)
 
-    require_frequency_stability(rawlist)
     common_mode = get_common_mode(rawlist)
     log.info(f"output mode = {common_mode}")
 
@@ -1490,7 +1507,8 @@ def focus(runconfig, runconfig_path=""):
     log.info("Verifying ephemeris covers time span of raw data.")
     require_ephemeris_overlap(orbit, t0, t1, "Orbit")
     require_ephemeris_overlap(attitude, t0, t1, "Attitude")
-    fc_ref, dop_ref = make_doppler(cfg, epoch=grid_epoch)
+    fc_ref, dop_ref = make_doppler(cfg, epoch=grid_epoch, orbit=orbit,
+        attitude=attitude, dem=dem)
 
     max_chirplen = get_max_chirp_duration(cfg) * isce3.core.speed_of_light / 2
     range_spacings = get_output_range_spacings(rawlist, common_mode)
@@ -1600,6 +1618,19 @@ def focus(runconfig, runconfig_path=""):
 
     dump_height = (cfg.processing.debug_dump_height and
                    not cfg.processing.delete_tempfiles)
+
+    if cfg.processing.dem.require_full_coverage:
+        log.info("Checking DEM coverage.")
+        fraction_outside = isce3.geometry.compute_dem_overlap(polygon, dem,
+            plot=temp("_dem_overlap.png"))
+        if fraction_outside > 0.0:
+            percent_outside = f"{100 * fraction_outside:.1f}%"
+            raise ValueError(f"{percent_outside} of the swath falls outside of "
+                "the area covered by the DEM.  If you enabled tempfiles you "
+                "can find a plot in the scratch directory.  You can disable "
+                "this coverage check by setting dem.require_full_coverage to "
+                "False in the runconfig.groups.processing section.")
+                
 
     rfi_results = defaultdict(list)
 
