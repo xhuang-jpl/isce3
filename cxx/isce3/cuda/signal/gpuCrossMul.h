@@ -9,7 +9,9 @@
 
 #include <thrust/complex.h>
 
-class isce3::cuda::signal::gpuCrossmul {
+namespace isce3::cuda::signal {
+
+class gpuCrossmul {
 
     public:
         gpuCrossmul() {};
@@ -126,3 +128,5 @@ class isce3::cuda::signal::gpuCrossmul {
         // upsampling factor
         size_t _oversampleFactor = 1;
 };
+
+} // namespace isce3::cuda::signal

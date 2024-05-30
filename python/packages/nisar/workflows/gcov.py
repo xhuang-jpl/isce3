@@ -23,6 +23,7 @@ from isce3.atmosphere.tec_product import (tec_lut2d_from_json_srg,
 from nisar.workflows.yaml_argparse import YamlArgparse
 from nisar.workflows.gcov_runconfig import GCOVRunConfig
 from nisar.workflows.h5_prep import set_get_geo_info
+import nisar.workflows.helpers as helpers
 from nisar.products.readers.orbit import load_orbit_from_xml
 from nisar.products.writers.BaseL2WriterSingleInput import (save_dataset,
                                                             get_file_extension)
@@ -282,8 +283,23 @@ def _run(cfg, raster_scratch_dir):
     flag_symmetrize_cross_pol_channels = \
         cfg['processing']['input_subset']['symmetrize_cross_pol_channels']
 
-    output_gcov_terms_kwargs = cfg['output_gcov_terms']
-    output_secondary_layers_kwargs = cfg['output_secondary_layers']
+    # Retrieve file spacing params
+    file_spacing_kwargs = cfg['output']
+    fs_strategy = file_spacing_kwargs["fs_strategy"]
+    fs_page_size = file_spacing_kwargs["fs_page_size"]
+
+    # Initialize h5py open mode to 'write' to allow file spacing strategy to
+    # be set - can only be done in write mode. After file created, open mode
+    # will be changed to 'append' to allow h5py.File to work within the
+    # frequency iteration loop it is nested in.
+    h5_write_mode = 'w'
+
+    output_gcov_terms_kwargs = cfg['output']['output_gcov_terms']
+    output_secondary_layers_kwargs = cfg['output']['output_secondary_layers']
+
+    # Sanity check page size and chunk size
+    helpers.validate_fs_page_size(fs_page_size,
+                                  output_gcov_terms_kwargs["chunk_size"])
 
     # Raster files format (output of GeocodeCov).
     # Cannot use HDF5 because we cannot save multiband HDF5 datasets
@@ -417,10 +433,7 @@ def _run(cfg, raster_scratch_dir):
     proj = isce3.core.make_projection(epsg)
     ellipsoid = proj.ellipsoid
 
-    if flag_fullcovariance:
-        flag_rslc_to_backscatter = False
-    else:
-        flag_rslc_to_backscatter = True
+    flag_rslc_to_backscatter = not flag_fullcovariance
 
     for frequency, input_pol_list in freq_pols.items():
 
@@ -533,7 +546,19 @@ def _run(cfg, raster_scratch_dir):
         if orbit_file is not None:
             external_orbit = load_orbit_from_xml(orbit_file,
                                                  radar_grid.ref_epoch)
-            orbit = crop_external_orbit(external_orbit, orbit)
+
+            # Apply 2 mins of padding before / after sensing period when
+            # cropping the external orbit.
+            # 2 mins of margin is based on the number of IMAGEN TEC samples
+            # required for TEC computation, with few more safety margins for
+            # possible needs in the future.
+            #
+            # `7` in the line below is came from the default value for `npad`
+            # in `crop_external_orbit()`. See:
+            # .../isce3/python/isce3/core/crop_external_orbit.py
+            npad = max(int(120.0 / external_orbit.spacing), 7)
+            orbit = crop_external_orbit(external_orbit, orbit,
+                                        npad=npad)
 
         # get azimuth ionospheric delay LUTs (if applicable)
         center_freq = \
@@ -733,9 +758,16 @@ def _run(cfg, raster_scratch_dir):
             # out_off_diag_terms_obj.close_dataset()
             del out_off_diag_terms_obj
 
-        # save Rasters' content into the output HDF5 file using temporary
-        # filenames created with NamedTemporaryFile
-        with h5py.File(output_hdf5, 'a') as hdf5_obj:
+        # non-None file spacing strategy can only be used in 'w', 'w-', or 'x'
+        # mode. i.e. can not be used with an existing file. Otherwise ValueError
+        # will be raised by h5py.
+        if os.path.exists(output_hdf5):
+            h5_write_mode = 'a'
+            fs_strategy = None
+
+        with h5py.File(output_hdf5, h5_write_mode,
+                       fs_strategy=fs_strategy,
+                       fs_page_size=fs_page_size) as hdf5_obj:
             root_ds = f'/science/LSAR/GCOV/grids/frequency{frequency}'
 
             h5_ds = os.path.join(root_ds, 'listOfPolarizations')

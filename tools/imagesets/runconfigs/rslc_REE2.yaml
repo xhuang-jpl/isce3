@@ -17,7 +17,7 @@ runconfig:
 
             # Refined orbit, optional.
             # Defaults to orbit within L0B product.
-            orbit: input_L0B_RRSD_REE2/NISAR_ANC_L_PR_FOE_20230929T121335_20230701T000150_20230701T000230.xml
+            orbit: input_L0B_RRSD_REE2/NISAR_ANC_L_PR_FOE_20240528T172233_20230701T000140_20230701T000240.xml
 
             # Refined pointing, optional.
             # Defaults to attitude within L0B product.
@@ -266,26 +266,9 @@ runconfig:
         # program and which qa option(s) to enable. By default the qa SAS is not run.
         qa:
             workflows:
-                # Flag to run `validate` workflow to validate the
-                # input file against its product spec.
-                # Default: True
                 validate: True
-
-                # Flag to run `qa_reports` workflow to generate a
-                # PDF report, geolocated browse image, compute statistics
-                # on the input file, etc..
-                # Default: True
                 qa_reports: True
-
-                # Flag to run Absolute Radiometric Calibration calibration tool.
-                # Default: True
                 absolute_radiometric_calibration: True
-
-                # Flag to run Noise Estimator Tool calibration tool.
-                # Default: True
-                noise_estimation: True
-
-                # Flag to run Point Target Analyzer calibration tool.
-                # Default: True
+                nes0: True
                 point_target_analyzer: True
 
