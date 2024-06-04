@@ -14,6 +14,7 @@ import journal
 import numpy as np
 
 import isce3
+from isce3.core import crop_external_orbit
 from isce3.core.types import complex32, read_complex_dataset
 from nisar.products.readers import SLC
 from nisar.workflows.h5_prep import add_radar_grid_cubes_to_hdf5
@@ -22,6 +23,7 @@ from isce3.atmosphere.tec_product import (tec_lut2d_from_json_srg,
 from nisar.workflows.yaml_argparse import YamlArgparse
 from nisar.workflows.gcov_runconfig import GCOVRunConfig
 from nisar.workflows.h5_prep import set_get_geo_info
+import nisar.workflows.helpers as helpers
 from nisar.products.readers.orbit import load_orbit_from_xml
 from nisar.products.writers.BaseL2WriterSingleInput import (save_dataset,
                                                             get_file_extension)
@@ -69,7 +71,7 @@ def prepare_rslc(in_file, freq, pol, out_file, lines_per_block,
     '''
     Copy RSLC dataset to GDAL format converting RSLC real and
     imaginary parts from float16 to float32. If the flag
-    flag_rslc_to_backscatter is enabled, the 
+    flag_rslc_to_backscatter is enabled, the
     RSLC complex values are converted to radar backscatter (square of
     the RSLC magnitude): out = abs(RSLC)**2
 
@@ -161,7 +163,8 @@ def prepare_rslc(in_file, freq, pol, out_file, lines_per_block,
     return isce3.io.Raster(out_file)
 
 
-def read_and_validate_rtc_anf_flags(geocode_dict, flag_apply_rtc):
+def read_and_validate_rtc_anf_flags(geocode_dict, flag_apply_rtc,
+                                    output_terrain_radiometry):
     '''
     Read and validate radiometric terrain correction (RTC) area
     normalization factor (ANF) flags
@@ -181,7 +184,7 @@ def read_and_validate_rtc_anf_flags(geocode_dict, flag_apply_rtc):
         Flag indicating whether the radiometric terrain correction (RTC)
         area normalization factor (ANF) layer should be created.
         This RTC ANF layer provides the conversion factor from
-        from gamma0 backscatter normalization convention 
+        from gamma0 backscatter normalization convention
         to input backscatter normalization convention
         (e.g., beta0 or sigma0-ellipsoid)
     save_rtc_anf_gamma0_to_sigma0: bool
@@ -190,12 +193,25 @@ def read_and_validate_rtc_anf_flags(geocode_dict, flag_apply_rtc):
         created
     '''
 
-    error_channel = journal.error(
-        "gcov.read_and_validate_rtc_anf_flags")
+    info_channel = journal.info("gcov.read_and_validate_rtc_anf_flags")
+    error_channel = journal.error("gcov.read_and_validate_rtc_anf_flags")
 
     save_rtc_anf = geocode_dict['save_rtc_anf']
     save_rtc_anf_gamma0_to_sigma0 = \
         geocode_dict['save_rtc_anf_gamma0_to_sigma0']
+
+    # Verify `flag save_rtc_anf_gamma0_to_sigma0`. The flag defaults to `True`,
+    # if `flag_apply_rtc` is enabled and RTC output_type is set to "gamma0", or
+    # `False`, otherwise.
+    if save_rtc_anf_gamma0_to_sigma0 is None:
+
+        save_rtc_anf_gamma0_to_sigma0 = \
+            (flag_apply_rtc and
+             output_terrain_radiometry ==
+             isce3.geometry.RtcOutputTerrainRadiometry.GAMMA_NAUGHT)
+
+        info_channel.log('flag `save_rtc_anf_gamma0_to_sigma0` not set. '
+                         f'Setting it to: {save_rtc_anf_gamma0_to_sigma0}')
 
     if not flag_apply_rtc and save_rtc_anf:
         error_msg = (
@@ -267,8 +283,23 @@ def _run(cfg, raster_scratch_dir):
     flag_symmetrize_cross_pol_channels = \
         cfg['processing']['input_subset']['symmetrize_cross_pol_channels']
 
-    output_gcov_terms_kwargs = cfg['output_gcov_terms']
-    output_secondary_layers_kwargs = cfg['output_secondary_layers']
+    # Retrieve file spacing params
+    file_spacing_kwargs = cfg['output']
+    fs_strategy = file_spacing_kwargs["fs_strategy"]
+    fs_page_size = file_spacing_kwargs["fs_page_size"]
+
+    # Initialize h5py open mode to 'write' to allow file spacing strategy to
+    # be set - can only be done in write mode. After file created, open mode
+    # will be changed to 'append' to allow h5py.File to work within the
+    # frequency iteration loop it is nested in.
+    h5_write_mode = 'w'
+
+    output_gcov_terms_kwargs = cfg['output']['output_gcov_terms']
+    output_secondary_layers_kwargs = cfg['output']['output_secondary_layers']
+
+    # Sanity check page size and chunk size
+    helpers.validate_fs_page_size(fs_page_size,
+                                  output_gcov_terms_kwargs["chunk_size"])
 
     # Raster files format (output of GeocodeCov).
     # Cannot use HDF5 because we cannot save multiband HDF5 datasets
@@ -345,7 +376,9 @@ def _run(cfg, raster_scratch_dir):
     flag_upsample_radar_grid = geocode_dict['upsample_radargrid']
     save_nlooks = geocode_dict['save_nlooks']
     save_rtc_anf, save_rtc_anf_gamma0_to_sigma0 = \
-        read_and_validate_rtc_anf_flags(geocode_dict, flag_apply_rtc)
+        read_and_validate_rtc_anf_flags(geocode_dict, flag_apply_rtc,
+                                        output_terrain_radiometry)
+    save_mask = geocode_dict['save_mask']
     save_dem = geocode_dict['save_dem']
     min_block_size_mb = cfg["processing"]["geocode"]['min_block_size']
     max_block_size_mb = cfg["processing"]["geocode"]['max_block_size']
@@ -400,10 +433,7 @@ def _run(cfg, raster_scratch_dir):
     proj = isce3.core.make_projection(epsg)
     ellipsoid = proj.ellipsoid
 
-    if flag_fullcovariance:
-        flag_rslc_to_backscatter = False
-    else:
-        flag_rslc_to_backscatter = True
+    flag_rslc_to_backscatter = not flag_fullcovariance
 
     for frequency, input_pol_list in freq_pols.items():
 
@@ -414,7 +444,7 @@ def _run(cfg, raster_scratch_dir):
         t_freq = time.time()
 
         # get sub_swaths metadata
-        if apply_valid_samples_sub_swath_masking:
+        if apply_valid_samples_sub_swath_masking or save_mask:
             sub_swaths = slc.getSwathMetadata(frequency).sub_swaths()
         else:
             sub_swaths = None
@@ -512,10 +542,23 @@ def _run(cfg, raster_scratch_dir):
 
         # if provided, load an external orbit from the runconfig file;
         # othewise, load the orbit from the RSLC metadata
+        orbit = slc.getOrbit()
         if orbit_file is not None:
-            orbit = load_orbit_from_xml(orbit_file, radar_grid.ref_epoch)
-        else:
-            orbit = slc.getOrbit()
+            external_orbit = load_orbit_from_xml(orbit_file,
+                                                 radar_grid.ref_epoch)
+
+            # Apply 2 mins of padding before / after sensing period when
+            # cropping the external orbit.
+            # 2 mins of margin is based on the number of IMAGEN TEC samples
+            # required for TEC computation, with few more safety margins for
+            # possible needs in the future.
+            #
+            # `7` in the line below is came from the default value for `npad`
+            # in `crop_external_orbit()`. See:
+            # .../isce3/python/isce3/core/crop_external_orbit.py
+            npad = max(int(120.0 / external_orbit.spacing), 7)
+            orbit = crop_external_orbit(external_orbit, orbit,
+                                        npad=npad)
 
         # get azimuth ionospheric delay LUTs (if applicable)
         center_freq = \
@@ -548,7 +591,8 @@ def _run(cfg, raster_scratch_dir):
                     geogrid.spacing_x, geogrid.spacing_y,
                     geogrid.width, geogrid.length, geogrid.epsg)
 
-        # create output raster
+        # create a NamedTemporaryFile and an ISCE3 Raster object to
+        # temporarily hold the output imagery
         temp_output = tempfile.NamedTemporaryFile(
             dir=raster_scratch_dir, suffix=gcov_terms_file_extension)
 
@@ -558,6 +602,8 @@ def _run(cfg, raster_scratch_dir):
             input_raster_obj.num_bands,
             gdal.GDT_Float32, output_gcov_terms_raster_files_format)
 
+        # create a NamedTemporaryFile and an ISCE3 Raster object to
+        # temporarily hold the off-diagonal terms (if applicable)
         nbands_off_diag_terms = 0
         out_off_diag_terms_obj = None
         if flag_fullcovariance:
@@ -573,6 +619,8 @@ def _run(cfg, raster_scratch_dir):
                     nbands_off_diag_terms,
                     gdal.GDT_CFloat32, output_gcov_terms_raster_files_format)
 
+        # create a NamedTemporaryFile and an ISCE3 Raster object to
+        # temporarily hold the number of looks layer
         if save_nlooks:
             temp_nlooks = tempfile.NamedTemporaryFile(
                 dir=raster_scratch_dir,
@@ -585,6 +633,9 @@ def _run(cfg, raster_scratch_dir):
             temp_nlooks = None
             out_geo_nlooks_obj = None
 
+        # create a NamedTemporaryFile and an ISCE3 Raster object to
+        # temporarily hold the radiometric terrain correction (RTC)
+        # area normalization factor (ANF) layer
         if save_rtc_anf:
             temp_rtc_anf = tempfile.NamedTemporaryFile(
                 dir=raster_scratch_dir,
@@ -597,6 +648,9 @@ def _run(cfg, raster_scratch_dir):
             temp_rtc_anf = None
             out_geo_rtc_obj = None
 
+        # create a NamedTemporaryFile and an ISCE3 Raster object to
+        # temporarily hold the layer to convert gamma0 backscatter into
+        # sigma0
         if save_rtc_anf_gamma0_to_sigma0:
             temp_rtc_anf_gamma0_to_sigma0 = tempfile.NamedTemporaryFile(
                 dir=raster_scratch_dir,
@@ -609,6 +663,8 @@ def _run(cfg, raster_scratch_dir):
             temp_rtc_anf_gamma0_to_sigma0 = None
             out_geo_rtc_gamma0_to_sigma0_obj = None
 
+        # create a NamedTemporaryFile and an ISCE3 Raster object to
+        # temporarily hold the interpolated DEM layer
         if save_dem:
             temp_interpolated_dem = tempfile.NamedTemporaryFile(
                 dir=raster_scratch_dir,
@@ -628,6 +684,20 @@ def _run(cfg, raster_scratch_dir):
         else:
             temp_interpolated_dem = None
             out_geo_dem_obj = None
+
+        # create a NamedTemporaryFile and an ISCE3 Raster object to
+        # temporarily hold the mask layer
+        if save_mask:
+            temp_mask_file = tempfile.NamedTemporaryFile(
+                    dir=raster_scratch_dir,
+                    suffix=secondary_layers_file_extension).name
+            out_mask_obj = isce3.io.Raster(
+                temp_mask_file,
+                geogrid.width, geogrid.length, 1,
+                gdal.GDT_Byte, secondary_layer_files_raster_files_format)
+        else:
+            temp_mask_file = None
+            out_mask_obj = None
 
         # geocode rasters
         geo.geocode(radar_grid=radar_grid,
@@ -651,15 +721,20 @@ def _run(cfg, raster_scratch_dir):
                     out_geo_nlooks=out_geo_nlooks_obj,
                     out_geo_rtc=out_geo_rtc_obj,
                     rtc_area_beta_mode=rtc_area_beta_mode_enum,
-                    out_geo_rtc_gamma0_to_sigma0=out_geo_rtc_gamma0_to_sigma0_obj,
+                    out_geo_rtc_gamma0_to_sigma0=
+                        out_geo_rtc_gamma0_to_sigma0_obj,
                     out_geo_dem=out_geo_dem_obj,
+                    out_mask=out_mask_obj,
                     input_rtc=None,
                     output_rtc=None,
                     sub_swaths=sub_swaths,
+                    apply_valid_samples_sub_swath_masking=
+                        apply_valid_samples_sub_swath_masking,
                     dem_interp_method=dem_interp_method_enum,
                     memory_mode=memory_mode,
                     **optional_geo_kwargs)
 
+        # delete Raster objects so their associated data is flushed to the disk
         del input_raster_obj
         del output_raster_obj
 
@@ -672,6 +747,10 @@ def _run(cfg, raster_scratch_dir):
         if save_rtc_anf_gamma0_to_sigma0:
             del out_geo_rtc_gamma0_to_sigma0_obj
 
+        if save_mask:
+            out_mask_obj.close_dataset()
+            del out_mask_obj
+
         if save_dem:
             del out_geo_dem_obj
 
@@ -679,7 +758,16 @@ def _run(cfg, raster_scratch_dir):
             # out_off_diag_terms_obj.close_dataset()
             del out_off_diag_terms_obj
 
-        with h5py.File(output_hdf5, 'a') as hdf5_obj:
+        # non-None file spacing strategy can only be used in 'w', 'w-', or 'x'
+        # mode. i.e. can not be used with an existing file. Otherwise ValueError
+        # will be raised by h5py.
+        if os.path.exists(output_hdf5):
+            h5_write_mode = 'a'
+            fs_strategy = None
+
+        with h5py.File(output_hdf5, h5_write_mode,
+                       fs_strategy=fs_strategy,
+                       fs_page_size=fs_page_size) as hdf5_obj:
             root_ds = f'/science/LSAR/GCOV/grids/frequency{frequency}'
 
             h5_ds = os.path.join(root_ds, 'listOfPolarizations')
@@ -722,6 +810,16 @@ def _run(cfg, raster_scratch_dir):
                              units='1',
                              valid_min=0,
                              **output_secondary_layers_kwargs)
+
+            # save mask
+            if save_mask:
+                save_dataset(temp_mask_file,
+                             hdf5_obj, root_ds,
+                             yds, xds,
+                             'mask',
+                             long_name=('Mask'),
+                             units='',
+                             valid_min=0)
 
             # save rtc
             if save_rtc_anf:
@@ -815,12 +913,36 @@ def _run(cfg, raster_scratch_dir):
             The native-Doppler LUT bounds error is turned off to
             computer cubes values outside radar-grid boundaries
             '''
+
             native_doppler.bounds_error = False
-            add_radar_grid_cubes_to_hdf5(hdf5_obj, cube_group_name,
-                                         cube_geogrid,
-                                         radar_grid_cubes_heights,
-                                         radar_grid, orbit, native_doppler,
-                                         zero_doppler, threshold, maxiter)
+            # Get a 3D chunk size for metadata cubes from:
+            # - One height layer (H = 1)
+            # - The secondary layers chunk size (A X B):
+            # chunk_size = [H, A, B] = [1, A, B]
+            chunk_size_height_layers = [1]
+            radar_grid_cubes_chunk_size = (
+                chunk_size_height_layers +
+                output_secondary_layers_kwargs['chunk_size'])
+            radar_grid_cubes_compression_enabled = \
+                output_secondary_layers_kwargs['compression_enabled']
+            radar_grid_cubes_compression_type = \
+                output_secondary_layers_kwargs['compression_type']
+            radar_grid_cubes_compression_level = \
+                output_secondary_layers_kwargs['compression_level']
+            radar_grid_cubes_shuffle_filter = \
+                output_secondary_layers_kwargs['shuffle_filtering_enabled']
+
+            add_radar_grid_cubes_to_hdf5(
+                hdf5_obj, cube_group_name,
+                cube_geogrid,
+                radar_grid_cubes_heights,
+                radar_grid, orbit, native_doppler,
+                zero_doppler, threshold, maxiter,
+                chunk_size=radar_grid_cubes_chunk_size,
+                compression_enabled=radar_grid_cubes_compression_enabled,
+                compression_type=radar_grid_cubes_compression_type,
+                compression_level=radar_grid_cubes_compression_level,
+                shuffle_filter=radar_grid_cubes_shuffle_filter)
 
     return output_files_list
 

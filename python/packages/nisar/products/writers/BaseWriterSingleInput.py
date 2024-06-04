@@ -253,16 +253,16 @@ def check_h5_dtype_vs_xml_spec(xml_metadata_entry, h5_dataset_obj,
     elif (hdf5_dtype_is_numeric and not hdf5_dtype_is_complex and
             hdf5_dtype.itemsize != int(xml_width)/8):
         warning_channel.log(f'The metadata field {full_h5_ds_path}'
-                            f' has data type "{hdf5_dtype}" but the width of'
-                            ' the corresponding XML entry is set to'
+                            f' has data type "{hdf5_dtype}" whereas the width'
+                            ' of the corresponding XML entry is set to'
                             f' "{xml_width}"')
 
     # verify the width of complex values
     elif (hdf5_dtype_is_numeric and hdf5_dtype_is_complex and
             hdf5_dtype.itemsize != 2 * int(xml_width)/8):
         warning_channel.log(f'The metadata field {full_h5_ds_path}'
-                            f' has data type "{hdf5_dtype}" but the width of'
-                            ' the corresponding XML entry is set to'
+                            f' has data type "{hdf5_dtype}" whereas the width'
+                            ' of the corresponding XML entry is set to'
                             f' "{xml_width}"')
 
     if verbose:
@@ -389,7 +389,7 @@ def write_xml_description_to_hdf5(xml_metadata_entry, h5_dataset_obj):
         if (not existing_h5_description and
                 'description' in h5_dataset_obj.attrs.keys()):
             existing_h5_description = h5_dataset_obj.attrs[
-                'description'].tostring().decode()
+                'description'].tobytes().decode()
 
         # update the metadata field description from XML description
         xml_description = annotation_et.text
@@ -556,7 +556,7 @@ class BaseWriterSingleInput():
 
         self.set_value(
             'identification/productSpecificationVersion',
-            '1.1.0')
+            '1.1.2')
 
         self.copy_from_input(
             'identification/lookDirection',
@@ -606,6 +606,12 @@ class BaseWriterSingleInput():
 
         self.copy_from_input('identification/isDithered', default=False)
         self.copy_from_input('identification/isMixedMode', default=False)
+
+        # Copy CRID from runconfig (defaults to "A10000")
+        self.copy_from_runconfig(
+            'identification/compositeReleaseId',
+            'primary_executable/composite_release_id',
+            default="A10000")
 
     def set_value(self, h5_field, data, default=None, format_function=None):
         """
@@ -810,6 +816,8 @@ class BaseWriterSingleInput():
         # update product root attributes
         annotation_et = specs.find('./product/science/annotation')
         for key, value in annotation_et.items():
+            if key == 'app':
+                continue
             self.output_hdf5_obj.attrs[key] = np.string_(value)
 
         # iterate over all XML specs parameters

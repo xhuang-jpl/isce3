@@ -2,6 +2,7 @@ import numpy as np
 from nisar.workflows.helpers import get_cfg_freq_pols
 
 from .dataset_params import DatasetParams, add_dataset_and_attrs
+from .InSAR_HDF5_optimizer_config import get_InSAR_output_options
 from .InSAR_L1_writer import L1InSARWriter
 from .InSAR_products_info import InSARProductsInfo
 from .product_paths import RUNWGroupsPaths
@@ -17,7 +18,12 @@ class RUNWWriter(L1InSARWriter):
         Constructor for RUNW class with additional range and azimuth
         looks variables for the phase unwrapping
         """
+        hdf5_opt_config, kwds = get_InSAR_output_options(kwds, 'RUNW')
+
         super().__init__(**kwds)
+
+        # HDF5 IO optimizer configuration
+        self.hdf5_optimizer_config = hdf5_opt_config
 
         # group paths are RUNW group paths
         self.group_paths = RUNWGroupsPaths()
@@ -69,7 +75,7 @@ class RUNWWriter(L1InSARWriter):
         ds_params = [
             DatasetParams(
                 "highBandBandwidth",
-                np.float64(high_bandwidth),
+                np.float32(high_bandwidth),
                 "Slant range bandwidth of the high sub-band image",
                 {
                     "units": Units.hertz,
@@ -77,7 +83,7 @@ class RUNWWriter(L1InSARWriter):
             ),
             DatasetParams(
                 "lowBandBandwidth",
-                np.float64(low_bandwidth),
+                np.float32(low_bandwidth),
                 "Slant range bandwidth of the low sub-band image",
                 {
                     "units": Units.hertz,
@@ -172,7 +178,7 @@ class RUNWWriter(L1InSARWriter):
             ),
             DatasetParams(
                 "unwrappingErrorCorrection",
-                np.bool_(unwrap_correction),
+                np.string_(unwrap_correction),
                 "Algorithm correcting unwrapping errors in sub-band"
                 " unwrapped interferograms"
                 ,
@@ -327,9 +333,9 @@ class RUNWWriter(L1InSARWriter):
                 igram_ds_params = [
                     (
                         "connectedComponents",
-                        np.uint32,
+                        np.uint16,
                         f"Connected components for {pol} layer",
-                        Units.dn,
+                        Units.unitless,
                     ),
                     (
                         "ionospherePhaseScreen",
@@ -361,10 +367,6 @@ class RUNWWriter(L1InSARWriter):
                         ds_dtype,
                         ds_description,
                         units=ds_unit,
-                        compression_enabled=self.cfg['output']['compression_enabled'],
-                        compression_level=self.cfg['output']['compression_level'],
-                        chunk_size=self.cfg['output']['chunk_size'],
-                        shuffle_filter=self.cfg['output']['shuffle']
                     )
 
     def add_swaths_to_hdf5(self):

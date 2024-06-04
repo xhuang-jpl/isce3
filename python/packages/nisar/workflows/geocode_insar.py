@@ -8,15 +8,16 @@ import pathlib
 import time
 from enum import Enum
 
-import h5py
 import isce3
 import journal
 import numpy as np
-from nisar.products.insar.product_paths import (CommonPaths, GOFFGroupsPaths,
+from isce3.core import crop_external_orbit
+from nisar.products.insar.product_paths import (GOFFGroupsPaths,
                                                 GUNWGroupsPaths,
                                                 RIFGGroupsPaths,
                                                 ROFFGroupsPaths,
                                                 RUNWGroupsPaths)
+from isce3.io import HDF5OptimizedReader
 from nisar.products.readers import SLC
 from nisar.products.readers.orbit import load_orbit_from_xml
 from nisar.workflows import prepare_insar_hdf5
@@ -222,7 +223,7 @@ def get_offset_radar_grid(cfg, radar_grid_slc):
     if off_width is None:
         width_margin = 2 * margin + 2 * rg_search + rg_window
         off_width = (radar_grid_slc.width - width_margin) // \
-                    offset_cfg['skip_azimuth']
+                    offset_cfg['skip_range']
     # Determine the starting range and sensing start for the offset radar grid
     if rg_start is None:
         rg_start = margin + rg_search
@@ -522,7 +523,7 @@ def get_raster_lists(all_geocoded_dataset_flags,
         error_channel = journal.error('geocode_insar.get_raster_lists')
         err_str = 'Not all output lists have the same length'
         error_channel.log(err_str)
-        raise RunTimeError(err_str)
+        raise RuntimeError(err_str)
 
     return (geocoded_rasters, geocoded_datasets, input_rasters, interp_methods,
             invalid_values)
@@ -633,12 +634,12 @@ def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
     geocode_cplx_obj = isce3.geocode.GeocodeCFloat32()
 
     # init geocode members
+    orbit = slc.getOrbit()
     if ref_orbit is not None:
         # SLC will get first radar grid whose frequency is available.
         # Reference epoch and orbit have no frequency dependency.
-        orbit = load_orbit_from_xml(ref_orbit, slc.getRadarGrid().ref_epoch)
-    else:
-        orbit = slc.getOrbit()
+        external_orbit = load_orbit_from_xml(ref_orbit, slc.getRadarGrid().ref_epoch)
+        orbit = crop_external_orbit(external_orbit, orbit)
 
     geocode_obj.orbit = orbit
     geocode_obj.ellipsoid = ellipsoid
@@ -655,7 +656,7 @@ def cpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
     geocode_cplx_obj.data_interpolator = interp_method
 
     t_all = time.time()
-    with h5py.File(output_hdf5, "a") as dst_h5:
+    with HDF5OptimizedReader(name=output_hdf5, mode="a") as dst_h5:
         for freq, pol_list, offset_pol_list in get_cfg_freq_pols(cfg):
             # Get azimuth and slant range corrections
             az_correction, srg_correction = \
@@ -1050,14 +1051,15 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
     dem_raster = isce3.io.Raster(dem_file)
 
     # init geocode members
+    orbit = slc.getOrbit()
     if ref_orbit is not None:
         # SLC will get first radar grid whose frequency is available.
         # Reference epoch and orbit have no frequency dependency.
-        orbit = load_orbit_from_xml(ref_orbit, slc.getRadarGrid().ref_epoch)
-    else:
-        orbit = slc.getOrbit()
+        external_orbit = load_orbit_from_xml(ref_orbit, slc.getRadarGrid().ref_epoch)
+        orbit = crop_external_orbit(external_orbit, orbit)
 
-    with h5py.File(output_hdf5, "a", libver='latest', swmr=True) as dst_h5:
+
+    with HDF5OptimizedReader(name=output_hdf5, mode="a", libver='latest') as dst_h5:
 
         # Based on runconfig iterate over frequencies and their polarizations
         for freq, pol_list, offset_pol_list in get_cfg_freq_pols(cfg):
@@ -1088,9 +1090,9 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                 # Invalid values for respective datasets named above
                 # connected_components raster has type unsigned char and an invalid
                 # value of NaN becomes 0 which conflicts with 0 being used to indicate
-                # an unmasked value/pixel. 255 is chosen as it is the most distant
-                # value from components assigned in ascending order [0, 1, ...)
-                invalid_values = [np.nan, np.nan, 255]
+                # an unmasked value/pixel. 65535 is chosen as the max mappable connected
+                # component
+                invalid_values = [np.nan, np.nan, 65535]
 
                 # Create radar grid geometry used by most datasets
                 rdr_geometry = isce3.container.RadarGeometry(radar_grid, orbit,
