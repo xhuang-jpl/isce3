@@ -223,7 +223,7 @@ def get_offset_radar_grid(cfg, radar_grid_slc):
     if off_width is None:
         width_margin = 2 * margin + 2 * rg_search + rg_window
         off_width = (radar_grid_slc.width - width_margin) // \
-                    offset_cfg['skip_azimuth']
+                    offset_cfg['skip_range']
     # Determine the starting range and sensing start for the offset radar grid
     if rg_start is None:
         rg_start = margin + rg_search
@@ -523,7 +523,7 @@ def get_raster_lists(all_geocoded_dataset_flags,
         error_channel = journal.error('geocode_insar.get_raster_lists')
         err_str = 'Not all output lists have the same length'
         error_channel.log(err_str)
-        raise RunTimeError(err_str)
+        raise RuntimeError(err_str)
 
     return (geocoded_rasters, geocoded_datasets, input_rasters, interp_methods,
             invalid_values)
@@ -553,6 +553,7 @@ def cpu_geocode_rasters(cpu_geo_obj, geo_datasets, desired, freq, pol_list,
                 max_block_size=block_size,
                 az_time_correction=az_correction,
                 slant_range_correction=srg_correction,
+                apply_valid_samples_sub_swath_masking=False,
                 sub_swaths=subswaths)
 
         if compute_stats:
@@ -1059,7 +1060,7 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
         orbit = crop_external_orbit(external_orbit, orbit)
 
 
-    with HDF5OptimizedReader(name=output_hdf5, mode="a", libver='latest', swmr=True) as dst_h5:
+    with HDF5OptimizedReader(name=output_hdf5, mode="a", libver='latest') as dst_h5:
 
         # Based on runconfig iterate over frequencies and their polarizations
         for freq, pol_list, offset_pol_list in get_cfg_freq_pols(cfg):

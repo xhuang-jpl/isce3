@@ -184,7 +184,7 @@ runconfig:
             radar_grid_cubes:
 
                 # List of heights in meters
-                heights:
+                heights: [-500, 0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000]
 
                 # OPTIONAL - Same as the geocode group output_epsg if not provided
                 output_epsg:
@@ -321,8 +321,11 @@ runconfig:
             coarse_resample:
                 # Path to coarse offsets directory (geo2rdr offsets)
                 offsets_dir:
-                # Number of lines per tile to resample in batch
+                # Number of lines and columns per tile to resample in batch.
+                # If columns_per_tile is 0, the tiles will span across all columns of
+                # the raster.
                 lines_per_tile: 100
+                columns_per_tile: 0
 
             dense_offsets:
                 # Flag to enable/disable dense offsets estimation
@@ -507,8 +510,11 @@ runconfig:
                 enabled: True
                 # Path to fine offsets (rubbersheet dense offsets)
                 offsets_dir:
-                # Number of lines per tile to resample in batch
+                # Number of lines and columns per tile to resample in batch.
+                # If columns_per_tile is 0, the tiles will span across all columns of
+                # the raster.
                 lines_per_tile: 100
+                columns_per_tile: 0
 
             crossmul:
                 # Number of range looks to generate wrapped interferogram in RIFG
@@ -752,9 +758,6 @@ runconfig:
             correction_luts:
                 # Boolean flag to activate/deactivate model-based solid earth tide corrections
                 solid_earth_tides_enabled: False
-
-                # Boolean flag to activate/deactivate model-based TEC corrections
-                tec_enabled: False
 
             # Set of options to enable compression, choose compression level,
             # chunk size and shuffle filter
