@@ -1,11 +1,15 @@
 import os
 from datetime import datetime
 from itertools import product
-from typing import Any, Optional, List
+from typing import Any, Optional, Union
 
 import h5py
 import numpy as np
+from isce3.core import crop_external_orbit
 from isce3.core.types import complex32, to_complex32
+from isce3.io import HDF5OptimizedReader, optimize_chunk_size
+from isce3.product import GeoGridParameters, RadarGridParameters
+from nisar.products import descriptions
 from nisar.products.readers import SLC
 from nisar.products.readers.orbit import load_orbit_from_xml
 from nisar.workflows.h5_prep import get_off_params
@@ -13,6 +17,7 @@ from nisar.workflows.helpers import get_cfg_freq_pols
 
 from .dataset_params import DatasetParams, add_dataset_and_attrs
 from .granule_id import get_insar_granule_id
+from .InSAR_HDF5_optimizer_config import HDF5OutputOptimizedConfig
 from .InSAR_products_info import ISCE3_VERSION, InSARProductsInfo
 from .product_paths import CommonPaths
 from .units import Units
@@ -30,6 +35,8 @@ class InSARBaseWriter(h5py.File):
         Runconfig dictionary
     runconfig_path : str
         Path of the runconfig file
+    hdf5_optimizer_config : HDF5OutputOptimizedConfig
+        HDF5 Optimizer configuration object
     ref_h5_slc_file : str
         Path of the reference RSLC
     sec_h5_slc_file : str
@@ -72,7 +79,28 @@ class InSARBaseWriter(h5py.File):
         runconfig_path : str
             Path of the runconfig file
         """
-        super().__init__(**kwds)
+
+        # Deepcopy the kwds to avoid the in-place
+        # change of the kwds, we use loop here instead of copy.deepcopy()
+        # is because the the copy.deepcopy()
+        # cannot pickle 'isce3.ext.isce3.product.GeoGridParameters' object
+        new_kwds = {}
+        for key, val in kwds.items():
+            new_kwds[key] = val
+
+        hdf5_opt_config = HDF5OutputOptimizedConfig.make_base(runconfig_dict)
+        if hdf5_opt_config.page_enabled:
+            base_hdf5_config_dict = {'fs_strategy':'page',
+                                    'fs_page_size':hdf5_opt_config.page_size,
+                                    'fs_persist':True}
+            for key, val in base_hdf5_config_dict.items():
+                if key not in new_kwds:
+                    new_kwds[key] = val
+
+        super().__init__(**new_kwds)
+
+        # HDF5 IO optimizer configuration
+        self.hdf5_optimizer_config = hdf5_opt_config
 
         self.cfg = runconfig_dict
         self.runconfig_path = runconfig_path
@@ -113,24 +141,27 @@ class InSARBaseWriter(h5py.File):
         self.ref_orbit_epoch = ref_radargrid.ref_epoch
         self.sec_orbit_epoch = sec_radargrid.ref_epoch
 
+        self.ref_orbit = self.ref_rslc.getOrbit()
+        self.sec_orbit = self.sec_rslc.getOrbit()
+
         self.ref_h5py_file_obj = \
-            h5py.File(self.ref_h5_slc_file, "r", libver="latest", swmr=True)
+            HDF5OptimizedReader(name=self.ref_h5_slc_file, mode="r", libver="latest", swmr=True)
 
         self.sec_h5py_file_obj = \
-            h5py.File(self.sec_h5_slc_file, "r", libver="latest", swmr=True)
+            HDF5OptimizedReader(name=self.sec_h5_slc_file, mode="r", libver="latest", swmr=True)
 
-        # Create the orbit object and set their reference epochs
+        # Load the external orbits and crop them
         if self.external_ref_orbit_path is not None:
-            self.ref_orbit = load_orbit_from_xml(self.external_ref_orbit_path,
-                                                 self.ref_orbit_epoch)
-        else:
-            self.ref_orbit = self.ref_rslc.getOrbit()
+            ref_external_orbit = load_orbit_from_xml(self.external_ref_orbit_path,
+                                                     self.ref_orbit_epoch)
+            self.ref_orbit = crop_external_orbit(ref_external_orbit,
+                                                 self.ref_orbit)
 
         if self.external_sec_orbit_path is not None:
-            self.sec_orbit = load_orbit_from_xml(self.external_sec_orbit_path,
-                                                 self.sec_orbit_epoch)
-        else:
-            self.sec_orbit = self.sec_rslc.getOrbit()
+            sec_external_orbit = load_orbit_from_xml(self.external_sec_orbit_path,
+                                                     self.sec_orbit_epoch)
+            self.sec_orbit = crop_external_orbit(sec_external_orbit,
+                                                 self.sec_orbit)
 
     def add_root_attrs(self):
         """
@@ -173,6 +204,75 @@ class InSARBaseWriter(h5py.File):
 
         add_dataset_and_attrs(algo_group, software_version)
 
+    def add_baseline_info_to_cubes(self,
+                                   cube_group: h5py.Group,
+                                   grid: Union[RadarGridParameters,GeoGridParameters],
+                                   is_geogrid: bool):
+        """
+        Add the perpendicular and parallel baseline dataset to either the radarGrid or
+        geolocationGrid cubes groups
+
+        Parameters
+        ----------
+        cube_group : h5py.Group,
+            The h5py group object
+        grid : object
+            radarGridParameters or geogrid object
+        is_geogrid : bool
+            Flag to indicate if the grid object is geogrid
+        """
+
+        # Pull the heights from the radar_grid_cubes group
+        # in the runconfig
+        radar_grid_cfg = self.cfg["processing"]["radar_grid_cubes"]
+        heights = np.array(radar_grid_cfg["heights"])
+
+        # Fetch the baseline information
+        baseline_cfg = self.cfg["processing"]['baseline']
+        baseline_mode = baseline_cfg['mode']
+
+        # The shape of the baseline
+        baseline_ds_shape = [len(heights),
+                             grid.length,
+                             grid.width]
+        if baseline_mode == 'top_bottom':
+            baseline_ds_shape[0] = 2
+
+        # Add the baseline dataset to the cube
+        for baseline_name in ['parallel', 'perpendicular']:
+            if self.hdf5_optimizer_config.chunk_size is not None:
+                ds_chunk_size = optimize_chunk_size((
+                    1, self.hdf5_optimizer_config.chunk_size[0],
+                    self.hdf5_optimizer_config.chunk_size[1]), baseline_ds_shape)
+                ds = \
+                    cube_group.require_dataset(
+                        name= f"{baseline_name}Baseline",
+                        shape=baseline_ds_shape,
+                        dtype=np.float32,
+                        chunks = ds_chunk_size,
+                        )
+            else:
+                ds = \
+                    cube_group.require_dataset(
+                        name= f"{baseline_name}Baseline",
+                        shape=baseline_ds_shape,
+                        dtype=np.float32,
+                        )
+
+            ds.attrs['_FillValue'] = np.nan
+            ds.attrs['description'] = np.string_(f"{baseline_name.capitalize()}"
+                                                 " component of the InSAR baseline")
+            ds.attrs['units'] = Units.meter
+            ds.attrs['long_name'] = np.string_(f"{baseline_name.capitalize()} baseline")
+
+            # The radarGrid group to attach the x, y, and z coordinates
+            if is_geogrid:
+                ds.attrs['grid_mapping'] = np.string_('projection')
+                ds.dims[1].attach_scale(cube_group['yCoordinates'])
+                ds.dims[2].attach_scale(cube_group['xCoordinates'])
+                if baseline_mode == '3D_full':
+                    ds.dims[0].attach_scale(cube_group['heightAboveEllipsoid'])
+
     def add_common_to_procinfo_params_group(self):
         """
         Add the common group to the "processingInformation/parameters" group
@@ -199,7 +299,7 @@ class InSARBaseWriter(h5py.File):
             # Should those also be updated in the crossmul module?
             doppler_centroid_group.copy("dopplerCentroid", common_group)
             common_group["dopplerCentroid"].attrs['description'] = \
-                np.string_("Common Doppler Centroid used for processing interferogram")
+                np.string_("Common Doppler centroid used for processing interferogram")
             common_group["dopplerCentroid"].attrs['units'] = \
                 Units.hertz
 
@@ -224,9 +324,14 @@ class InSARBaseWriter(h5py.File):
         if rslc_name.lower() == "reference":
             rslc_h5py_file_obj = self.ref_h5py_file_obj
             rslc = self.ref_rslc
+            rslc_file = self.ref_h5_slc_file
         else:
             rslc_h5py_file_obj = self.sec_h5py_file_obj
             rslc = self.sec_rslc
+            rslc_file = self.sec_h5_slc_file
+
+        # Extract relevant identification from reference and secondary RSLC
+        id_group = rslc_h5py_file_obj[rslc.IdentificationPath]
 
         rfi_mit_path = (
             f"{rslc.ProcessingInformationPath}/algorithms/rfiMitigation"
@@ -287,7 +392,10 @@ class InSARBaseWriter(h5py.File):
         for ds_param in ds_params:
             add_dataset_and_attrs(dst_param_group, ds_param)
 
+        swath_group = rslc_h5py_file_obj[rslc.SwathPath]
+
         for freq, *_ in get_cfg_freq_pols(self.cfg):
+            rslc_radar_grid = rslc.getRadarGrid(freq)
             rslc_group_frequency_name = \
                 f"{self.group_paths.ParametersPath}/{rslc_name}/frequency{freq}"
             rslc_frequency_group = self.require_group(rslc_group_frequency_name)
@@ -299,6 +407,7 @@ class InSARBaseWriter(h5py.File):
                                        rslc_frequency_group)
             rslc_frequency_group['slantRangeSpacing'].attrs['description'] = \
                  f"Slant range spacing of {rslc_name} RSLC"
+            rslc_frequency_group['slantRangeSpacing'].attrs['units'] = Units.meter
 
             # TODO: the rangeBandwidth and azimuthBandwidth are placeholders heres,
             # and copied from the bandpassed RSLC data.
@@ -327,6 +436,38 @@ class InSARBaseWriter(h5py.File):
                np.string_(
                    f"Time interval in the along-track direction for {rslc_name} RSLC raster layers"
                )
+            rslc_frequency_group['zeroDopplerTimeSpacing'].attrs['units'] = Units.second
+
+            # Copy the zero-Dopper information from the source RSLC to the RSLC group
+            id_group.copy('zeroDopplerStartTime', rslc_frequency_group)
+
+            # Update the description attributes of the zeroDopplerTime
+            ds_zerodopp = rslc_frequency_group[f"zeroDopplerStartTime"]
+            ds_zerodopp.attrs['description'] = \
+                np.string_(f"Azimuth start time of the {rslc_name} RSLC product")
+
+            rg_names_to_be_created = [
+                DatasetParams(
+                    "slantRangeStart",
+                    rslc_radar_grid.starting_range,
+                    f"Slant range start distance for the {rslc_name} RSLC",
+                    {'units' : Units.meter},
+                ),
+                DatasetParams(
+                    "numberOfAzimuthLines",
+                    np.uint64(rslc_radar_grid.length),
+                    f"Number of azimuth lines within the {rslc_name} RSLC",
+                    {'units' : Units.unitless},
+                ),
+                DatasetParams(
+                    "numberOfRangeSamples",
+                    np.uint64(rslc_radar_grid.width),
+                    f"Number of slant range samples for each azimuth line within the {rslc_name} RSLC",
+                    {'units' : Units.unitless},
+                ),
+            ]
+            for ds_param in rg_names_to_be_created:
+                add_dataset_and_attrs(rslc_frequency_group, ds_param)
 
             doppler_centroid_group = rslc_h5py_file_obj[
                 f"{rslc.ProcessingInformationPath}/parameters/frequency{freq}"
@@ -691,50 +832,72 @@ class InSARBaseWriter(h5py.File):
         """
         Write metadata datasets and attributes common to all InSAR products to HDF5
         """
-        # Can copy entirety of attitude
+        groups = ['reference', 'secondary']
         ref_metadata_group = self.ref_h5py_file_obj[self.ref_rslc.MetadataPath]
-        dst_metadata_group = self.require_group(self.group_paths.MetadataPath)
-        ref_metadata_group.copy("attitude", dst_metadata_group)
+        sec_metadata_group = self.sec_h5py_file_obj[self.sec_rslc.MetadataPath]
 
-        # Attitude time
-        attitude_time = dst_metadata_group["attitude"]["time"]
-        attitude_time_units = attitude_time.attrs['units']
-        attitude_time_units = extract_datetime_from_string(str(attitude_time_units),
-                                                           'seconds since ')
-        if attitude_time_units is not None:
-            attitude_time.attrs['units'] = np.string_(attitude_time_units)
+        for group, h5py_file_obj, orbit_to_save in zip(['reference', 'secondary'],
+                                                       [self.ref_h5py_file_obj,
+                                                        self.sec_h5py_file_obj],
+                                                       [self.ref_orbit,
+                                                        self.sec_orbit]):
+            # Create metadata group, copy over attitude group, and open newly create attitude group
+            metadata_group = h5py_file_obj[self.ref_rslc.MetadataPath]
+            dst_meta_data_group = self.require_group(self.group_paths.MetadataPath)
+            dst_attitude_group = self.require_group(
+                f'{self.group_paths.MetadataPath}/attitude/{group}')
+            src_attitude_group = h5py_file_obj[f'{self.ref_rslc.MetadataPath}/attitude']
+            for name, data in src_attitude_group.items():
+                src_attitude_group.copy(data, dst_attitude_group, name=name)
+            for attr_name, attr_value in src_attitude_group.attrs.items():
+                dst_attitude_group.attrs[attr_name] = attr_value  # Copy attribute
 
-        dst_metadata_group["attitude"]["quaternions"].attrs["units"] = \
-            Units.unitless
-        dst_metadata_group["attitude"]["quaternions"].attrs["eulerAngles"] = \
-            Units.radian
-        dst_metadata_group["attitude"]["quaternions"].attrs["angularVelocity"] = \
-            np.string_("radians / second")
+            # Modify description of attribute type
+            dst_attitude_group['attitudeType'].attrs['description'] = \
+                np.string_('Attitude type, either "FRP", "NRP", "PRP, or '
+                           '"Custom", where "FRP" stands for Forecast Radar Pointing, '
+                           '"NRP" is Near Real-time Pointing, and "PRP" is Precise Radar Pointing')
 
-        # Orbit population based in inputs
-        if self.external_ref_orbit_path is None:
-            ref_metadata_group.copy("orbit", dst_metadata_group)
-        else:
-            # populate orbit group with contents of external orbit file
-            orbit_group = dst_metadata_group.require_group("orbit")
-            self.ref_orbit.save_to_h5(orbit_group)
+            # Attitude time
+            attitude_time = dst_attitude_group['time']
+            attitude_time_units = attitude_time.attrs['units']
+            attitude_time_units = extract_datetime_from_string(str(attitude_time_units),
+                                                               'seconds since ')
 
-        # Orbit time
-        orbit_time = dst_metadata_group["orbit"]["time"]
-        orbit_time.attrs['description'] = \
-            np.string_("Time vector record. This record contains"
-                       " the time corresponding to position and"
-                       " velocity records"
-                       )
+            if attitude_time_units is not None:
+                attitude_time.attrs['units'] = np.string_(attitude_time_units)
 
-        orbit_time_units = orbit_time.attrs['units']
-        orbit_time_units = extract_datetime_from_string(str(orbit_time_units),
-                                                        'seconds since ')
-        if orbit_time_units is not None:
-            orbit_time.attrs['units'] = np.string_(orbit_time_units)
-        # Orbit velocity
-        dst_metadata_group["orbit"]["velocity"].attrs["units"] = \
-            np.string_("meters / second")
+            dst_attitude_group["quaternions"].attrs["units"] = \
+                Units.unitless
+            dst_attitude_group["quaternions"].attrs["eulerAngles"] = \
+                Units.radian
+            dst_attitude_group["quaternions"].attrs["angularVelocity"] = \
+                Units.rad_per_second
+
+            dst_orbit_group = self.require_group(f'{self.group_paths.MetadataPath}/orbit/{group}')
+            orbit_to_save.save_to_h5(dst_orbit_group)
+
+            # Orbit time
+            orbit_time = dst_orbit_group["time"]
+            orbit_time.attrs['description'] = np.string_(
+                "Time vector record. This record contains the time corresponding to position and velocity records")
+            orbit_time_units = orbit_time.attrs['units']
+            orbit_time_units = extract_datetime_from_string(str(orbit_time_units), 'seconds since ')
+            if orbit_time_units is not None:
+                orbit_time.attrs['units'] = np.string_(orbit_time_units)
+
+            # Orbit velocity
+            dst_orbit_group["velocity"].attrs["units"] = Units.meter_per_second
+
+            # Update orbitType description
+            dst_orbit_group['orbitType'].attrs['description'] = np.string_(
+                'Orbit product type, either "FOE", "NOE", "MOE", "POE", or "Custom", where "FOE" stands for '
+                'Forecast Orbit Ephemeris, "NOE" is Near real-time Orbit Ephemeris, "MOE" is Medium precision '
+                'Orbit Ephemeris, and "POE" is Precise Orbit Ephemeris')
+            # Add description of the orbit interpolation file
+            dst_orbit_group['interpMethod'].attrs['description'] = np.string_(
+                'Orbit interpolation method, either "Hermite" or "Legendre"'
+            )
 
     def add_identification_to_hdf5(self):
         """
@@ -747,6 +910,7 @@ class InSARBaseWriter(h5py.File):
         processing_type = primary_exec_cfg.get("processing_type")
         partial_granule_id = primary_exec_cfg.get("partial_granule_id")
         product_version = primary_exec_cfg.get("product_version")
+        crid = primary_exec_cfg.get("composite_release_id")
 
         # Determine processingType
         if processing_type == 'PR':
@@ -760,6 +924,10 @@ class InSARBaseWriter(h5py.File):
         # if it is None, 'JPL' will be applied
         if processing_center is None:
             processing_center = "JPL"
+
+        # If the CRID identifier is None, assign a dummy crid "A10000"
+        if crid is None:
+            crid = "A10000"
 
         # Extract relevant identification from reference and secondary RSLC
         ref_id_group = self.ref_h5py_file_obj[self.ref_rslc.IdentificationPath]
@@ -780,10 +948,7 @@ class InSARBaseWriter(h5py.File):
             DatasetParams(
                 "boundingPolygon",
                 "None",
-                (
-                    "OGR compatible WKT representation of bounding polygon of"
-                    " the image"
-                ),
+                descriptions.bounding_polygon,
                 {
                     "ogr_geometry": "polygon",
                     "epsg": "4326",
@@ -824,7 +989,7 @@ class InSARBaseWriter(h5py.File):
             DatasetParams(
                 "lookDirection",
                 "None",
-                "Look direction can be left or right",
+                'Look direction, either "Left" or "Right"',
             ),
             DatasetParams(
                 "missionId",
@@ -834,7 +999,7 @@ class InSARBaseWriter(h5py.File):
             DatasetParams(
                 "orbitPassDirection",
                 "None",
-                "Orbit direction can be ascending or descending",
+                'Orbit direction, either "Ascending" or "Descending"',
             ),
             DatasetParams(
                 "plannedDatatakeId",
@@ -849,7 +1014,7 @@ class InSARBaseWriter(h5py.File):
             DatasetParams(
                 "isUrgentObservation",
                 "None",
-                "Boolean indicating if observation is nominal or urgent",
+                'Flag indicating if observation is nominal ("False") or urgent ("True")',
             ),
         ]
 
@@ -859,7 +1024,7 @@ class InSARBaseWriter(h5py.File):
                 ds_name.value = slc_val
             add_dataset_and_attrs(dst_id_group, ds_name)
 
-        # Copy the zero-Dopper information from both reference and secondary RSLC
+        # Copy the zero-Doppler information from both reference and secondary RSLC
         for ds_name in ["zeroDopplerStartTime", "zeroDopplerEndTime"]:
             ref_id_group.copy(ds_name, dst_id_group,
                               f"referenceZ{ds_name[1:]}")
@@ -868,7 +1033,7 @@ class InSARBaseWriter(h5py.File):
                               f"secondaryZ{ds_name[1:]}")
 
         # Update the description attributes of the zeroDoppler
-        for prod in list(product(['reference','secondary'],
+        for prod in list(product(['reference', 'secondary'],
                                  ['Start', 'End'])):
             rslc_name, start_or_stop = prod
             ds = dst_id_group[f"{rslc_name}ZeroDoppler{start_or_stop}Time"]
@@ -896,6 +1061,11 @@ class InSARBaseWriter(h5py.File):
                 self.product_info.ProductVersion
 
         id_ds_names_to_be_created = [
+            DatasetParams(
+                "compositeReleaseId",
+                np.string_(crid),
+                "Unique version identifier of the science data production system",
+            ),
             DatasetParams(
                 "granuleId",
                 granule_id,
@@ -931,7 +1101,8 @@ class InSARBaseWriter(h5py.File):
                 "Nominal (or) Urgent (or) Custom (or) Undefined",
             ),
             DatasetParams(
-                "radarBand", radar_band_name, "Acquired frequency band"
+                "radarBand", radar_band_name,
+                'Acquired frequency band, either "L" or "S"'
             ),
             DatasetParams(
                 "productLevel",
@@ -973,70 +1144,6 @@ class InSARBaseWriter(h5py.File):
         for ds_param in id_ds_names_to_be_created:
             add_dataset_and_attrs(dst_id_group, ds_param)
 
-    def _pull_pixel_offsets_params(self):
-        """
-        Pull the pixel offsets parameters from the runconfig dictionary
-
-        Returns
-        ----------
-        is_roff : boolean
-            Offset product or not
-        margin : int
-            Margin
-        rg_start : int
-            Start range
-        az_start : int
-            Start azimuth
-        rg_skip : int
-            Pixels skiped across range
-        az_skip : int
-            Pixels skiped across the azimth
-        rg_search : int
-            Window size across range
-        az_search : int
-            Window size across azimuth
-        rg_chip : int
-            Fine window size across range
-        az_chip : int
-            Fine window size across azimuth
-        ovs_factor : int
-            Oversampling factor
-        """
-        proc_cfg = self.cfg["processing"]
-
-        # pull the offset parameters
-        is_roff = proc_cfg["offsets_product"]["enabled"]
-        (margin, rg_gross, az_gross,
-         rg_start, az_start,
-         rg_skip, az_skip, ovs_factor) = \
-             [get_off_params(proc_cfg, param, is_roff)
-              for param in ["margin", "gross_offset_range",
-                            "gross_offset_azimuth",
-                            "start_pixel_range","start_pixel_azimuth",
-                            "skip_range", "skip_azimuth",
-                            "correlation_surface_oversampling_factor"]]
-
-        rg_search, az_search, rg_chip, az_chip = \
-            [get_off_params(proc_cfg, param, is_roff,
-                            pattern="layer",
-                            get_min=True,) for param in \
-                                ["half_search_range",
-                                 "half_search_azimuth",
-                                 "window_range",
-                                 "window_azimuth"]]
-        # Adjust margin
-        margin = max(margin, np.abs(rg_gross), np.abs(az_gross))
-
-        # Compute slant range/azimuth vectors of offset grids
-        if rg_start is None:
-            rg_start = margin + rg_search
-        if az_start is None:
-            az_start = margin + az_search
-
-        return (is_roff,  margin, rg_start, az_start,
-                rg_skip, az_skip, rg_search, az_search,
-                rg_chip, az_chip, ovs_factor)
-
     def _get_band_name(self):
         """
         Get the band name ('L', 'S'), Raises exception if neither is found.
@@ -1051,16 +1158,16 @@ class InSARBaseWriter(h5py.File):
         freq_group = self.ref_h5py_file_obj[swath_frequency_path]
 
         # Center frequency in GHz
-        center_freqency = freq_group["processedCenterFrequency"][()] / 1e9
+        center_frequency = freq_group["processedCenterFrequency"][()] / 1e9
 
         # L band if the center frequency is between 1GHz and 2 GHz
         # S band if the center frequency is between 2GHz and 4 GHz
         # both bands are defined by the IEEE with the reference:
         # https://en.wikipedia.org/wiki/L_band
         # https://en.wikipedia.org/wiki/S_band
-        if (center_freqency >= 1.0) and (center_freqency <= 2.0):
+        if (center_frequency >= 1.0) and (center_frequency <= 2.0):
             return "L"
-        elif (center_freqency > 2.0) and (center_freqency <= 4.0):
+        elif (center_frequency > 2.0) and (center_frequency <= 4.0):
             return "S"
         else:
             raise ValueError("Unknown frequency encountered. Not L or S band")
@@ -1129,11 +1236,6 @@ class InSARBaseWriter(h5py.File):
         yds: Optional[h5py.Dataset] = None,
         xds: Optional[h5py.Dataset] = None,
         fill_value: Optional[Any] = None,
-        compression_enabled: Optional[bool] = True,
-        compression_type: Optional[str] = 'gzip',
-        compression_level: Optional[int] = 5,
-        chunk_size: Optional[List] = [128, 128],
-        shuffle_filter: Optional[bool] = True
     ):
         """
         Create an empty 2D dataset under the h5py.Group
@@ -1164,41 +1266,31 @@ class InSARBaseWriter(h5py.File):
             X coordinates
         fill_value : Any, optional
             No data value of the dataset
-        compression_enabled: bool
-            Flag to enable/disable data compression
-        compression_type: str
-            Data compression algorithm
-        compression_level: int
-            Level of data compression (1: low compression, 9: high compression)
-        chunk_size: [int, int]
-            Chunk size along rows and columns
-        shuffle_filter: bool
-            Flag to enable/disable shuffle filter
         """
-        # Use the minimum size between the predefined chunk size and dataset shape
-        # to ensure the dataset is chunked if the compression is enabled.
-        ds_chunk_size = tuple(map(min, zip(chunk_size, shape)))
 
         # Include options for compression
         create_dataset_kwargs = {}
-        if compression_enabled:
-            if compression_type is not None:
-                create_dataset_kwargs['compression'] = compression_type
-            if compression_level is not None:
-                create_dataset_kwargs['compression_opts'] = compression_level
-
+        if self.hdf5_optimizer_config.compression_enabled:
+            if self.hdf5_optimizer_config.compression_type is not None:
+                create_dataset_kwargs['compression'] = \
+                    self.hdf5_optimizer_config.compression_type
+            if self.hdf5_optimizer_config.compression_level is not None:
+                create_dataset_kwargs['compression_opts'] = \
+                    self.hdf5_optimizer_config.compression_level
             # Add shuffle filter options
-            create_dataset_kwargs['shuffle'] = shuffle_filter
+            create_dataset_kwargs['shuffle'] = \
+                self.hdf5_optimizer_config.shuffle_filter
 
-        if compression_enabled:
-            ds = h5_group.require_dataset(
-                name, dtype=dtype, shape=shape,
-                chunks=ds_chunk_size, **create_dataset_kwargs
-            )
-        else:
-            # create dataset without chunks
-            ds = h5_group.require_dataset(name, dtype=dtype, shape=shape,
-                                          **create_dataset_kwargs)
+        # If the chunking is enabled
+        if self.hdf5_optimizer_config.chunk_size is not None:
+            # Get the optimum chunk size and chunk cache size
+            opt_chunk_size = \
+                optimize_chunk_size(self.hdf5_optimizer_config.chunk_size, shape)
+            create_dataset_kwargs['chunks'] = opt_chunk_size
+
+        ds = h5_group.require_dataset(
+            name, dtype=dtype, shape=shape,
+            **create_dataset_kwargs)
 
         # set attributes
         ds.attrs["description"] = np.string_(description)
@@ -1226,8 +1318,10 @@ class InSARBaseWriter(h5py.File):
         # create fill value if not specified
         elif np.issubdtype(dtype, np.floating):
             ds.attrs["_FillValue"] = np.nan
-        elif np.issubdtype(dtype, np.integer):
-            ds.attrs["_FillValue"] = 255
+        elif np.issubdtype(dtype, np.unsignedinteger):
+            ds.attrs["_FillValue"] = np.iinfo(dtype).max
+        elif np.issubdtype(dtype, np.signedinteger):
+            ds.attrs["_FillValue"] = np.iinfo(dtype).min
         elif np.issubdtype(dtype, np.complexfloating):
             ds.attrs["_FillValue"] = np.complex64(np.nan + 1j * np.nan)
         elif dtype == complex32:

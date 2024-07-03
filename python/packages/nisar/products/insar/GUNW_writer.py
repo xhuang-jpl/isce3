@@ -1,9 +1,11 @@
 import h5py
 import numpy as np
+from isce3.io import optimize_chunk_size
 from nisar.workflows.h5_prep import set_get_geo_info
 from nisar.workflows.helpers import get_cfg_freq_pols
 
 from .InSAR_base_writer import InSARBaseWriter
+from .InSAR_HDF5_optimizer_config import get_InSAR_output_options
 from .InSAR_L2_writer import L2InSARWriter
 from .InSAR_products_info import InSARProductsInfo
 from .product_paths import GUNWGroupsPaths
@@ -21,7 +23,12 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
         """
         Constructor for GUNW writer class
         """
+        hdf5_opt_config, kwds = get_InSAR_output_options(kwds, 'GUNW')
+
         super().__init__(**kwds)
+
+        # HDF5 IO optimizer configuration
+        self.hdf5_optimizer_config = hdf5_opt_config
 
         # group paths are GUNW group paths
         self.group_paths = GUNWGroupsPaths()
@@ -57,26 +64,73 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
 
         ## Add the radar grid cubes of solid eath tide phase for along-track and along-slant range.
         proc_cfg = self.cfg["processing"]
+        tropo_cfg = proc_cfg['troposphere_delay']
         radar_grid_cubes_geogrid = proc_cfg["radar_grid_cubes"]["geogrid"]
         radar_grid_cubes_heights = proc_cfg["radar_grid_cubes"]["heights"]
 
         radar_grid = self[self.group_paths.RadarGridPath]
         descrs = ["Solid Earth tides phase along slant range direction",
                   'Solid Earth tides phase in along-track direction']
-        product_names = ['slantRangeSolidEarthTidesPhase',
-                         'alongTrackSolidEarthTidesPhase']
+        product_names = ['slantRangeSolidEarthTidesPhase']
+
+        # Add the troposphere datasets to the radarGrid cube
+        if tropo_cfg['enabled']:
+            for delay_type in ['wet', 'hydrostatic', 'comb']:
+                if tropo_cfg[f'enable_{delay_type}_product']:
+                    descrs.append(f"{delay_type.capitalize()} component "
+                                  "of the troposphere phase screen")
+                    if delay_type == 'comb':
+                        product_names.append(f'combinedTroposphericPhaseScreen')
+                    else:
+                        product_names.append(f'{delay_type}TroposphericPhaseScreen')
 
         cube_shape = [len(radar_grid_cubes_heights),
                       radar_grid_cubes_geogrid.length,
                       radar_grid_cubes_geogrid.width]
 
+        # Retrieve the x, y, and z coordinates from the radargrid cube
+        # Since the radargrid cube has been added, it is safe to
+        # access those coordinates here.
+        xds = radar_grid['xCoordinates']
+        yds = radar_grid['yCoordinates']
+        zds = radar_grid['heightAboveEllipsoid']
+
+        # Include options for compression for dataset creation
+        create_dataset_kwargs = {}
+        if self.hdf5_optimizer_config.compression_enabled:
+            if self.hdf5_optimizer_config.compression_type is not None:
+                create_dataset_kwargs['compression'] = \
+                    self.hdf5_optimizer_config.compression_type
+            if self.hdf5_optimizer_config.compression_level is not None:
+                create_dataset_kwargs['compression_opts'] = \
+                    self.hdf5_optimizer_config.compression_level
+            # Add shuffle filter options
+            create_dataset_kwargs['shuffle'] = \
+                self.hdf5_optimizer_config.shuffle_filter
+
         for product_name, descr in zip(product_names,descrs):
             if product_name not in radar_grid:
+                if self.hdf5_optimizer_config.chunk_size is not None:
+                    ds_chunk_size = \
+                        optimize_chunk_size(
+                            (1,
+                            self.hdf5_optimizer_config.chunk_size[0],
+                            self.hdf5_optimizer_config.chunk_size[1]),
+                            cube_shape)
+                    create_dataset_kwargs['chunks'] = ds_chunk_size
+
                 ds = radar_grid.require_dataset(name=product_name,
-                                                shape=cube_shape,
-                                                dtype=np.float64)
+                            shape=cube_shape,
+                            dtype=np.float64,
+                            **create_dataset_kwargs)
+
+                ds.attrs['_FillValue'] = np.nan
                 ds.attrs['description'] = np.string_(descr)
-                ds.attrs['units'] = np.string_("radians")
+                ds.attrs['units'] = Units.radian
+                ds.attrs['grid_mapping'] = np.string_('projection')
+                ds.dims[0].attach_scale(zds)
+                ds.dims[1].attach_scale(yds)
+                ds.dims[2].attach_scale(xds)
 
     def add_algorithms_to_procinfo_group(self):
         """
@@ -201,10 +255,6 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                     grids_val,
                     xds=xds,
                     yds=yds,
-                    compression_enabled=self.cfg['output']['compression_enabled'],
-                    compression_level=self.cfg['output']['compression_level'],
-                    chunk_size=self.cfg['output']['chunk_size'],
-                    shuffle_filter=self.cfg['output']['shuffle']
                 )
 
             for pol in pol_list:
@@ -223,9 +273,9 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                     ("coherenceMagnitude", np.float32,
                      f"Coherence magnitude between {pol} layers",
                      Units.unitless),
-                    ("connectedComponents", np.uint32,
-                     f"Connected components for {pol} layers",
-                     Units.dn),
+                    ("connectedComponents", np.uint16,
+                     f"Connected components for {pol} layer",
+                     Units.unitless),
                     ("ionospherePhaseScreen", np.float32,
                      "Ionosphere phase screen",
                      Units.radian),
@@ -250,10 +300,6 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                         grids_val,
                         xds=xds,
                         yds=yds,
-                        compression_enabled=self.cfg['output']['compression_enabled'],
-                        compression_level=self.cfg['output']['compression_level'],
-                        chunk_size=self.cfg['output']['chunk_size'],
-                        shuffle_filter=self.cfg['output']['shuffle']
                     )
 
                 wrapped_pol_name = f"{wrapped_group_name}/{pol}"
@@ -289,10 +335,6 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                         grids_val,
                         xds=xds,
                         yds=yds,
-                        compression_enabled=self.cfg['output']['compression_enabled'],
-                        compression_level=self.cfg['output']['compression_level'],
-                        chunk_size=self.cfg['output']['chunk_size'],
-                        shuffle_filter=self.cfg['output']['shuffle']
                     )
 
                 pixeloffsets_pol_name = f"{pixeloffsets_group_name}/{pol}"
@@ -310,7 +352,7 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                 # order: dataset name,data type, description, and units
                 pixel_offsets_ds_params = [
                     ("alongTrackOffset", np.float32,
-                     "Along track offset",
+                     "Along-track offset",
                      Units.meter),
                     ("correlationSurfacePeak", np.float32,
                      "Normalized cross-correlation surface peak",
@@ -333,8 +375,4 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                         grids_val,
                         xds=xds,
                         yds=yds,
-                        compression_enabled=self.cfg['output']['compression_enabled'],
-                        compression_level=self.cfg['output']['compression_level'],
-                        chunk_size=self.cfg['output']['chunk_size'],
-                        shuffle_filter=self.cfg['output']['shuffle']
                     )

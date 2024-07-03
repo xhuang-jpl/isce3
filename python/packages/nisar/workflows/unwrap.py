@@ -7,11 +7,12 @@ Wrapper for phase unwrapping
 import pathlib
 import time
 
-import h5py
 import isce3
+from isce3.core import crop_external_orbit
 import isce3.unwrap.snaphu as snaphu
 import journal
 import numpy as np
+from isce3.io import HDF5OptimizedReader
 from isce3.unwrap.preprocess import preprocess_wrapped_igram as preprocess
 from isce3.unwrap.preprocess import project_map_to_radar
 from nisar.products.readers import SLC
@@ -69,8 +70,8 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
     # Start to track time
     t_all = time.time()
 
-    with h5py.File(output_hdf5, "a", libver="latest", swmr=True) as dst_h5,\
-        h5py.File(crossmul_path, "r", libver="latest", swmr=True) as src_h5:
+    with HDF5OptimizedReader(name=output_hdf5, mode="a", libver="latest", swmr=True) as dst_h5,\
+        HDF5OptimizedReader(name=crossmul_path, mode="r", libver="latest", swmr=True) as src_h5:
         for freq, pol_list, offset_pol_list in get_cfg_freq_pols(cfg):
             src_freq_group_path = f"{rifg_obj.SwathsPath}/frequency{freq}"
             src_freq_bandwidth_group_path = (f"{rifg_obj.ProcessingInformationPath}/parameters"
@@ -275,7 +276,7 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
                         rg_spac = \
                             src_h5[f"{src_freq_group_path}/interferogram/slantRangeSpacing"][()]
                         az_spac = \
-                            src_h5[f"{src_freq_group_path}/""sceneCenterAlongTrackSpacing"][()]
+                            src_h5[f"{src_freq_group_path}/interferogram/sceneCenterAlongTrackSpacing"][()]
                         rg_bw = \
                             src_h5[f"{src_freq_bandwidth_group_path}/rangeBandwidth"][()]
                         # Note, this is the single-look range resolution
@@ -287,10 +288,10 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
                         radar_grid = ref_slc.getRadarGrid(freq)
 
                         # Get reference orbit
+                        orbit = ref_slc.getOrbit()
                         if ref_orbit is not None:
-                            orbit = load_orbit_from_xml(ref_orbit, radar_grid.ref_epoch)
-                        else:
-                            orbit = ref_slc.getOrbit()
+                            external_orbit = load_orbit_from_xml(ref_orbit, radar_grid.ref_epoch)
+                            orbit = crop_external_orbit(external_orbit, orbit)
 
                         _, v_mid = orbit.interpolate(radar_grid.sensing_mid)
                         vs = np.linalg.norm(v_mid)

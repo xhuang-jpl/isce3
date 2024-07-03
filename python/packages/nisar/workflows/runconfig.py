@@ -208,6 +208,7 @@ class RunConfig:
         check geocode config and initialize as needed
         '''
         geocode_dict = self.cfg['processing']['geocode']
+        error_channel = journal.error('RunConfig.prep_geocode_cfg')
 
         # check for user provided EPSG and grab from DEM if none provided
         if geocode_dict['output_epsg'] is None:
@@ -235,14 +236,15 @@ class RunConfig:
             return
         self.cfg['processing']['geocode']['wrapped_igram_geogrids'] = wrapped_igram_geogrids
 
+
     def prep_geocode_metadata(self, group_name, workflow_name,
                               flag_cube=False):
         '''
-        check metadata groups config (radar_grid_cubes, 
-        calibration_information, or processing_information) and 
+        check metadata groups config (radar_grid_cubes,
+        calibration_information, or processing_information) and
         initialize as needed.
 
-        Metadata groups are optional. If not provided, the geocode 
+        Metadata groups are optional. If not provided, the geocode
         group should be used instead, but with coarser X and Y
         spacing defaults
         '''
@@ -308,16 +310,22 @@ class RunConfig:
         metadata_dict['x_snap'] = metadata_dict['output_posting']['x_posting']
         metadata_dict['y_snap'] = metadata_dict['output_posting']['y_posting']
 
+        # use the first available product geogrid as reference for creating
+        # the metadata cubes geogrid
+        geogrids_ref = self.cfg['processing']['geocode']['geogrids']
+        geogrid_ref = geogrids_ref[list(geogrids_ref.keys())[0]]
+
         # construct geogrid
-        frequency_ref = 'A'
         metadata_geogrid = geogrid.create(
-            self.cfg, 
+            self.cfg,
             workflow_name=workflow_name,
-            frequency_group=None, 
-            frequency=frequency_ref,
+            frequency_group=None,
+            frequency=None,
             geocode_dict=metadata_dict,
             default_spacing_x=default_metadata_geogrid_spacing_x,
-            default_spacing_y=default_metadata_geogrid_spacing_y)
+            default_spacing_y=default_metadata_geogrid_spacing_y,
+            flag_metadata_cubes=flag_cube,
+            geogrid_ref=geogrid_ref)
 
         # place geogrid in cfg for later processing
         self.cfg['processing'][group_name]['geogrid'] = metadata_geogrid
