@@ -78,8 +78,7 @@ def _get_attribute_dict(band,
         attr_dict['min_value'] = stats_obj.min
         attr_dict['mean_value'] = stats_obj.mean
         attr_dict['max_value'] = stats_obj.max
-        attr_dict['sample_standard_deviation'] = \
-            stats_obj.sample_stddev
+        attr_dict['sample_stddev'] = stats_obj.sample_stddev
 
     elif stats_real_imag_obj_list is not None:
 
@@ -87,14 +86,12 @@ def _get_attribute_dict(band,
         attr_dict['min_real_value'] = stats_obj.real.min
         attr_dict['mean_real_value'] = stats_obj.real.mean
         attr_dict['max_real_value'] = stats_obj.real.max
-        attr_dict['sample_standard_deviation_real'] = \
-            stats_obj.real.sample_stddev
+        attr_dict['sample_stddev_real'] = stats_obj.real.sample_stddev
 
         attr_dict['min_imag_value'] = stats_obj.imag.min
         attr_dict['mean_imag_value'] = stats_obj.imag.mean
         attr_dict['max_imag_value'] = stats_obj.imag.max
-        attr_dict['sample_standard_deviation_imag'] = \
-            stats_obj.imag.sample_stddev
+        attr_dict['sample_stddev_imag'] = stats_obj.imag.sample_stddev
 
     if valid_min is not None:
         attr_dict['valid_min'] = valid_min
@@ -166,7 +163,8 @@ def save_dataset(ds_filename, h5py_obj, root_path,
                  fill_value=None,
                  valid_min=None,
                  valid_max=None,
-                 compute_stats=True):
+                 compute_stats=True,
+                 hdf5_data_type=None):
     '''
     Write a temporary multi-band raster file as an output HDF5 file
     or a set of single-band files.
@@ -250,7 +248,9 @@ def save_dataset(ds_filename, h5py_obj, root_path,
         Value to populate the HDF5 dataset attribute "valid_max"
     compute_stats: bool, optional
         Flag that indicates if statistics should be compute for the
-        raster layer. Defaults to True.
+        raster layer. Defaults to True
+    hdf5_data_type: Union[h5py.h5t.TypeCompoundID, numpy.dtype], optional
+        Data type of the output H5 datasets
     '''
 
     raster = isce3.io.Raster(ds_filename)
@@ -280,7 +280,8 @@ def save_dataset(ds_filename, h5py_obj, root_path,
                           fill_value=fill_value,
                           valid_min=valid_min,
                           valid_max=valid_max,
-                          compute_stats=compute_stats)
+                          compute_stats=compute_stats,
+                          hdf5_data_type=hdf5_data_type)
 
     else:
         save_raster(ds_filename, output_ds_name,
@@ -313,7 +314,8 @@ def save_hdf5_dataset(ds_filename, h5py_obj, root_path,
                       fill_value=None,
                       valid_min=None,
                       valid_max=None,
-                      compute_stats=True):
+                      compute_stats=True,
+                      hdf5_data_type=None):
     '''
     Write a raster files as a set of HDF5 datasets
 
@@ -374,7 +376,9 @@ def save_hdf5_dataset(ds_filename, h5py_obj, root_path,
         Value to populate the HDF5 dataset attribute "valid_max"
     compute_stats: bool, optional
         Flag that indicates if statistics should be compute for the
-        raster layer. Defaults to True.
+        raster layer. Defaults to True
+    hdf5_data_type: Union[h5py.h5t.TypeCompoundID, numpy.dtype], optional
+        Data type of the output H5 datasets
     '''
 
     gdal_ds = gdal.Open(ds_filename, gdal.GA_ReadOnly)
@@ -445,9 +449,14 @@ def save_hdf5_dataset(ds_filename, h5py_obj, root_path,
 
         h5_ds = f'{root_path}/{output_ds_name_band}'
 
+        if hdf5_data_type is not None:
+            band_data_type = hdf5_data_type
+        else:
+            band_data_type = data.dtype
+
         dset = h5py_obj.require_dataset(h5_ds, data=data,
                                         shape=data.shape,
-                                        dtype=data.dtype,
+                                        dtype=band_data_type,
                                         **create_dataset_kwargs)
 
         dset.dims[0].attach_scale(yds)
@@ -861,6 +870,27 @@ class BaseL2WriterSingleInput(BaseWriterSingleInput):
             'parameters/runConfigurationContents',
             '{PRODUCT}/metadata/processingInformation/parameters/'
             'runConfigurationContents',
+            skip_if_not_present=True)
+
+        self.copy_from_input(
+            '{PRODUCT}/metadata/sourceData/processingInformation/'
+            'parameters/referenceTerrainHeight',
+            '{PRODUCT}/metadata/processingInformation/parameters/'
+            'referenceTerrainHeight',
+            skip_if_not_present=True)
+
+        self.copy_from_input(
+            '{PRODUCT}/metadata/sourceData/processingInformation/'
+            'parameters/zeroDopplerTime',
+            '{PRODUCT}/metadata/processingInformation/parameters/'
+            'zeroDopplerTime',
+            skip_if_not_present=True)
+
+        self.copy_from_input(
+            '{PRODUCT}/metadata/sourceData/processingInformation/'
+            'parameters/slantRange',
+            '{PRODUCT}/metadata/processingInformation/parameters/'
+            'slantRange',
             skip_if_not_present=True)
 
         self.copy_from_input(

@@ -30,7 +30,7 @@ from nisar.products.writers.BaseL2WriterSingleInput import (save_dataset,
 from nisar.products.writers import GcovWriter
 
 
-def read_rslc_backscatter(ds: h5py.Dataset, key=np.s_[...]):
+def read_rslc_backscatter(ds: h5py.Dataset, key, flag_rslc_is_complex32):
     """
     Read a complex HDF5 dataset and return the square of its magnitude
 
@@ -43,17 +43,18 @@ def read_rslc_backscatter(ds: h5py.Dataset, key=np.s_[...]):
         Path to RSLC HDF5 dataset
     key: numpy.s_
         Numpy slice to subset input dataset
+    flag_rslc_is_complex32: bool
+        Flag indicating whether the RSLC should be read as CFloat16. Otherwise, the
+        RSLC data will be read as CFloat32.
 
     Returns
     -------
     numpy.ndarray(numpy.float32)
         RSLC backscatter as a numpy.ndarray(numpy.float32)
     """
-    try:
+    if not flag_rslc_is_complex32:
         backscatter = np.absolute(ds[key][:]) ** 2
         return backscatter
-    except TypeError:
-        pass
 
     # This context manager handles h5py exception:
     # TypeError: data type '<c4' not understood
@@ -105,17 +106,63 @@ def prepare_rslc(in_file, freq, pol, out_file, lines_per_block,
     isce3.io.Raster
         output raster object
     '''
+    info_channel = journal.info("prepare_rslc")
 
     # open RSLC HDF5 file dataset
     rslc = SLC(hdf5file=in_file)
+    flag_rslc_is_complex32 = rslc.is_dataset_complex32(freq, pol)
+    flag_symmetrize = pol_2 is not None
+
+    pol_dataset_path = rslc.slcPath(freq, pol)
+    info_channel.log(f'preparing dataset: {pol_dataset_path}')
+    info_channel.log('    channel is complex32 (2 x 16bits):'
+                     f' {flag_rslc_is_complex32}')
+    info_channel.log('    requires polarimetric symmetrization:'
+                     f' {flag_symmetrize}')
+
+    pol_ref = f'HDF5:{in_file}:/{pol_dataset_path}'
+
+    # If there's no need for pre-processing, return Raster of `pol_ref`
+    if (not flag_rslc_is_complex32 and not flag_rslc_to_backscatter and
+            not flag_symmetrize):
+        return isce3.io.Raster(pol_ref)
+
+    # If RSLC is already CFloat32 and the polarimetric symmetrization needs
+    # to be applied coherently (i.e., using complex values), use ISCE3 C++
+    # symmetrization for faster processing
+    if (not flag_rslc_is_complex32 and not flag_rslc_to_backscatter and
+            flag_symmetrize):
+        info_channel.log('    symmetrizing cross-polarimetric channels'
+                         ' coherently')
+        pol_2_ref = f'HDF5:{in_file}:/{rslc.slcPath(freq, pol_2)}'
+
+        hv_raster_obj = isce3.io.Raster(pol_ref)
+        vh_raster_obj = isce3.io.Raster(pol_2_ref)
+
+        # create output symmetrized HV object
+        symmetrized_hv_obj = isce3.io.Raster(
+            out_file,
+            hv_raster_obj.width,
+            hv_raster_obj.length,
+            hv_raster_obj.num_bands,
+            hv_raster_obj.datatype(),
+            'GTiff')
+
+        isce3.polsar.symmetrize_cross_pol_channels(
+            hv_raster_obj,
+            vh_raster_obj,
+            symmetrized_hv_obj)
+
+        return symmetrized_hv_obj
+
     hdf5_ds = rslc.getSlcDataset(freq, pol)
 
     # if provided, open RSLC HDF5 file dataset 2
-    if pol_2:
+    if flag_symmetrize:
         hdf5_ds_2 = rslc.getSlcDataset(freq, pol_2)
 
     # get RSLC dimension through GDAL
-    gdal_ds = gdal.Open(f'HDF5:{in_file}:/{rslc.slcPath(freq, pol)}')
+    gdal_ds = gdal.Open(pol_ref)
     rslc_length, rslc_width = gdal_ds.RasterYSize, gdal_ds.RasterXSize
 
     if flag_rslc_to_backscatter:
@@ -141,16 +188,18 @@ def prepare_rslc(in_file, freq, pol, out_file, lines_per_block,
         # read a block of data from the RSLC
         if flag_rslc_to_backscatter:
             data_block = read_rslc_backscatter(
-                hdf5_ds, np.s_[line_start:line_start + block_length, :])
+                hdf5_ds, np.s_[line_start:line_start + block_length, :],
+                flag_rslc_is_complex32)
         else:
             data_block = read_complex_dataset(
                 hdf5_ds, np.s_[line_start:line_start + block_length, :])
 
-        if pol_2:
+        if flag_symmetrize:
             # compute average with a block of data from the second RSLC
             if flag_rslc_to_backscatter:
                 data_block += read_rslc_backscatter(
-                    hdf5_ds_2, np.s_[line_start:line_start + block_length, :])
+                    hdf5_ds_2, np.s_[line_start:line_start + block_length, :],
+                    flag_rslc_is_complex32)
             else:
                 data_block += read_complex_dataset(
                     hdf5_ds_2, np.s_[line_start:line_start + block_length, :])
@@ -433,7 +482,9 @@ def _run(cfg, raster_scratch_dir):
     proj = isce3.core.make_projection(epsg)
     ellipsoid = proj.ellipsoid
 
-    flag_rslc_to_backscatter = not flag_fullcovariance
+    # the variable `complex_type` will hold the complex data type
+    # to be used for off-diagonal terms (if full covariance GCOV)
+    complex_type = None
 
     for frequency, input_pol_list in freq_pols.items():
 
@@ -468,9 +519,18 @@ def _run(cfg, raster_scratch_dir):
             input_raster_dict[pol] = temp_ref
 
         # symmetrize cross-polarimetric channels (if applicable)
-        if (flag_symmetrize_cross_pol_channels and
-                'HV' in input_pol_list and
-                'VH' in input_pol_list):
+        flag_symmetrization_required = (flag_symmetrize_cross_pol_channels and
+                                        'HV' in input_pol_list and
+                                        'VH' in input_pol_list)
+
+        # Convert complex values to backscatter as a pre-processing step
+        # only if full covariance was not requested and symmetrization was requested.
+        # Note that the `GeocodeCov` module itself performs this conversion if necessary (and
+        # it is faster than doing it as a pre-processing step if symmetrization is not required).
+        flag_rslc_to_backscatter = (not flag_fullcovariance and
+                                    flag_symmetrization_required)
+
+        if flag_symmetrization_required:
 
             # temporary file for the symmetrized HV polarization
             symmetrized_hv_temp = tempfile.NamedTemporaryFile(
@@ -775,7 +835,7 @@ def _run(cfg, raster_scratch_dir):
                 del hdf5_obj[h5_ds]
             pol_list_s2 = np.array(pol_list, dtype='S2')
             dset = hdf5_obj.create_dataset(h5_ds, data=pol_list_s2)
-            dset.attrs['description'] = np.string_(
+            dset.attrs['description'] = np.bytes_(
                 'List of processed polarization layers with frequency ' +
                 frequency)
 
@@ -884,12 +944,23 @@ def _run(cfg, raster_scratch_dir):
                 _save_list_cov_terms(cov_elements_list + off_diag_terms_list,
                                      freq_group)
 
+                # if the complex data type has not been defined yet,
+                # define it. This is required to open the H5 dataset
+                # using the netCDF driver
+                if complex_type is None:
+                    complex_type = h5py.h5t.py_create(np.complex64)
+                    complex_type.commit(hdf5_obj['/'].id,
+                                        np.bytes_('complex64'))
+                else:
+                    complex_type = hdf5_obj['/complex64']
+
                 save_dataset(temp_off_diag.name, hdf5_obj, root_ds,
                              yds, xds, off_diag_terms_list,
                              long_name=output_radiometry_str,
                              units='1',
                              valid_min=clip_min,
                              valid_max=clip_max,
+                             hdf5_data_type=complex_type,
                              **output_gcov_terms_kwargs)
 
             t_freq_elapsed = time.time() - t_freq
@@ -954,7 +1025,7 @@ def _save_list_cov_terms(cov_elements_list, dataset_group):
     cov_elements_array = np.array(cov_elements_list, dtype="S4")
     dset = dataset_group.create_dataset(name, data=cov_elements_array)
     desc = "List of processed covariance terms"
-    dset.attrs["description"] = np.string_(desc)
+    dset.attrs["description"] = np.bytes_(desc)
 
 
 if __name__ == "__main__":
