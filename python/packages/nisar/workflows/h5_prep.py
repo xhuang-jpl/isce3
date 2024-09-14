@@ -7,6 +7,7 @@ import os
 
 import h5py
 import isce3
+from isce3.product.cf_conventions import get_grid_mapping_name
 import journal
 import numpy as np
 from isce3.core.types import complex32, to_complex32
@@ -764,7 +765,7 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None,
     # Create a new single int dataset for projections
     projds = hdf5_obj.require_dataset(projection_ds_name,
                                       shape=(),
-                                      dtype='uint32',
+                                      dtype=np.uint32,
                                       data=epsg_code)
     # Set up osr for wkt
     srs = osr.SpatialReference()
@@ -794,7 +795,7 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None,
     sr = osr.SpatialReference()
     sr.ImportFromEPSG(epsg_code)
 
-    projds.attrs['grid_mapping_name'] = sr.GetName()
+    projds.attrs['grid_mapping_name'] = get_grid_mapping_name(sr)
 
     # Set up units
     # Geodetic latitude / longitude
@@ -814,6 +815,10 @@ def set_get_geo_info(hdf5_obj, root_ds, geo_grid, z_vect=None,
                  epsg_code < 32761)):
             # Set up grid mapping
             projds.attrs['utm_zone_number'] = epsg_code % 100
+            projds.attrs["longitude_of_central_meridian"] = srs.GetProjParm(
+                osr.SRS_PP_CENTRAL_MERIDIAN)
+            projds.attrs["scale_factor_at_central_meridian"] = srs.GetProjParm(
+                osr.SRS_PP_SCALE_FACTOR)
 
         # Polar Stereo North
         elif epsg_code == 3413:
@@ -890,7 +895,7 @@ def add_radar_grid_cubes_to_hdf5(hdf5_obj, cube_group_name, geogrid,
 
     # seconds since ref epoch
     ref_epoch = radar_grid.ref_epoch
-    ref_epoch_str = ref_epoch.isoformat().replace('T', ' ')
+    ref_epoch_str = ref_epoch.isoformat().replace('.000000000', '')
     az_coord_units = f'seconds since {ref_epoch_str}'
 
     slant_range_raster = _get_raster_from_hdf5_ds(
@@ -903,7 +908,7 @@ def add_radar_grid_cubes_to_hdf5(hdf5_obj, cube_group_name, geogrid,
         cube_group, 'zeroDopplerAzimuthTime', np.float64, cube_shape,
         zds=zds, yds=yds, xds=xds,
         long_name='Zero-Doppler azimuth time',
-        descr='Zero-Doppler azimuth time in seconds',
+        descr='Zero Doppler azimuth time in seconds',
         units=az_coord_units, **create_dataset_kwargs)
     incidence_angle_raster = _get_raster_from_hdf5_ds(
         cube_group, 'incidenceAngle', np.float32, cube_shape,
@@ -911,7 +916,8 @@ def add_radar_grid_cubes_to_hdf5(hdf5_obj, cube_group_name, geogrid,
         long_name='Incidence angle',
         descr=('Incidence angle is defined as the angle between the LOS vector'
                ' and the normal to the ellipsoid at the target height'),
-        units='degrees', valid_min=0.0, valid_max=90.0, **create_dataset_kwargs)
+        units='degrees', valid_min=0.0, valid_max=90.0,
+        **create_dataset_kwargs)
     los_unit_vector_x_raster = _get_raster_from_hdf5_ds(
         cube_group, 'losUnitVectorX', np.float32, cube_shape,
         zds=zds, yds=yds, xds=xds,
@@ -1180,7 +1186,7 @@ def set_create_geolocation_grid_coordinates(hdf5_obj, root_ds, radar_grid,
 
     # seconds since ref epoch
     ref_epoch = radar_grid.ref_epoch
-    ref_epoch_str = ref_epoch.isoformat().replace('T', ' ')
+    ref_epoch_str = ref_epoch.isoformat().replace('.000000000', '')
     az_coord_units = f'seconds since {ref_epoch_str}'
 
     coordinates_list = []
