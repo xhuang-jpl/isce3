@@ -601,7 +601,8 @@ class SLC(h5py.File):
                             product_version: str = "0.1.0",
                             processing_type: str = "CUSTOM",
                             is_dithered: bool = False,
-                            is_mixed_mode: bool = False):
+                            is_mixed_mode: bool = False,
+                            composite_release_id: str = "A10000"):
         """
         Populate identification metadata with a combination of copied values
         from L0B and user data.
@@ -625,6 +626,7 @@ class SLC(h5py.File):
             zeroDopplerStartTime
 
         always populated based on input values:
+            compositeReleaseId
             frameNumber
             granuleId
             isDithered
@@ -773,6 +775,10 @@ class SLC(h5py.File):
             'composite of data collected in multiple radar modes, '
             '"False" otherwise.')
 
+        d = set_string(g, "compositeReleaseId", composite_release_id)
+        d.attrs["description"] = np.bytes_("Unique version identifier of the "
+            "science data production system")
+
         # only report to integer seconds
         now = datetime.now(timezone.utc).isoformat()[:19]
         d = set_string(g, "processingDateTime", now)
@@ -874,14 +880,6 @@ class SLC(h5py.File):
         write_dataset(eap_group, pol, np.complex64, dummy_array,
             "Complex two-way elevation antenna pattern", "1")
 
-        # TODO Populate NESZ with real values.  Using zero for now.
-        nes0_group = cal_group.require_group(f"frequency{frequency}/nes0")
-        t, r = require_lut_axes(nes0_group, epoch, t, r,
-            "calibration nes0 records")
-
-        write_dataset(nes0_group, pol, np.float32, np.zeros((t.size, r.size)),
-            "Noise equivalent sigma zero", "1")
-
         # TODO Populate crosstalk with real values.  Reporting zero for now.
         xt_group = cal_group.require_group("crosstalk")
 
@@ -973,3 +971,27 @@ class SLC(h5py.File):
             write_dataset(pg, "scaleFactorSlope", np.float64, chan.scale_slope,
                 f"Slope of scale factor applied to {pol} channel complex "
                 "amplitude with respect to elevation angle", "radians^-1")
+
+
+    def set_nesz(self, nesz_prod):
+        """
+        Store the NESZ results that is noise power as a function of
+        slant range at mid az time per a desired frequency band and
+        TxRx polarization.
+
+        Parameters
+        ----------
+        nesz_prod : nisar.noise.NeszProduct
+
+        """
+        cal_grp = self.root.require_group("metadata/calibrationInformation")
+        nesz_grp = cal_grp.require_group(
+            f"frequency{nesz_prod.freq_band}/nes0")
+        t, r = require_lut_axes(
+            nesz_grp, nesz_prod.ref_epoch, nesz_prod.az_time,
+            nesz_prod.slant_range, "calibration nes0 records"
+            )
+        write_dataset(
+            nesz_grp, nesz_prod.txrx_pol, np.float32, nesz_prod.power_linear,
+            "Noise equivalent sigma zero in linear scale", "1"
+            )
