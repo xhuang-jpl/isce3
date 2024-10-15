@@ -20,6 +20,7 @@ from nisar.products.readers.Raw import Raw, open_rrsd
 from nisar.products.readers.rslc_cal import (RslcCalibration,
     parse_rslc_calibration, get_scale_and_delay, check_cal_validity_dates)
 from nisar.products.writers import SLC
+from nisar.products.writers.SLC import fill_partial_granule_id
 from isce3.core.types import (complex32, to_complex32, read_c4_dataset_as_c8,
     truncate_mantissa)
 import nisar
@@ -33,6 +34,7 @@ from isce3.product import RadarGridParameters
 from nisar.workflows.yaml_argparse import YamlArgparse
 import nisar.workflows.helpers as helpers
 from ruamel.yaml import YAML
+import shapely
 import sys
 import tempfile
 from typing import Union, Optional, Callable, Iterable, overload
@@ -623,18 +625,35 @@ def make_output_grid(cfg: Struct,
     log.info(f"Approximate fully focusable time interval is [{dt0}, {dt1}]")
     log.info(f"Approximate fully focusable range interval is [{r0z}, {r1z}]")
 
-    # TODO snap start time to standard interval
-
+    # Save typing when handling defaults.
     p = cfg.processing.output_grid
+
+    # Usually for NISAR grid PRF should be specified as 1520 in the runconfig.
+    # If not then take max() as most conservative choice.
+    prf = p.output_prf if (p.output_prf is not None) else max_prf
+
+    # Snap default start time & range to integer grid.
+    # NOTE Current defaults mean range_snap_interval is never None, but cover
+    # that scenario in case somebody changes the default under our nose.  The
+    # reason for the non-null default is that with a dual-band system like NISAR
+    # you'd want to choose a default range snap based on knowledge of both
+    # subbands, which would require some refactoring.  For example, you'd want
+    # to snap the frequencyA grid to the coarser frequencyB spacing.
+    dt0 = isce3.math.snap_datetime(dt0,
+        p.time_snap_interval if p.time_snap_interval is not None else 1 / prf)
+    t0z = (dt0 - epoch).total_seconds()
+    r0z = isce3.math.snap(r0z,
+        p.range_snap_interval if p.range_snap_interval is not None else dr)
+
+    log.info(f"Snapped default start time to {dt0}")
+    log.info(f"Snapped default start range to {r0z} m")
+
     if p.start_time:
         t0z = (DateTime(p.start_time) - epoch).total_seconds()
     if p.end_time:
         t1z = (DateTime(p.end_time) - epoch).total_seconds()
     r0z = p.start_range if (p.start_range is not None) else r0z
     r1z = p.end_range if (p.end_range is not None) else r1z
-    # Usually for NISAR grid PRF should be specified as 1520 in the runconfig.
-    # If not then take max() as most conservative choice.
-    prf = p.output_prf if (p.output_prf is not None) else max_prf
 
     nr = round((r1z - r0z) / dr)
     nt = round((t1z - t0z) * prf)
@@ -1339,15 +1358,13 @@ def get_identification_data_from_runconfig(cfg: Struct) -> dict:
     """
     Populate a dict containing the keys
         {"product_version", "processing_type", "composite_release_id",
-        "mission_id", "processing_center", "granule_id", "track", "frame"}
+        "mission_id", "processing_center", "track", "frame"}
     using data from an RSLC runconfig.
     """
     keys = ["product_version", "processing_type", "composite_release_id",
         "mission_id", "processing_center"]
     exe = vars(cfg.primary_executable)
     d = {key: exe[key] for key in keys}
-    # TODO populate fields in partial granule ID
-    d["granule_id"] = exe["partial_granule_id"]
     d["track"] = cfg.geometry.relative_orbit_number
     d["frame"] = cfg.geometry.frame_number
     return d
@@ -1642,15 +1659,24 @@ def focus(runconfig, runconfig_path=""):
         fs_page_size=cfg.output.fs_page_size)
     slc.set_orbit(orbit)
     slc.set_attitude(attitude, orbit)
-    og = next(iter(ogrid.values()))
+
     id_data = get_identification_data_from_runconfig(cfg)
     id_data.update(get_identification_data_from_raw(rawlist))
+
+    og = next(iter(ogrid.values()))
+    start_time = og.sensing_datetime(0)
+    end_time = og.sensing_datetime(og.length - 1)
+    granule_id = fill_partial_granule_id(
+        cfg.primary_executable.partial_granule_id, common_mode, start_time,
+        end_time, shapely.from_geojson(cfg.geometry.track_frame_polygon),
+        shapely.from_wkt(polygon),
+        coverage_threshold = cfg.geometry.full_coverage_threshold_percent / 100)
+
     is_dithered=any(raw.isDithered(raw.frequencies[0]) for raw in rawlist)
     slc.copy_identification(rawlist[0], polygon=polygon,
-        start_time=og.sensing_datetime(0),
-        end_time=og.sensing_datetime(og.length - 1),
+        start_time=start_time, end_time=end_time,
         frequencies=common_mode.frequencies,
-        is_dithered=is_dithered,
+        is_dithered=is_dithered, granule_id=granule_id,
         is_mixed_mode=any(PolChannelSet.from_raw(raw) != common_mode
             for raw in rawlist),
         **id_data)

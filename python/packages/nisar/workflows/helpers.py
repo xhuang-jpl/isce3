@@ -2,12 +2,12 @@
 collection of useful functions used across workflows
 '''
 
+import datetime
 import os
 import pathlib
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
-
 import h5py
 import isce3
 import journal
@@ -45,6 +45,52 @@ class JsonNumpyEncoder(json.JSONEncoder):
             return bool(obj)
 
         return super().default(obj)
+
+
+def build_uniform_quantizer_lut_l0b(
+        nbits: int, bad_val: float = 0.0, twos_complement: bool = True
+) -> np.ndarray:
+    """Build uniform quantizer LUT used in place of BFPQLUT in L0B product"""
+    # get size of BFPQLUT to be power of 2!
+    nbits_pow2 = 2 ** int(np.ceil(np.log2(nbits)))
+    size_lut = 2 ** nbits_pow2
+    len_decoder_lut = 2**nbits
+    len_decoder_lut_h = len_decoder_lut // 2
+    bfpq_uq = np.full(size_lut, bad_val, dtype='f4')
+    # 2s complement sign representation of unsigned integer
+    bfpq_uq[:len_decoder_lut_h] = np.arange(0.5, len_decoder_lut_h, dtype='f4')
+    if twos_complement:
+        bfpq_uq[:-len_decoder_lut_h - 1:-1] = -bfpq_uq[:len_decoder_lut_h]
+    else:  # signed magnitude representation
+        size_lut_h = size_lut // 2
+        bfpq_uq[size_lut_h: size_lut_h + len_decoder_lut_h] = (
+            -bfpq_uq[:len_decoder_lut_h])
+    return bfpq_uq
+
+
+def slice_gen(n_smp: int, n_smp_blk: int) -> slice:
+    """slice generator.
+
+    Parameters
+    ----------
+    n_smp : int
+        Total number of samples
+    n_smp_blk : int
+        Number of samples per full block
+
+    Yields
+    ------
+    slice
+        slice object for each block.
+        The last block can be partial and have less
+        number of samples than `n_smp_blk`!
+
+    """
+    n_blk = int(np.ceil(n_smp / n_smp_blk))
+    for n in range(n_blk):
+        i_start = n * n_smp_blk
+        i_stop = min(n_smp, i_start + n_smp_blk)
+        yield slice(i_start, i_stop)
 
 
 def deep_update(original, update, flag_none_is_valid=True):
@@ -130,6 +176,95 @@ def check_dem(dem_path: str):
         err_str = f'{dem_path} cannot be opened by GDAL'
         error_channel.log(err_str)
         raise ValueError(err_str)
+
+
+def check_radargrid_orbit_tec(radar_grid, orbit, tec_path):
+    '''
+    Check if the input orbit and TEC files' temporal coverage is enough.
+    Raise RuntimeError when the coverage is not enough.
+
+    Parameters
+    ----------
+    radar_grid: isce3.product.RadarGridParameters
+        Radar grid of the input RSLC
+    orbit: isce3.core.Orbit
+        Orbit data provided
+    tec: str
+        path to the IMAGEN TEC data
+
+    Raises
+    ------
+    ApplicationError: Raised by `journal.error` instance When
+        the temporal coverage of orbit and / or TEC file is not sufficient.
+    '''
+
+    error_channel = journal.error('helpers.check_radargrid_orbit_tec')
+    info_channel = journal.info('helpers.check_radargrid_orbit_tec')
+
+    radargrid_ref_epoch = datetime.datetime.fromisoformat(radar_grid.ref_epoch.isoformat_usec())
+    sensing_start = radargrid_ref_epoch + datetime.timedelta(seconds=radar_grid.sensing_start)
+    sensing_stop = radargrid_ref_epoch + datetime.timedelta(seconds=radar_grid.sensing_stop)
+
+    orbit_start = datetime.datetime.fromisoformat(orbit.start_datetime.isoformat_usec())
+    orbit_end = datetime.datetime.fromisoformat(orbit.end_datetime.isoformat_usec())
+
+    # Compute the paddings of orbit and TEC w.r.t. radar grid
+    orbit_margin_start = (sensing_start - orbit_start).total_seconds()
+    orbit_margin_end = (orbit_end - sensing_stop).total_seconds()
+
+    margin_info_msg = (f'Orbit margin before radar sensing start : {orbit_margin_start} seconds\n'
+                       f'Orbit margin after radar sensing stop   : {orbit_margin_end} seconds\n')
+
+    if not tec_path:
+        info_channel.log('IMAGEN TEC was not provided. '
+                         'Checking the orbit data and sensing start / stop.')
+        
+        info_channel.log(margin_info_msg)
+
+        if orbit_margin_start < 0.0:
+            error_channel.log('Not enough input orbit data at the radar sensing start.')
+        if orbit_margin_end < 0.0:
+            error_channel.log('Not enough input orbit data at the radar sensing end.')
+
+    else:
+        # Load timing information from IMAGEN TEC and check with orbit and sensing
+        with open(tec_path, 'r') as jin:
+            imagen_dict = json.load(jin)
+            num_utc = len(imagen_dict['utc'])
+            tec_start = datetime.datetime.fromisoformat(imagen_dict['utc'][0])
+            tec_end = datetime.datetime.fromisoformat(imagen_dict['utc'][-1])
+
+        tec_margin_start = (sensing_start - tec_start).total_seconds()
+        tec_margin_end = (tec_end - sensing_stop).total_seconds()
+
+        # Compute the half the TEC spacing, which is required when computing
+        # azimuth TEC gradient. Note the timing grid for TEC gradient is
+        # shifted by half of the TEC spacing
+        minimum_margin_sec = (tec_end - tec_start).total_seconds() / (num_utc -1) / 2
+
+        margin_info_msg += (f'IMAGEN TEC margin before radar sensing start : {tec_margin_start} seconds\n'
+                            f'IMAGEN TEC margin after radar sensing stop   : {tec_margin_end} seconds\n'
+                            f'Minimum required margin                : {minimum_margin_sec} seconds\n')
+
+        info_channel.log(margin_info_msg)
+
+        # Check if the margin looks okay when TEC is provided
+
+        if orbit_margin_start < minimum_margin_sec:
+            error_channel.log('Input orbit\'s margin before radar sensing start is not enough '
+                            f'({orbit_margin_start} < {minimum_margin_sec})')
+
+        if orbit_margin_end < minimum_margin_sec:
+            error_channel.log('Input orbit\'s margin after radar sensing stop is not enough '
+                            f'({orbit_margin_end} < {minimum_margin_sec})')
+
+        if tec_margin_start < minimum_margin_sec:
+            error_channel.log('IMAGEN TEC margin before radar sensing start is not enough '
+                            f'({tec_margin_start} < {minimum_margin_sec})')
+
+        if tec_margin_end < minimum_margin_sec:
+            error_channel.log(f'IMAGEN TEC margin after radar sensing stop is not enough '
+                            f'({tec_margin_end} < {minimum_margin_sec})')
 
 
 def check_log_dir_writable(log_file_path: str):
@@ -417,6 +552,7 @@ def get_cfg_freq_pols(cfg):
         else:
             yield freq, pol_list, pol_list
 
+
 def get_ground_track_velocity_product(ref_rslc : SLC,
                                       slant_range : np.ndarray,
                                       zero_doppler_time : np.ndarray,
@@ -447,12 +583,12 @@ def get_ground_track_velocity_product(ref_rslc : SLC,
         ground track velocity output file
     """
     # NOTE: the prod_geometry_args dataclass is defined here
-    # to avoid the usage of the parser comand line
+    # to avoid the usage of the parser command line
     @dataclass
     class GroundtrackVelocityGenerationParams:
         """
         Parameters to generate the ground track velocity.
-        Defination of each parameter can be found in the
+        Definition of each parameter can be found in the
         get_product_geometry.py
         """
         threshold_rdr2geo = None
@@ -527,7 +663,7 @@ def validate_fs_page_size(fs_page_size, chunks, itemsize=8):
     max_size = 1024**3
     if not (min_size <= fs_page_size <= max_size):
         warn(f"File space page size not in interval [{min_size}, {max_size}]")
-            
+
     # HDF5 docs say powers of two work best for FAPL page size.  Assume same
     # holds true for FCPL page size.
     if (fs_page_size <= 0) or (fs_page_size & (fs_page_size - 1) != 0):
@@ -537,6 +673,63 @@ def validate_fs_page_size(fs_page_size, chunks, itemsize=8):
     # sure how much storage is required for HDF5 metadata.
     if not (fs_page_size > np.prod(chunks) * itemsize):
         warn("File space page size is not larger than a chunk of data.")
+
+
+def _as_np_bytes_if_needed(val):
+    '''
+    If type str encountered, convert and return as np.string_. Otherwise return
+    as is.
+    '''
+    val = np.bytes_(val) if isinstance(val, str) else val
+    return val
+
+
+@dataclass
+class HDF5DatasetParams:
+    '''
+    Convenience dataclass for passing parameters to be written to h5py.Dataset
+    '''
+    # Dataset name
+    name: str
+    # Data to be stored in Dataset
+    value: object
+    # Description attribute of Dataset
+    description: str
+    # Other attributes to be written to Dataset
+    attr_dict: dict = field(default_factory=dict)
+
+
+def add_dataset_and_attrs(group, meta_item):
+    '''Write dataset parameters stored in HDF5DatasetParams object to h5py group.
+
+    Parameters
+    ----------
+    group: h5py.Group
+        h5py group where dataset and associated parameters are to be written
+    meta_item: HDF5DatasetParams
+        HDF5DatasetParams dataclass object containing dataset parameters
+    '''
+    # Ensure it is clear to write by deleting pre-existing Dataset
+    if meta_item.name in group:
+        del group[meta_item.name]
+
+    # Convert to be written dataset value, if necessary
+    val = _as_np_bytes_if_needed(meta_item.value)
+    try:
+        if val is None:
+            # Assume NaN is valid dataset value if None is provided
+            group[meta_item.name] = np.nan
+        else:
+            group[meta_item.name] = val
+    except TypeError as exc:
+        raise TypeError(f'unable to write {meta_item.name}') from exc
+
+    # Write data and attributes
+    val_ds = group[meta_item.name]
+    desc = _as_np_bytes_if_needed(meta_item.description)
+    val_ds.attrs['description'] = desc
+    for key, val in meta_item.attr_dict.items():
+        val_ds.attrs[key] = _as_np_bytes_if_needed(val)
 
 
 def sum_gdal_rasters(filepath1, filepath2, out_filepath, data_type=np.float64,

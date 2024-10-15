@@ -451,12 +451,15 @@ class InSARBaseWriter(h5py.File):
             rslc_frequency_group['zeroDopplerTimeSpacing'].attrs['units'] = Units.second
 
             # Copy the zero-Dopper information from the source RSLC to the RSLC group
-            id_group.copy('zeroDopplerStartTime', rslc_frequency_group)
+            for doppler_time, start_stop in zip(['zeroDopplerStartTime',
+                                                 'zeroDopplerEndTime'],
+                                                ['start', 'stop']):
+                id_group.copy(doppler_time, rslc_frequency_group)
+                # Update the description attributes of the zeroDopplerTime
+                ds_zerodopp = rslc_frequency_group[doppler_time]
+                ds_zerodopp.attrs['description'] = \
+                    np.bytes_(f"Azimuth {start_stop} time of the {rslc_name} RSLC product")
 
-            # Update the description attributes of the zeroDopplerTime
-            ds_zerodopp = rslc_frequency_group[f"zeroDopplerStartTime"]
-            ds_zerodopp.attrs['description'] = \
-                np.bytes_(f"Azimuth start time of the {rslc_name} RSLC product")
 
             rg_names_to_be_created = [
                 DatasetParams(
@@ -814,11 +817,29 @@ class InSARBaseWriter(h5py.File):
         """
         Write metadata datasets and attributes common to all InSAR products to HDF5
         """
+        rslc_start_times = []
         for group, h5py_file_obj, orbit_to_save in zip(['reference', 'secondary'],
                                                        [self.ref_h5py_file_obj,
                                                         self.sec_h5py_file_obj],
                                                        [self.ref_orbit,
                                                         self.sec_orbit]):
+            # Get RSLCs start times to compute temporal baseline
+            start_time = h5py_file_obj[f'{self.ref_rslc.IdentificationPath}/' \
+                                       f'zeroDopplerStartTime'][()].decode('UTF-8')
+            date_format = "%Y-%m-%dT%H:%M:%S"
+            if '.' in start_time:
+                #  Split the date into the main part and the fractional seconds
+                main_part, microseconds = start_time.split('.')
+                # The '.%f' can only account for the six digtis, or it will
+                # raise the ValueError: unconverted data remains: xxx
+                microseconds = (microseconds + "000000")[:6]
+                # Add the fractional seconds part to the format
+                date_format += ".%f"
+                # Update the datatime string to have the six digits microseconds
+                start_time = f"{main_part}.{microseconds}"
+
+            rslc_start_times.append(datetime.strptime(start_time, date_format))
+
             # Create metadata group, copy over attitude group, and open newly create attitude group
             dst_attitude_group = self.require_group(
                 f'{self.group_paths.MetadataPath}/attitude/{group}')
@@ -845,10 +866,6 @@ class InSARBaseWriter(h5py.File):
 
             dst_attitude_group["quaternions"].attrs["units"] = \
                 Units.unitless
-            dst_attitude_group["quaternions"].attrs["eulerAngles"] = \
-                Units.radian
-            dst_attitude_group["quaternions"].attrs["angularVelocity"] = \
-                Units.rad_per_second
 
             dst_orbit_group = self.require_group(f'{self.group_paths.MetadataPath}/orbit/{group}')
             orbit_to_save.save_to_h5(dst_orbit_group)
@@ -883,6 +900,15 @@ class InSARBaseWriter(h5py.File):
                 'Orbit interpolation method, either "Hermite" or "Legendre"'
             )
 
+        # Compute the temporal baseline using the RSLC start times
+        temp_baseline = (rslc_start_times[1] - rslc_start_times[0]).days
+        temp_baseline_dst_params = DatasetParams("temporalBaseline", np.uint16(temp_baseline),
+                                                 "Time interval between reference and secondary RSLCs",
+                                                 {"units": Units.days})
+        dst_orbit_group = self.require_group(f'{self.group_paths.MetadataPath}/orbit')
+        add_dataset_and_attrs(dst_orbit_group, temp_baseline_dst_params)
+
+
     def add_identification_to_hdf5(self):
         """
         Add the identification group to the product
@@ -904,10 +930,14 @@ class InSARBaseWriter(h5py.File):
         else:
             processing_type = np.bytes_('Undefined')
 
-        # processing center (JPL, NRSC, or Others)
-        # if it is None, 'JPL' will be applied
+        # Adopt same logic as RSLC, GSLC, GCOV
+        # If no condition is met, assign string from runconfig
         if processing_center is None:
-            processing_center = "JPL"
+            processing_center = '(NOT SPECIFIED)'
+        elif processing_center == 'J':
+            processing_center = 'JPL'
+        elif processing_center == 'N':
+            processing_center = 'NRSC'
 
         # If the CRID identifier is None, assign a dummy crid "A10000"
         if crid is None:
@@ -922,11 +952,6 @@ class InSARBaseWriter(h5py.File):
         # Datasets that need to be copied from the RSLC
         id_ds_names_need_to_copy = [
             DatasetParams(
-                "absoluteOrbitNumber",
-                "None",
-                "Absolute orbit number",
-            ),
-            DatasetParams(
                 "boundingPolygon",
                 "None",
                 descriptions.bounding_polygon,
@@ -934,6 +959,14 @@ class InSARBaseWriter(h5py.File):
                     "ogr_geometry": "polygon",
                     "epsg": "4326",
                 },
+            ),
+            DatasetParams(
+                "platformName",
+                "(NOT SPECIFIED)",
+                (
+                    "Name of the platform used to collect the remote sensing"
+                    " data provided in this product"
+                ),
             ),
             DatasetParams(
                 "diagnosticModeFlag",
@@ -999,13 +1032,13 @@ class InSARBaseWriter(h5py.File):
                 ds_name.value = slc_val
             add_dataset_and_attrs(dst_id_group, ds_name)
 
-        # Copy the zero-Doppler information from both reference and secondary RSLC
-        for ds_name in ["zeroDopplerStartTime", "zeroDopplerEndTime"]:
-            ref_id_group.copy(ds_name, dst_id_group,
-                              f"referenceZ{ds_name[1:]}")
+        # Copy datasets from reference and secondary RSLCs
+        datasets_to_copy = ["zeroDopplerStartTime", "zeroDopplerEndTime", "absoluteOrbitNumber"]
+        cap = lambda x: f"{x[0].upper()}{x[1:]}"
 
-            sec_id_group.copy(ds_name, dst_id_group,
-                              f"secondaryZ{ds_name[1:]}")
+        for ds_name in datasets_to_copy:
+            ref_id_group.copy(ds_name, dst_id_group, f"reference{cap(ds_name)}")
+            sec_id_group.copy(ds_name, dst_id_group, f"secondary{cap(ds_name)}")
 
         # Update the description attributes of the zeroDoppler
         for prod in list(product(['reference', 'secondary'],
@@ -1016,6 +1049,12 @@ class InSARBaseWriter(h5py.File):
             time_in_description = 'stop' if start_or_stop == 'End' else 'start'
             ds.attrs['description'] = \
                 f"Azimuth {time_in_description} time of {rslc_name} RSLC product"
+
+        # Update the description for the absolute orbit numbers
+        for rslc_name in ['reference', 'secondary']:
+            ds = dst_id_group[f"{rslc_name}AbsoluteOrbitNumber"]
+            ds.attrs['description'] = \
+            f'Absolute orbit number for the {rslc_name} RSLC'
 
         # Granule ID follows the NISAR filename convention. The partial granule ID
         # has placeholders (curly brackets) which will be filled by the InSAR SAS
