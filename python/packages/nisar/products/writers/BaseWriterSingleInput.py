@@ -567,6 +567,15 @@ class BaseWriterSingleInput():
         Populate common parameters in the identification group
         """
 
+        product_doi = self.cfg['primary_executable']['product_doi']
+
+        if product_doi is None:
+            product_doi = '(NOT SPECIFIED)'
+
+        self.set_value(
+            'identification/productDoi',
+            product_doi)
+
         self.copy_from_input(
             'identification/absoluteOrbitNumber',
             format_function=np.uint32)
@@ -934,7 +943,7 @@ class BaseWriterSingleInput():
 
             check_h5_dtype_vs_xml_spec(xml_metadata_entry, h5_dataset_obj)
             write_xml_spec_attrs_to_h5_dataset(xml_metadata_entry,
-                                              h5_dataset_obj)
+                                               h5_dataset_obj)
             write_xml_description_to_hdf5(xml_metadata_entry, h5_dataset_obj)
 
     def __enter__(self):
