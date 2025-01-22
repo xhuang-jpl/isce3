@@ -6,6 +6,7 @@ import h5py
 import numpy as np
 import isce3
 from isce3.core import crop_external_orbit
+import journal
 from nisar.products.readers import SLC
 from nisar.products.readers.orbit import load_orbit_from_xml
 from osgeo import gdal
@@ -372,12 +373,12 @@ def _compute_subswath_mask_id(azi_idx,
     return subswath_mask_id
 
 
-def generate_insar_dem(radar_grid_obj,
+def generate_dem(radar_grid_obj,
                        orbit_obj,
                        dem_file,
-                       dem_interp_method):
+                       dem_interp_method = 'BIQUINTIC'):
     """
-    Generate the InSAR DEM 2d array at a given radar grid
+    Generate the DEM 2d array at a given radar grid
 
     Parameters
     ---------
@@ -387,8 +388,8 @@ def generate_insar_dem(radar_grid_obj,
         The SLC object for the secondary RSLC
     dem_file  : str
         DEM file
-    dem_interp_method : str
-        DEM interpolation method
+    dem_interp_method : str (default: BIQUINTIC)
+        DEM interpolation method, one of 'BILINEAR', 'BICUBIC', 'NEAREST', and 'BIQUINTIC'
 
     Returns
     ----------
@@ -396,20 +397,46 @@ def generate_insar_dem(radar_grid_obj,
         2D DEM array at a given radar grid
     """
 
-    grid_zero_doppler = isce3.core.LUT2d()
+    error_journal = journal.error('utils.generate_insar_dem')
+    doplut = isce3.core.LUT2d()
+
     dem_raster = isce3.io.Raster(dem_file)
+    if dem_raster is None:
+        err_str = f'Can not open the DEM file {dem_raster}'
+        error_journal.log(err_str)
+        raise ValueError(err_str)
 
     # Default DEM interpolation method is BIQUINTIC
     interp_method = isce3.core.DataInterpMethod.BIQUINTIC
-    if interp_method == 'BILINEAR':
+    if dem_interp_method == 'BILINEAR':
         interp_method = isce3.core.DataInterpMethod.BILINEAR
-    if interp_method == 'BICUBIC':
+    if dem_interp_method == 'BICUBIC':
         interp_method = isce3.core.DataInterpMethod.BICUBIC
-    if interp_method == 'NEAREST':
+    if dem_interp_method == 'NEAREST':
         interp_method = isce3.core.DataInterpMethod.NEAREST
 
+    dem_interplator = isce3.geometry.DEMInterpolator(dem_raster)
+    dem_interplator.interp_method = interp_method
 
-    return None
+    # Create DEM array filling with NANs
+    dem =  np.full((radar_grid_obj.length, radar_grid_obj.width),
+                   np.nan, dtype='float32')
+
+    for i in range(radar_grid_obj.length):
+        t = radar_grid_obj.sensing_time(i)
+        for j in range(radar_grid_obj.width):
+            r = radar_grid_obj.slant_range(j)
+            dop = doplut.eval(t, r)
+            llh = isce3.geometry.rdr2geo(t, r,
+                                        orbit_obj,
+                                        radar_grid_obj.lookside,
+                                        dop,
+                                        radar_grid_obj.wavelength,
+                                        dem_interplator)
+            # Get the elevation
+            dem[i,j] = llh[2]
+
+    return dem
 
 
 def generate_insar_subswath_mask(ref_rslc_obj,

@@ -3,16 +3,17 @@ import os
 import numpy as np
 from isce3.core import LUT2d
 from nisar.workflows import geo2rdr, rdr2geo
+from nisar.workflows.compute_stats import compute_stats_real_hdf5_dataset
 from nisar.workflows.h5_prep import add_geolocation_grid_cubes_to_hdf5
 from nisar.workflows.helpers import (get_cfg_freq_pols, get_offset_radar_grid,
                                      get_pixel_offsets_dataset_shape,
                                      get_pixel_offsets_params)
-
 from .dataset_params import DatasetParams, add_dataset_and_attrs
 from .InSAR_base_writer import InSARBaseWriter
 from .product_paths import L1GroupsPaths
 from .units import Units
-from .utils import (extract_datetime_from_string, generate_insar_subswath_mask,
+from .utils import (extract_datetime_from_string, generate_dem,
+                    generate_insar_subswath_mask,
                     get_geolocation_grid_cube_obj)
 
 
@@ -447,12 +448,17 @@ class L1InSARWriter(InSARBaseWriter):
                                                  " projecting them onto a range/Doppler grid"),
                                     units=Units.meter)
 
-            # temporarily add stats attributes to the 'digitalElevationModel' dataset
-            # TODO: remove this placeholder for setting stats values
-            # to 0.0 once the actual values are being computed.
-            for attr in ['mean_value', 'min_value',
-                         'max_value', 'sample_stddev']:
-                offset_group['digitalElevationModel'].attrs[attr] = 0.0
+            if self.dem_file is not None:
+                offset_group['digitalElevationModel'][...] = \
+                    generate_dem(off_radargrid,
+                                 self.ref_orbit,
+                                 self.dem_file)
+                # Compute the stats
+                compute_stats_real_hdf5_dataset(offset_group['digitalElevationModel'])
+            else:
+                for attr in ['mean_value', 'min_value',
+                            'max_value', 'sample_stddev']:
+                    offset_group['digitalElevationModel'].attrs[attr] = 0.0
 
             # add the subswath mask layer to the pixel offset group
             self._create_2d_dataset(offset_group,
@@ -630,12 +636,17 @@ class L1InSARWriter(InSARBaseWriter):
                                                  " projecting them onto a range/Doppler grid"),
                                     units=Units.meter)
 
-            # temporarily add stats attributes to the 'digitalElevationModel' dataset
-            # TODO: remove this placeholder for setting stats values
-            # to 0.0 once the actual values are being computed.
-            for attr in ['mean_value', 'min_value',
-                         'max_value', 'sample_stddev']:
-                igram_group['digitalElevationModel'].attrs[attr] = 0.0
+            if self.dem_file is not None:
+                igram_group['digitalElevationModel'][...] = \
+                    generate_dem(igram_radargrid,
+                                 self.ref_orbit,
+                                 self.dem_file)
+                # Compute the stats
+                compute_stats_real_hdf5_dataset(igram_group['digitalElevationModel'])
+            else:
+                for attr in ['mean_value', 'min_value',
+                            'max_value', 'sample_stddev']:
+                    igram_group['digitalElevationModel'].attrs[attr] = 0.0
 
             # add the subswath mask layer to the interferogram group
             self._create_2d_dataset(igram_group,
