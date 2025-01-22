@@ -450,10 +450,17 @@ class L1InSARWriter(InSARBaseWriter):
                                     units=Units.meter)
 
             if self.dem_file is not None:
+                threshold = self.cfg['processing']['rdr2geo']['threshold']
+                numiter = self.cfg['processing']['rdr2geo']['numiter']
+                extraiter = self.cfg['processing']['rdr2geo']['extraiter']
+
                 offset_group['digitalElevationModel'][...] = \
                     generate_dem(off_radargrid,
                                  self.ref_orbit,
-                                 self.dem_file)
+                                 self.dem_file,
+                                 threshold = threshold,
+                                 numiter = numiter,
+                                 extraiter = extraiter)
                 # Compute the stats
                 compute_stats_real_hdf5_dataset(offset_group['digitalElevationModel'])
             else:
@@ -638,10 +645,17 @@ class L1InSARWriter(InSARBaseWriter):
                                     units=Units.meter)
 
             if self.dem_file is not None:
+                threshold = self.cfg['processing']['rdr2geo']['threshold']
+                numiter = self.cfg['processing']['rdr2geo']['numiter']
+                extraiter = self.cfg['processing']['rdr2geo']['extraiter']
+
                 igram_group['digitalElevationModel'][...] = \
                     generate_dem(igram_radargrid,
                                  self.ref_orbit,
-                                 self.dem_file)
+                                 self.dem_file,
+                                 threshold = threshold,
+                                 numiter = numiter,
+                                 extraiter = extraiter)
                 # Compute the stats
                 compute_stats_real_hdf5_dataset(igram_group['digitalElevationModel'])
             else:

@@ -374,9 +374,12 @@ def _compute_subswath_mask_id(azi_idx,
 
 
 def generate_dem(radar_grid_obj,
-                       orbit_obj,
-                       dem_file,
-                       dem_interp_method = 'BIQUINTIC'):
+                 orbit_obj,
+                 dem_file,
+                 dem_interp_method = 'BIQUINTIC',
+                 threshold = 1.0e-7,
+                 numiter = 25,
+                 extraiter = 10):
     """
     Generate the DEM 2d array at a given radar grid
 
@@ -405,6 +408,9 @@ def generate_dem(radar_grid_obj,
         err_str = f'Can not open the DEM file {dem_raster}'
         error_journal.log(err_str)
         raise ValueError(err_str)
+    epsg = dem_raster.get_epsg()
+    proj = isce3.core.make_projection(epsg)
+    ellipsoid = proj.ellipsoid
 
     # Default DEM interpolation method is BIQUINTIC
     interp_method = isce3.core.DataInterpMethod.BIQUINTIC
@@ -427,15 +433,21 @@ def generate_dem(radar_grid_obj,
         for j in range(radar_grid_obj.width):
             r = radar_grid_obj.slant_range(j)
             dop = doplut.eval(t, r)
-            llh = isce3.geometry.rdr2geo(t, r,
-                                        orbit_obj,
-                                        radar_grid_obj.lookside,
-                                        dop,
-                                        radar_grid_obj.wavelength,
-                                        dem_interplator)
-            # Get the elevation
-            dem[i,j] = llh[2]
-
+            try:
+                llh = isce3.geometry.rdr2geo(t, r,
+                                            orbit_obj,
+                                            radar_grid_obj.lookside,
+                                            dop,
+                                            radar_grid_obj.wavelength,
+                                            dem_interplator,
+                                            ellipsoid = ellipsoid,
+                                            threshold = threshold,
+                                            numiter = numiter,
+                                            extraiter = extraiter)
+                # Get the elevation
+                dem[i,j] = llh[2]
+            except:
+                pass
     return dem
 
 
