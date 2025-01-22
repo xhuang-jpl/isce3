@@ -4,6 +4,7 @@ from typing import Optional
 
 import h5py
 import numpy as np
+import isce3
 from isce3.core import crop_external_orbit
 from nisar.products.readers import SLC
 from nisar.products.readers.orbit import load_orbit_from_xml
@@ -369,6 +370,47 @@ def _compute_subswath_mask_id(azi_idx,
         int(10 * ref_subswath_num + sec_subswath_num)
 
     return subswath_mask_id
+
+
+def generate_insar_dem(radar_grid_obj,
+                       orbit_obj,
+                       dem_file,
+                       dem_interp_method):
+    """
+    Generate the InSAR DEM 2d array at a given radar grid
+
+    Parameters
+    ---------
+    radar_grid_obj : SLC
+        The radar grid object for the reference RSLC
+    orbit_obj : isce3.core.Orbit
+        The SLC object for the secondary RSLC
+    dem_file  : str
+        DEM file
+    dem_interp_method : str
+        DEM interpolation method
+
+    Returns
+    ----------
+    numpy.ndarray
+        2D DEM array at a given radar grid
+    """
+
+    grid_zero_doppler = isce3.core.LUT2d()
+    dem_raster = isce3.io.Raster(dem_file)
+
+    # Default DEM interpolation method is BIQUINTIC
+    interp_method = isce3.core.DataInterpMethod.BIQUINTIC
+    if interp_method == 'BILINEAR':
+        interp_method = isce3.core.DataInterpMethod.BILINEAR
+    if interp_method == 'BICUBIC':
+        interp_method = isce3.core.DataInterpMethod.BICUBIC
+    if interp_method == 'NEAREST':
+        interp_method = isce3.core.DataInterpMethod.NEAREST
+
+
+    return None
+
 
 def generate_insar_subswath_mask(ref_rslc_obj,
                                  sec_rslc_obj,
