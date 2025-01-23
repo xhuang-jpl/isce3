@@ -428,11 +428,17 @@ def generate_dem(radar_grid_obj,
     dem =  np.full((radar_grid_obj.length, radar_grid_obj.width),
                    np.nan, dtype='float32')
 
-    for i in range(radar_grid_obj.length):
+    for i in range(5):#range(radar_grid_obj.length):
         t = radar_grid_obj.sensing_time(i)
-        for j in range(radar_grid_obj.width):
+        for j in range(5):#range(radar_grid_obj.width):
             r = radar_grid_obj.slant_range(j)
             dop = doplut.eval(t, r)
+            # print('amzith time = ', t)
+            # print('slant range = ', r)
+            # print('dop = ', dop)
+            # print('threshold = ', threshold)
+            # print('numiter = ', numiter)
+            # print('extraiter = ', extraiter)
             try:
                 llh = isce3.geometry.rdr2geo(t, r,
                                             orbit_obj,
@@ -441,12 +447,18 @@ def generate_dem(radar_grid_obj,
                                             radar_grid_obj.wavelength,
                                             dem_interplator,
                                             ellipsoid = ellipsoid,
-                                            threshold = threshold,
+                                            threshold = 1e-5,
                                             numiter = numiter,
                                             extraiter = extraiter)
                 # Get the elevation
                 dem[i,j] = llh[2]
             except:
+                print('amzith time = ', t)
+                print('slant range = ', r)
+                print('dop = ', dop)
+                print('threshold = ', threshold)
+                print('numiter = ', numiter)
+                print('extraiter = ', extraiter)
                 pass
     return dem
 
