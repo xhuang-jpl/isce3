@@ -391,14 +391,13 @@ def save_to_hdf5_ds(input_file_path,
     input_src = gdal.Open(input_file_path)
     width = input_src.RasterXSize
     length = input_src.RasterYSize
-    input_band = input_src.GetRasterBand(1)
 
     # Write data block by block
     for line in range(0, length, lines_per_block):
         line_blocks = lines_per_block
         if (line + lines_per_block) > length:
-            line_blocks = line - lines_per_block
-        data = input_band.ReadAsArray(0,line, width, line_blocks)
+            line_blocks = length - line
+        data = input_src.GetRasterBand(1).ReadAsArray(0,line, width, line_blocks)
         hdf5_ds_obj.write_direct(data,
                                  dest_sel=np.s_[line : line + line_blocks, : width])
 
