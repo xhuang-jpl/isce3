@@ -682,7 +682,7 @@ class L1InSARWriter(InSARBaseWriter):
                     # Set the current CUDA device.
                     device = isce3.cuda.core.Device(self.cfg['worker']['gpu_id'])
                     isce3.cuda.core.set_device(device)
-                print(out_dem_rdr_path)
+
                 generate_dem_rdr(igram_radargrid, self.ref_orbit, self.dem_file,
                                  out_dem_rdr_path=str(out_dem_rdr_path),
                                  use_gpu=True, threshold=threshold,
