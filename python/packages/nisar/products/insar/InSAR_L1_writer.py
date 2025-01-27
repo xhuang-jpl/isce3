@@ -1,8 +1,8 @@
 import os
 import pathlib
 
-import numpy as np
 import isce3
+import numpy as np
 from isce3.core import LUT2d
 from nisar.workflows import geo2rdr, rdr2geo
 from nisar.workflows.compute_stats import compute_stats_real_hdf5_dataset
@@ -15,11 +15,9 @@ from .dataset_params import DatasetParams, add_dataset_and_attrs
 from .InSAR_base_writer import InSARBaseWriter
 from .product_paths import L1GroupsPaths
 from .units import Units
-from .utils import (extract_datetime_from_string,
-                    generate_dem_rdr,
+from .utils import (extract_datetime_from_string, generate_dem_rdr,
                     generate_insar_subswath_mask,
-                    get_geolocation_grid_cube_obj,
-                    save_to_hdf5_ds)
+                    get_geolocation_grid_cube_obj, save_to_hdf5_ds)
 
 
 class L1InSARWriter(InSARBaseWriter):
