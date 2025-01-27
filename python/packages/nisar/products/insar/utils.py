@@ -372,6 +372,37 @@ def _compute_subswath_mask_id(azi_idx,
 
     return subswath_mask_id
 
+def save_to_hdf5_ds(input_file_path,
+                    hdf5_ds_obj,
+                    lines_per_block = 1000):
+    """
+    Save the data to the HDF5 dataset
+
+    Parameters
+    ---------
+    input_file_path : str
+        Path of the input file
+    hdf5_ds_obj : h5py.Dataset
+        The HDF5 dataset object
+    lines_per_block : integer (default: 1000)
+         Lines per block to write the data to the hard drive
+    """
+
+    input_src = gdal.Open(input_file_path)
+    width = input_src.RasterXSize
+    length = input_src.RasterYSize
+    input_band = input_src.GetRasterBand(1)
+
+    # Write data block by block
+    for line in range(0, length, lines_per_block):
+        line_blocks = lines_per_block
+        if (line + lines_per_block) > length:
+            line_blocks = line - lines_per_block
+        data = input_band.ReadAsArray(0,line, width, line_blocks)
+        hdf5_ds_obj.write_direct(data,
+                                 dest_sel=np.s_[line : line + line_blocks, : width])
+
+    input_src = None
 
 def generate_dem_rdr(radar_grid_obj,
                      orbit_obj,
@@ -450,7 +481,13 @@ def generate_dem_rdr(radar_grid_obj,
                           extraiter=extraiter,
                           lines_per_block=lines_per_block)
 
-    rdr2geo_obj.topo(dem_raster, height_raster = dem_src)
+    x_raster, y_raster, incidence_raster,\
+        heading_raster, local_incidence_raster, local_psi_raster,\
+            simulated_amplitude_raster, shadow_raster = [None] * 8
+    rdr2geo_obj.topo(dem_raster, x_raster, y_raster, dem_src,
+                     incidence_raster, heading_raster, local_incidence_raster,
+                     local_psi_raster, simulated_amplitude_raster,
+                     shadow_raster, None, None)
 
     # Clean the memory
     dem_raster = None

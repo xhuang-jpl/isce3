@@ -15,9 +15,11 @@ from .dataset_params import DatasetParams, add_dataset_and_attrs
 from .InSAR_base_writer import InSARBaseWriter
 from .product_paths import L1GroupsPaths
 from .units import Units
-from .utils import (extract_datetime_from_string, generate_dem_rdr,
+from .utils import (extract_datetime_from_string,
+                    generate_dem_rdr,
                     generate_insar_subswath_mask,
-                    get_geolocation_grid_cube_obj)
+                    get_geolocation_grid_cube_obj,
+                    save_to_hdf5_ds)
 
 
 class L1InSARWriter(InSARBaseWriter):
@@ -455,6 +457,7 @@ class L1InSARWriter(InSARBaseWriter):
                 threshold = self.cfg['processing']['rdr2geo']['threshold']
                 numiter = self.cfg['processing']['rdr2geo']['numiter']
                 extraiter = self.cfg['processing']['rdr2geo']['extraiter']
+                lines_per_block = self.cfg['processing']['rdr2geo']['lines_per_block']
 
                 scratch_path = pathlib.Path(self.cfg['product_path_group']['scratch_path'])
                 # create seperate directory within scratch dir for rdr2geo run
@@ -471,12 +474,16 @@ class L1InSARWriter(InSARBaseWriter):
                     isce3.cuda.core.set_device(device)
 
                 generate_dem_rdr(off_radargrid, self.ref_orbit, self.dem_file,
-                                 out_dem_rdr_path=out_dem_rdr_path,
+                                 out_dem_rdr_path=str(out_dem_rdr_path),
                                  use_gpu=True, threshold=threshold,
                                  numiter=numiter,
-                                 extraiter=extraiter)
+                                 extraiter=extraiter,
+                                 lines_per_block=lines_per_block)
+                save_to_hdf5_ds(str(out_dem_rdr_path),
+                                offset_group['digitalElevationModel'],
+                                lines_per_block)
                 # # Compute the stats
-                # compute_stats_real_hdf5_dataset(offset_group['digitalElevationModel'])
+                compute_stats_real_hdf5_dataset(offset_group['digitalElevationModel'])
             else:
                 for attr in ['mean_value', 'min_value',
                             'max_value', 'sample_stddev']:
@@ -662,6 +669,7 @@ class L1InSARWriter(InSARBaseWriter):
                 threshold = self.cfg['processing']['rdr2geo']['threshold']
                 numiter = self.cfg['processing']['rdr2geo']['numiter']
                 extraiter = self.cfg['processing']['rdr2geo']['extraiter']
+                lines_per_block = self.cfg['processing']['rdr2geo']['lines_per_block']
 
                 scratch_path = pathlib.Path(self.cfg['product_path_group']['scratch_path'])
                 # create seperate directory within scratch dir for rdr2geo run
@@ -676,14 +684,18 @@ class L1InSARWriter(InSARBaseWriter):
                     # Set the current CUDA device.
                     device = isce3.cuda.core.Device(self.cfg['worker']['gpu_id'])
                     isce3.cuda.core.set_device(device)
-
+                print(out_dem_rdr_path)
                 generate_dem_rdr(igram_radargrid, self.ref_orbit, self.dem_file,
-                                 out_dem_rdr_path=out_dem_rdr_path,
+                                 out_dem_rdr_path=str(out_dem_rdr_path),
                                  use_gpu=True, threshold=threshold,
                                  numiter=numiter,
-                                 extraiter=extraiter)
+                                 extraiter=extraiter,
+                                 lines_per_block=lines_per_block)
+                save_to_hdf5_ds(str(out_dem_rdr_path),
+                                igram_group['digitalElevationModel'],
+                                lines_per_block)
                 # # Compute the stats
-                # compute_stats_real_hdf5_dataset(igram_group['digitalElevationModel'])
+                compute_stats_real_hdf5_dataset(igram_group['digitalElevationModel'])
             else:
                 for attr in ['mean_value', 'min_value',
                             'max_value', 'sample_stddev']:
