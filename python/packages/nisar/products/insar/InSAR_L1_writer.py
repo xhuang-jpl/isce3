@@ -1,6 +1,8 @@
 import os
+import pathlib
 
 import numpy as np
+import isce3
 from isce3.core import LUT2d
 from nisar.workflows import geo2rdr, rdr2geo
 from nisar.workflows.compute_stats import compute_stats_real_hdf5_dataset
@@ -13,7 +15,7 @@ from .dataset_params import DatasetParams, add_dataset_and_attrs
 from .InSAR_base_writer import InSARBaseWriter
 from .product_paths import L1GroupsPaths
 from .units import Units
-from .utils import (extract_datetime_from_string, generate_dem,
+from .utils import (extract_datetime_from_string, generate_dem_rdr,
                     generate_insar_subswath_mask,
                     get_geolocation_grid_cube_obj)
 
@@ -454,15 +456,27 @@ class L1InSARWriter(InSARBaseWriter):
                 numiter = self.cfg['processing']['rdr2geo']['numiter']
                 extraiter = self.cfg['processing']['rdr2geo']['extraiter']
 
-                offset_group['digitalElevationModel'][...] = \
-                    generate_dem(off_radargrid,
-                                 self.ref_orbit,
-                                 self.dem_file,
-                                 threshold = threshold,
-                                 numiter = numiter,
-                                 extraiter = extraiter)
-                # Compute the stats
-                compute_stats_real_hdf5_dataset(offset_group['digitalElevationModel'])
+                scratch_path = pathlib.Path(self.cfg['product_path_group']['scratch_path'])
+                # create seperate directory within scratch dir for rdr2geo run
+                rdr2geo_scratch_path = scratch_path / 'rdr2geo' / f'freq{freq}'
+                rdr2geo_scratch_path.mkdir(parents=True, exist_ok=True)
+                out_dem_rdr_path = rdr2geo_scratch_path / f'{self.product_info.ProductType}_offsets_dem.rdr'
+
+                # check if gpu ok to use
+                use_gpu = isce3.core.gpu_check.use_gpu(self.cfg['worker']['gpu_enabled'],
+                                                       self.cfg['worker']['gpu_id'])
+                if use_gpu:
+                    # Set the current CUDA device.
+                    device = isce3.cuda.core.Device(self.cfg['worker']['gpu_id'])
+                    isce3.cuda.core.set_device(device)
+
+                generate_dem_rdr(off_radargrid, self.ref_orbit, self.dem_file,
+                                 out_dem_rdr_path=out_dem_rdr_path,
+                                 use_gpu=True, threshold=threshold,
+                                 numiter=numiter,
+                                 extraiter=extraiter)
+                # # Compute the stats
+                # compute_stats_real_hdf5_dataset(offset_group['digitalElevationModel'])
             else:
                 for attr in ['mean_value', 'min_value',
                             'max_value', 'sample_stddev']:
@@ -649,15 +663,27 @@ class L1InSARWriter(InSARBaseWriter):
                 numiter = self.cfg['processing']['rdr2geo']['numiter']
                 extraiter = self.cfg['processing']['rdr2geo']['extraiter']
 
-                igram_group['digitalElevationModel'][...] = \
-                    generate_dem(igram_radargrid,
-                                 self.ref_orbit,
-                                 self.dem_file,
-                                 threshold = threshold,
-                                 numiter = numiter,
-                                 extraiter = extraiter)
-                # Compute the stats
-                compute_stats_real_hdf5_dataset(igram_group['digitalElevationModel'])
+                scratch_path = pathlib.Path(self.cfg['product_path_group']['scratch_path'])
+                # create seperate directory within scratch dir for rdr2geo run
+                rdr2geo_scratch_path = scratch_path / 'rdr2geo' / f'freq{freq}'
+                rdr2geo_scratch_path.mkdir(parents=True, exist_ok=True)
+                out_dem_rdr_path = rdr2geo_scratch_path / f'{self.product_info.ProductType}_ifgram_dem.rdr'
+
+                # check if gpu ok to use
+                use_gpu = isce3.core.gpu_check.use_gpu(self.cfg['worker']['gpu_enabled'],
+                                                       self.cfg['worker']['gpu_id'])
+                if use_gpu:
+                    # Set the current CUDA device.
+                    device = isce3.cuda.core.Device(self.cfg['worker']['gpu_id'])
+                    isce3.cuda.core.set_device(device)
+
+                generate_dem_rdr(igram_radargrid, self.ref_orbit, self.dem_file,
+                                 out_dem_rdr_path=out_dem_rdr_path,
+                                 use_gpu=True, threshold=threshold,
+                                 numiter=numiter,
+                                 extraiter=extraiter)
+                # # Compute the stats
+                # compute_stats_real_hdf5_dataset(igram_group['digitalElevationModel'])
             else:
                 for attr in ['mean_value', 'min_value',
                             'max_value', 'sample_stddev']:

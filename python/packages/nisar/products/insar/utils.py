@@ -373,15 +373,18 @@ def _compute_subswath_mask_id(azi_idx,
     return subswath_mask_id
 
 
-def generate_dem(radar_grid_obj,
-                 orbit_obj,
-                 dem_file,
-                 dem_interp_method = 'BIQUINTIC',
-                 threshold = 1.0e-7,
-                 numiter = 25,
-                 extraiter = 10):
+def generate_dem_rdr(radar_grid_obj,
+                     orbit_obj,
+                     dem_file,
+                     out_dem_rdr_path,
+                     use_gpu = True,
+                     dem_interp_method = 'BIQUINTIC',
+                     threshold = 1.0e-7,
+                     numiter = 25,
+                     extraiter = 10,
+                     lines_per_block = 1000):
     """
-    Generate the DEM 2d array at a given radar grid
+    Generate the DEM in radar grid
 
     Parameters
     ---------
@@ -391,17 +394,24 @@ def generate_dem(radar_grid_obj,
         The SLC object for the secondary RSLC
     dem_file  : str
         DEM file
+    out_dem_rdr_path : str
+        output path of the DEM in radar grid
+    use_gpu : boolean (default: True)
+        Indicator to use the GPU or not
     dem_interp_method : str (default: BIQUINTIC)
         DEM interpolation method, one of 'BILINEAR', 'BICUBIC', 'NEAREST', and 'BIQUINTIC'
-
-    Returns
-    ----------
-    numpy.ndarray
-        2D DEM array at a given radar grid
+    threshold : float (default: 1.0e-7)
+        The rdr2geo absolute slant range convergence tolerance (m)
+    numiter : integer (default: 25)
+        Maximum number of primary Newton-Raphson iterations
+    extraiter : integer (default: 10)
+         Maximum number of secondary iterations
+    lines_per_block : integer (default: 1000)
+         Lines per block to write the generated DEM to the hard drive
     """
 
     error_journal = journal.error('utils.generate_insar_dem')
-    doplut = isce3.core.LUT2d()
+    grid_doppler = isce3.core.LUT2d()
 
     dem_raster = isce3.io.Raster(dem_file)
     if dem_raster is None:
@@ -421,46 +431,31 @@ def generate_dem(radar_grid_obj,
     if dem_interp_method == 'NEAREST':
         interp_method = isce3.core.DataInterpMethod.NEAREST
 
-    dem_interplator = isce3.geometry.DEMInterpolator(dem_raster)
-    dem_interplator.interp_method = interp_method
+    # Use the GPU or CPU version
+    if use_gpu:
+        Rdr2Geo = isce3.cuda.geometry.Rdr2Geo
+    else:
+        Rdr2Geo = isce3.geometry.Rdr2Geo
 
-    # Create DEM array filling with NANs
-    dem =  np.full((radar_grid_obj.length, radar_grid_obj.width),
-                   np.nan, dtype='float32')
+    # Create the DEM in the range Doppler coordinates
+    dem_src = isce3.io.Raster(out_dem_rdr_path,
+                              radar_grid_obj.width,
+                              radar_grid_obj.length, 1,
+                              gdal.GDT_Float32, 'ENVI')
 
-    for i in range(5):#range(radar_grid_obj.length):
-        t = radar_grid_obj.sensing_time(i)
-        for j in range(5):#range(radar_grid_obj.width):
-            r = radar_grid_obj.slant_range(j)
-            dop = doplut.eval(t, r)
-            # print('amzith time = ', t)
-            # print('slant range = ', r)
-            # print('dop = ', dop)
-            # print('threshold = ', threshold)
-            # print('numiter = ', numiter)
-            # print('extraiter = ', extraiter)
-            try:
-                llh = isce3.geometry.rdr2geo(t, r,
-                                            orbit_obj,
-                                            radar_grid_obj.lookside,
-                                            dop,
-                                            radar_grid_obj.wavelength,
-                                            dem_interplator,
-                                            ellipsoid = ellipsoid,
-                                            threshold = 1e-5,
-                                            numiter = numiter,
-                                            extraiter = extraiter)
-                # Get the elevation
-                dem[i,j] = llh[2]
-            except:
-                print('amzith time = ', t)
-                print('slant range = ', r)
-                print('dop = ', dop)
-                print('threshold = ', threshold)
-                print('numiter = ', numiter)
-                print('extraiter = ', extraiter)
-                pass
-    return dem
+    # Build the Rdr2Geo object
+    rdr2geo_obj = Rdr2Geo(radar_grid_obj, orbit_obj, ellipsoid, grid_doppler,
+                          dem_interp_method=interp_method,
+                          threshold=threshold, numiter=numiter,
+                          extraiter=extraiter,
+                          lines_per_block=lines_per_block)
+
+    rdr2geo_obj.topo(dem_raster, height_raster = dem_src)
+
+    # Clean the memory
+    dem_raster = None
+    rdr2geo_obj = None
+    dem_src = None
 
 
 def generate_insar_subswath_mask(ref_rslc_obj,
