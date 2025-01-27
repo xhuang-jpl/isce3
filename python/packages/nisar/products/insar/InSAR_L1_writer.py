@@ -480,7 +480,7 @@ class L1InSARWriter(InSARBaseWriter):
                 save_to_hdf5_ds(str(out_dem_rdr_path),
                                 offset_group['digitalElevationModel'],
                                 lines_per_block)
-                # # Compute the stats
+                # Compute the stats
                 compute_stats_real_hdf5_dataset(offset_group['digitalElevationModel'])
             else:
                 for attr in ['mean_value', 'min_value',
@@ -692,7 +692,7 @@ class L1InSARWriter(InSARBaseWriter):
                 save_to_hdf5_ds(str(out_dem_rdr_path),
                                 igram_group['digitalElevationModel'],
                                 lines_per_block)
-                # # Compute the stats
+                # Compute the stats
                 compute_stats_real_hdf5_dataset(igram_group['digitalElevationModel'])
             else:
                 for attr in ['mean_value', 'min_value',
