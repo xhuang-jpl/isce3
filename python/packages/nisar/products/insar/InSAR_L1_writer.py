@@ -473,7 +473,7 @@ class L1InSARWriter(InSARBaseWriter):
 
                 generate_dem_rdr(off_radargrid, self.ref_orbit, self.dem_file,
                                  out_dem_rdr_path=str(out_dem_rdr_path),
-                                 use_gpu=True, threshold=threshold,
+                                 use_gpu=use_gpu,threshold=threshold,
                                  numiter=numiter,
                                  extraiter=extraiter,
                                  lines_per_block=lines_per_block)
@@ -685,7 +685,7 @@ class L1InSARWriter(InSARBaseWriter):
 
                 generate_dem_rdr(igram_radargrid, self.ref_orbit, self.dem_file,
                                  out_dem_rdr_path=str(out_dem_rdr_path),
-                                 use_gpu=True, threshold=threshold,
+                                 use_gpu=use_gpu, threshold=threshold,
                                  numiter=numiter,
                                  extraiter=extraiter,
                                  lines_per_block=lines_per_block)
