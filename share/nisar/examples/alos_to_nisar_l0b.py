@@ -294,6 +294,7 @@ def populateIdentification(ident: h5py.Group, ldr: LeaderFile.LeaderFile):
         "2007-01-01 00:00:01.0000000"))
     # fields added to spec in 2023
     ident.create_dataset("granuleId", data=numpy.bytes_("None"))
+    ident.create_dataset('platformName', data=numpy.bytes_("ALOS-1"))
     ident.create_dataset("instrumentName", data=numpy.bytes_("PALSAR"))
     ident.create_dataset("isDithered", data=numpy.bytes_("False"))
     ident.create_dataset("isMixedMode", data=numpy.bytes_("False"))
@@ -323,6 +324,10 @@ def constructNISARHDF5(args, ldr):
         rrsd = lsar.create_group('RRSD')
         inps = rrsd.create_group('metadata/processingInformation/inputs')
         inps.create_dataset('l0aGranules', data=numpy.bytes_([os.path.basename(args.indir)]))
+
+        algos = rrsd.create_group('metadata/processingInformation/algorithms')
+        dset = algos.create_dataset("softwareVersion", data=numpy.bytes_(isce3.__version__))
+        dset.attrs["description"] = numpy.bytes_("Software version used for processing")
 
         #Start populating telemetry
         orbit_group = rrsd.create_group('lowRateTelemetry/orbit')
