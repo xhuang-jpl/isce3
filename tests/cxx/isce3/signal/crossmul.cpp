@@ -56,7 +56,7 @@ TEST(Crossmul, RunCrossmul)
     isce3::core::LUT2d<double> dop1 = product.metadata().procInfo().dopplerCentroid(freq);
     auto swath = product.swath(freq);
 
-    // Since this test careates an interferogram between the refernce SLC and itself,
+    // Since this test careates an interferogram between the reference SLC and itself,
     // the second Doppler is the same as the first
     isce3::core::LUT2d<double> dop2 = dop1;
 
@@ -162,14 +162,14 @@ TEST(Crossmul, RunCrossmulMLook)
     isce3::core::LUT2d<double> dop1 = product.metadata().procInfo().dopplerCentroid(freq);
     auto swath = product.swath(freq);
 
-    // Since this test careates an interferogram between the refernce SLC and itself,
+    // Since this test careates an interferogram between the reference SLC and itself,
     // the second Doppler is the same as the first
     isce3::core::LUT2d<double> dop2 = dop1;
 
     //instantiate the Crossmul class
     isce3::signal::Crossmul crsmul;
 
-    // set Doppler polynomials for refernce and secondary SLCs
+    // set Doppler polynomials for reference and secondary SLCs
     crsmul.doppler(dop1, dop2);
 
     // set number of interferogram looks in range

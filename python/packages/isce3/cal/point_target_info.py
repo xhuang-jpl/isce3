@@ -11,7 +11,7 @@ from warnings import warn
 import numpy as np
 
 from isce3.core import DateTime, LUT2d
-from isce3.ext.isce3.image.v2 import resample_to_coords
+from isce3.image.v2 import resample_to_coords
 from isce3.io.dataset import DatasetReader
 from isce3.product import RadarGridParameters
 
@@ -869,14 +869,14 @@ def analyze_point_target_chip(
             "offset": imax - i_pos,
             "phase ramp": fy,
         }
-
         # In the case of a geocoded dataset, the range and azimuth slices will have the
         # peak power position located directly at the center of the slice.
-        rg_indices = np.arange(rg_slice.shape[0], dtype=np.float64) - rg_slice[0] / 2
-        az_indices = np.arange(az_slice.shape[0], dtype=np.float64) - az_slice[0] / 2
-        if cuts:
-            return_dict["azimuth"]["cut"] = az_indices.tolist()
-            return_dict["range"]["cut"] = rg_indices.tolist()
+        def get_slice_indices(n: int) -> np.ndarray:
+            return (np.arange(n, dtype=np.float64) - (n - 1) / 2) / nov
+
+        rg_indices = get_slice_indices(len(rg_slice))
+        az_indices = get_slice_indices(len(az_slice))
+
     else:
         return_dict["azimuth"]["index"] = imax
         return_dict["azimuth"]["offset"] = imax - i_pos
@@ -891,13 +891,13 @@ def analyze_point_target_chip(
         idx_az = np.arange(az_slice.shape[0], dtype=float)
         rg_indices = chip_min_j + idx_rg / nov - j_pos
         az_indices = chip_min_i + idx_az / nov - i_pos
-        if cuts:
-            return_dict["azimuth"]["cut"] = az_indices.tolist()
-            return_dict["range"]["cut"] = rg_indices.tolist()
 
     if cuts:
+        return_dict["azimuth"]["cut"] = az_indices.tolist()
         return_dict["azimuth"]["magnitude cut"] = list(np.abs(az_slice))
         return_dict["azimuth"]["phase cut"] = list(np.angle(az_slice))
+
+        return_dict["range"]["cut"] = rg_indices.tolist()
         return_dict["range"]["magnitude cut"] = list(np.abs(rg_slice))
         return_dict["range"]["phase cut"] = list(np.angle(rg_slice))
     
@@ -988,12 +988,6 @@ def sample_geocoded_side_lobe(
     sample_indices_j = np.empty((1, chip_size), dtype=np.float64)
     sample_indices_j[0,:] = indices_arange * heading_east_az + pos_j
 
-    checking_sample = np.full(
-        (1, chip_size),
-        fill_value=np.nan + 1.0j * np.nan,
-        dtype=np.complex64
-    )
-
     # The interpolation will happen with a dummy grid, as the chip should already
     # be baseband and RadarGridParameters is only required for Doppler correction.
     dummy_grid: RadarGridParameters = RadarGridParameters(
@@ -1009,12 +1003,11 @@ def sample_geocoded_side_lobe(
     )
 
     # Sample all of the sample indices to get the slice.
-    resample_to_coords(
-        output_data_block=checking_sample,
+    checking_sample = resample_to_coords(
         input_data_block=chip,
         range_input_indices=sample_indices_j,
         azimuth_input_indices=sample_indices_i,
-        in_radar_grid=dummy_grid,
+        input_radar_grid=dummy_grid,
         native_doppler=LUT2d(),
         fill_value=np.nan + 1.0j * np.nan,
     )

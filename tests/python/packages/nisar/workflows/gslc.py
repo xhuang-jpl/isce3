@@ -10,6 +10,7 @@ from nisar.workflows.gslc_runconfig import GSLCRunConfig
 from nisar.products.writers import GslcWriter
 from nisar.products.readers import GSLC, RSLC
 from osgeo import gdal
+import h5py
 
 import iscetest
 
@@ -20,7 +21,7 @@ def test_run():
     '''
     test_yaml = os.path.join(iscetest.data, 'geocodeslc/test_gslc.yaml')
 
-    # load text then substitude test directory paths since data dir is read only
+    # load text then substitute test directory paths since data dir is read only
     with open(test_yaml) as fh_test_yaml:
         test_yaml = fh_test_yaml.read(). \
             replace('@ISCETEST@', iscetest.data). \
@@ -106,7 +107,7 @@ def test_run():
         gslc_doppler_centroid_lut = gslc_product.getDopplerCentroid()
         assert isinstance(gslc_doppler_centroid_lut, isce3.core.LUT2d)
 
-        # The GSLC Doppler Centroid LUT in radar coordiantes must match
+        # The GSLC Doppler Centroid LUT in radar coordinates must match
         # the RSLC Doppler Centroid LUT
         rslc_product = RSLC(hdf5file=f'{iscetest.data}/envisat.h5')
         rslc_doppler_centroid_lut = rslc_product.getDopplerCentroid()
@@ -121,6 +122,22 @@ def test_run():
         for attr in lut_attributes_to_check_list:
             assert (gslc_doppler_centroid_lut.__getattribute__(attr) ==
                     rslc_doppler_centroid_lut.__getattribute__(attr))
+
+        output_h5_obj = h5py.File(sas_output_file, 'r')
+
+        zero_doppler_time_dataset = \
+            output_h5_obj['//science/LSAR/GSLC/metadata/sourceData/'
+                          'processingInformation/parameters/zeroDopplerTime']
+
+        assert 'units' in zero_doppler_time_dataset.attrs.keys()
+
+        assert zero_doppler_time_dataset.attrs['units'].decode().startswith(
+            'seconds since ')
+
+        assert zero_doppler_time_dataset.attrs['description'].decode() == \
+            ('Vector of zero Doppler azimuth times, measured relative to'
+             ' a UTC epoch, corresponding to source data processing'
+             ' information records')
 
 
 def get_raster_geogrid(dataset_reference):

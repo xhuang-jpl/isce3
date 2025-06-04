@@ -69,7 +69,7 @@ class L2InSARWriter(L1InSARWriter):
         grid_doppler : isce3.core.LUT2d
             The grid doppler look-up table
         threshold_geo2rdr : float
-            Convergence threashold for the geo2rdr
+            Convergence threshold for the geo2rdr
         numiter_geo2rdr : float
             Maximum number of iteration for geo2rdr
         delta_range : float
@@ -85,7 +85,7 @@ class L2InSARWriter(L1InSARWriter):
         # seconds since ref epoch
         ref_epoch = radar_grid.ref_epoch
         ref_epoch_str = ref_epoch.isoformat()
-        az_coord_units = f'seconds since {ref_epoch_str}'
+        az_coord_units = f'seconds since {ref_epoch_str[:19]}'
 
         create_dataset_kwargs = {}
         create_dataset_kwargs['chunk_size'] = chunk_size
@@ -104,7 +104,7 @@ class L2InSARWriter(L1InSARWriter):
             cube_group, 'secondaryZeroDopplerAzimuthTime', np.float64, cube_shape,
             zds=zds, yds=yds, xds=xds,
             long_name='zero-Doppler azimuth time',
-            descr='Zero doppler azimuth time of the secondary RSLC image',
+            descr='Zero Doppler azimuth time in seconds since UTC epoch of the reference RSLC image',
             units=az_coord_units, **create_dataset_kwargs)
 
         isce3.geometry.make_radar_grid_cubes(radar_grid, geogrid, heights,
@@ -174,7 +174,7 @@ class L2InSARWriter(L1InSARWriter):
 
         # Update the radar grids attributes
         radar_grid['slantRange'].attrs['description'] = \
-            np.string_("Slant range of the reference RSLC in meters")
+            np.bytes_("Slant range of the reference RSLC in meters")
         radar_grid['slantRange'].attrs['units'] = Units.meter
 
         zero_dopp_azimuth_time_units = \
@@ -185,9 +185,9 @@ class L2InSARWriter(L1InSARWriter):
         if time_str is not None:
             zero_dopp_azimuth_time_units = time_str
         radar_grid['zeroDopplerAzimuthTime'].attrs['units'] = \
-            np.string_(zero_dopp_azimuth_time_units)
+            np.bytes_(zero_dopp_azimuth_time_units)
         radar_grid['zeroDopplerAzimuthTime'].attrs['description'] = \
-            np.string_("Zero doppler azimuth time of the reference RSLC image")
+            np.bytes_("Zero doppler azimuth time of the reference RSLC image")
 
         # Rename the dataset names
         radar_grid.move('slantRange','referenceSlantRange')
@@ -199,36 +199,36 @@ class L2InSARWriter(L1InSARWriter):
         radar_grid['heightAboveEllipsoid'][...] = \
             radar_grid['heightAboveEllipsoid'][()].astype(np.float64)
         radar_grid['heightAboveEllipsoid'].attrs['description'] = \
-            np.string_("Height values above WGS84 Ellipsoid"
+            np.bytes_("Height values above WGS84 Ellipsoid"
                        " corresponding to the radar grid")
         radar_grid['heightAboveEllipsoid'].attrs['units'] = \
             Units.meter
 
         radar_grid['xCoordinates'].attrs['description'] = \
-            np.string_("X coordinates corresponding to the radar grid")
+            np.bytes_("X coordinates corresponding to the radar grid")
         radar_grid['xCoordinates'].attrs['long_name'] = \
-            np.string_("X coordinates of projection")
+            np.bytes_("X coordinates of projection")
         radar_grid['yCoordinates'].attrs['description'] = \
-            np.string_("Y coordinates corresponding to the radar grid")
+            np.bytes_("Y coordinates corresponding to the radar grid")
         radar_grid['yCoordinates'].attrs['long_name'] = \
-            np.string_("Y coordinates of projection")
+            np.bytes_("Y coordinates of projection")
 
         radar_grid['incidenceAngle'].attrs['description'] = \
-            np.string_("Incidence angle is defined as the angle"
+            np.bytes_("Incidence angle is defined as the angle"
                        " between the LOS vector and the normal to"
                        " the ellipsoid at the target height")
         radar_grid['incidenceAngle'].attrs['long_name'] = \
-            np.string_("Incidence angle")
+            np.bytes_("Incidence angle")
 
         radar_grid["elevationAngle"].attrs["description"] = \
-            np.string_("Elevation angle is defined as the angle between"
+            np.bytes_("Elevation angle is defined as the angle between"
                        " the LOS vector and the normal to"
                        " the ellipsoid at the sensor")
         radar_grid["groundTrackVelocity"].attrs["description"] = \
-            np.string_("Absolute value of the platform velocity"
+            np.bytes_("Absolute value of the platform velocity"
                        " scaled at the target height")
         radar_grid["groundTrackVelocity"].attrs["units"] = \
-            np.string_("meters / second")
+            np.bytes_("meters / second")
 
         # Add the baseline dataset to radargrid
         self.add_baseline_info_to_cubes(radar_grid,
@@ -287,34 +287,22 @@ class L2InSARWriter(L1InSARWriter):
                 complex_interpolation,
                 "Geocoding interpolation algorithm for complex-valued"
                 " datasets",
-                {
-                    "algorithm_type": "Geocoding",
-                },
             ),
             DatasetParams(
                 "demInterpolation",
                 dem_interpolation,
                 "DEM interpolation algorithm",
-                {
-                    "algorithm_type": "Geocoding",
-                },
             ),
             DatasetParams(
                 "floatingGeocodingInterpolation",
                 floating_interpolation,
                 "Geocoding interpolation algorithm for floating point"
                 " datasets",
-                {
-                    "algorithm_type": "Geocoding",
-                },
             ),
             DatasetParams(
                 "integerGeocodingInterpolation",
                 integer_interpolation,
                 "Geocoding interpolation algorithm for integer datasets",
-                {
-                    "algorithm_type": "Geocoding",
-                },
             ),
         ]
 
@@ -340,28 +328,28 @@ class L2InSARWriter(L1InSARWriter):
         ds_params = [
             DatasetParams(
                 "azimuthIonosphericCorrectionApplied",
-                np.string_(str(iono)),
+                np.bytes_(str(iono)),
                 "Flag to indicate if the azimuth ionospheric correction is"
                 " applied to improve geolocation"
                 ,
             ),
             DatasetParams(
                 "rangeIonosphericCorrectionApplied",
-                np.string_(str(iono)),
+                np.bytes_(str(iono)),
                 "Flag to indicate if the range ionospheric correction is"
                 " applied to improve geolocation"
                 ,
             ),
             DatasetParams(
                 "wetTroposphericCorrectionApplied",
-                np.string_(str(wet_tropo)),
+                np.bytes_(str(wet_tropo)),
                 "Flag to indicate if the wet tropospheric correction is"
                 " applied to improve geolocation"
                 ,
             ),
             DatasetParams(
                 "hydrostaticTroposphericCorrectionApplied",
-                np.string_(str(dry_tropo)),
+                np.bytes_(str(dry_tropo)),
                 "Flag to indicate if the hydrostatic tropospheric correction is"
                 " applied to improve geolocation"
                 ,
@@ -411,7 +399,7 @@ class L2InSARWriter(L1InSARWriter):
 
             list_of_pols = DatasetParams(
                 "listOfPolarizations",
-                np.string_(pol_list),
+                np.bytes_(pol_list),
                 "List of processed polarization layers with"
                 f" frequency {freq}"
                 ,
@@ -426,6 +414,6 @@ class L2InSARWriter(L1InSARWriter):
 
             # Add the description and units
             cfreq = grids_freq_group["centerFrequency"]
-            cfreq.attrs['description'] = np.string_("Center frequency of"
+            cfreq.attrs['description'] = np.bytes_("Center frequency of"
                                                     " the processed image in hertz")
             cfreq.attrs['units'] = Units.hertz

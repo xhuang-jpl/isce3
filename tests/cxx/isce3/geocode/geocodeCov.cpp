@@ -57,7 +57,7 @@ TEST(GeocodeTest, TestGeocodeCov) {
     // Create a DEM with zero height (ellipsoid surface)
     createZeroDem();
 
-    // Run Topo with the zero height DEM and cerate the lat-lon grids on ellipsoid
+    // Run Topo with the zero height DEM and create the lat-lon grids on ellipsoid
     createTestData();
 
     std::string h5file(TESTDATA_DIR "envisat.h5");
@@ -280,7 +280,7 @@ TEST(GeocodeTest, TestGeocodeCov) {
                           epsgcode);
 
     // load complex raster X and Y as a raster vector
-    std::vector<Raster> slc_raster_xyVect = {isce3::io::Raster("xslc_rdr.bin"),
+    std::vector<isce3::io::Raster> slc_raster_xyVect = {isce3::io::Raster("xslc_rdr.bin"),
                                            isce3::io::Raster("yslc_rdr.bin")};
 
     isce3::io::Raster slc_raster_xy =

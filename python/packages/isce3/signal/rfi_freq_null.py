@@ -3,6 +3,8 @@ Perform RFI Detection and mitigation by evaluating raw data frequency domain
 averaged Power Spectra. Detected RFI-contaminated frequency bins are nulled.
 """
 
+from __future__ import annotations
+
 import numpy as np
 from scipy.fft import fft, ifft
 from numpy.polynomial import Polynomial
@@ -626,6 +628,6 @@ def rfi_freq_removal(
             notch_line = (rfi_detect_mask[i] == 0)
             # Null frequency bins identified as RFI by RFI mask of the matching line of image
             raw_line_fft_nulled = raw_data_fft[i] * notch_line
-            # Inverse FFT to tranlate into time domain
+            # Inverse FFT to translate into time domain
             raw_line_nulled = ifft(raw_line_fft_nulled)
             raw_data_mitigated[i] = raw_line_nulled

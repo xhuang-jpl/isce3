@@ -1,6 +1,8 @@
 import numpy as np
 from nisar.workflows.h5_prep import get_off_params
-from nisar.workflows.helpers import get_cfg_freq_pols
+from nisar.workflows.helpers import (get_cfg_freq_pols,
+                                     get_pixel_offsets_dataset_shape,
+                                     get_pixel_offsets_params)
 
 from .dataset_params import DatasetParams, add_dataset_and_attrs
 from .InSAR_base_writer import InSARBaseWriter
@@ -9,7 +11,6 @@ from .InSAR_L1_writer import L1InSARWriter
 from .InSAR_products_info import InSARProductsInfo
 from .product_paths import ROFFGroupsPaths
 from .units import Units
-from .utils import get_pixel_offsets_dataset_shape, get_pixel_offsets_params
 
 
 class ROFFWriter(L1InSARWriter):
@@ -40,14 +41,15 @@ class ROFFWriter(L1InSARWriter):
         """
         super().add_root_attrs()
 
-        self.attrs["title"] = np.string_("NISAR L1 ROFF Product")
+        # Add additional attributes
+        self.attrs["title"] = np.bytes_("NISAR L1 ROFF Product")
         self.attrs["reference_document"] = \
-            np.string_("D-105009 NISAR NASA SDS"
+            np.bytes_("D-105009 NISAR NASA SDS"
                        " Product Specification L1 Range Doppler Pixel Offsets")
 
     def add_coregistration_to_algo_group(self):
         """
-        Add the coregistration parameters to the "processingInfromation/algorithms" group
+        Add the coregistration parameters to the "processingInformation/algorithms" group
         """
         proc_cfg = self.cfg["processing"]
         dense_offsets = proc_cfg["dense_offsets"]["enabled"]
@@ -62,26 +64,17 @@ class ROFFWriter(L1InSARWriter):
                 "coregistrationMethod",
                 coreg_method,
                 "RSLC coregistration method",
-                {
-                    "algorithm_type": "RSLC coregistration",
-                },
             ),
             DatasetParams(
                 "geometryCoregistration",
                 "Range doppler to geogrid then geogrid to range doppler"
                 ,
                 "Geometry coregistration algorithm",
-                {
-                    "algorithm_type": "RSLC coregistration",
-                },
             ),
             DatasetParams(
                 "resampling",
                 "sinc",
                 "Secondary RSLC resampling algorithm",
-                {
-                    "algorithm_type": "RSLC coregistration",
-                },
             ),
         ]
 
@@ -92,7 +85,7 @@ class ROFFWriter(L1InSARWriter):
 
     def add_cross_correlation_to_algo_group(self):
         """
-        Add the cross correlation parameters to the "processingInfromation/algorithms" group
+        Add the cross correlation parameters to the "processingInformation/algorithms" group
         """
         proc_cfg = self.cfg["processing"]
         is_roff = proc_cfg["offsets_product"]["enabled"]
@@ -104,11 +97,7 @@ class ROFFWriter(L1InSARWriter):
                 cross_corr = DatasetParams(
                     "crossCorrelationAlgorithm",
                     cross_correlation_domain,
-                    f"Cross-correlation algorithm for layer {layer[-1]}"
-                    ,
-                    {
-                        "algorithm_type": "RSLC coregistration",
-                    },
+                    f"Cross-correlation algorithm for layer {layer[-1]}",
                 )
                 cross_corr_group = \
                     self.require_group(f"{self.group_paths.AlgorithmsPath}/crossCorrelation/{layer}")
@@ -220,11 +209,15 @@ class ROFFWriter(L1InSARWriter):
                 pixeloffsets_group,
                 "rangeBandwidth",
             )
+            pixeloffsets_group['rangeBandwidth'].attrs['description'] = \
+                np.bytes_(f'Processed slant range bandwidth for frequency {freq} pixel offsets layers')
             swath_frequency_group.copy(
                 "processedAzimuthBandwidth",
                 pixeloffsets_group,
                 "azimuthBandwidth",
             )
+            pixeloffsets_group['azimuthBandwidth'].attrs['description'] = \
+                np.bytes_(f'Processed azimuth bandwidth for frequency {freq} pixel offsets layers')
 
             for layer in proc_cfg["offsets_product"]:
                 if layer.startswith("layer"):
@@ -386,12 +379,11 @@ class ROFFWriter(L1InSARWriter):
             for layer in proc_cfg["offsets_product"]
             if layer.startswith("layer")]
 
-        list_of_layers = np.string_(layers)
+        list_of_layers = np.bytes_(layers)
         freq_group.require_dataset('listOfLayers',
                                     shape=list_of_layers.shape,
                                     dtype=list_of_layers.dtype,
                                     data=list_of_layers)
 
-        freq_group['listOfLayers'].attrs['units'] = Units.unitless
         freq_group['listOfLayers'].attrs['description'] =\
-            np.string_('List of pixel offsets layers')
+            np.bytes_('List of pixel offsets layers')

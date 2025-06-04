@@ -151,6 +151,7 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
         # raider package
         else:
             import xarray as xr
+            import RAiDER
             from RAiDER.llreader import BoundingBox
             from RAiDER.losreader import Zenith, Raytracing
             from RAiDER.delay import tropo_delay as raider_tropo_delay
@@ -185,6 +186,12 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                 # the lat/lon bounds are applied to clip the global
                 # weather model to minimize the data processing
                 hres.setTime(weather_model_time)
+
+                # Workaround for a RAiDER bug in the version of '0.5.2' and '0.5.3'
+                # (see https://github.com/dbekaert/RAiDER/issues/682)
+                if RAiDER.__version__ in ['0.5.2','0.5.3']:
+                    hres._time = hres._time.replace(tzinfo=None)
+
                 hres.set_latlon_bounds(ll_bounds = lat_lon_bounds)
                 hres.set_wmLoc(weather_model_output_dir)
 
@@ -209,14 +216,14 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                 output_file = hres.out_file(weather_model_output_dir)
                 hres._out_name =  output_file
 
-                # Return the ouput file if it exists
+                # Return the output file if it exists
                 if os.path.exists(output_file):
                     return output_file
                 else:
                     # Write to hard drive
                     return hres.write()
 
-            # ouput location
+            # output location
             weather_model_output_dir = \
                 os.path.join(scratch_path, 'weather_model_files')
 
@@ -372,7 +379,7 @@ def write_to_GUNW_product(tropo_delay_datacubes: dict, gunw_hdf5: str):
              # Product name
              output_product_name = f'{delay_product}TroposphericPhaseScreen'
 
-             # If there is no troposphere delay product, then createa new one
+             # If there is no troposphere delay product, then create a new one
              if output_product_name not in radar_grid:
                  h5_prep._create_datasets(radar_grid, [0], np.float64,
                                           output_product_name, descr = descr,

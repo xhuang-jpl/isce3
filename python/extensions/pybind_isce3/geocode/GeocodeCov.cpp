@@ -10,6 +10,8 @@
 #include <isce3/geometry/RTC.h>
 #include <isce3/io/Raster.h>
 
+#include <pybind_isce3/core/Constants.h>
+
 namespace py = pybind11;
 
 using isce3::core::parseDataInterpMethod;
@@ -40,9 +42,9 @@ void addbinding(py::class_<Geocode<T>>& pyGeocode)
             .def_property("data_interpolator",
                     py::overload_cast<>(
                             &Geocode<T>::dataInterpolator, py::const_),
-                    [](Geocode<T>& self, std::string& method) {
+                    [](Geocode<T>& self, py::object method) {
                         // get interp method
-                        auto data_interpolator = parseDataInterpMethod(method);
+                        auto data_interpolator = duck_method(method);
 
                         // set interp method
                         self.dataInterpolator(data_interpolator);
@@ -183,22 +185,40 @@ void addbinding(py::class_<Geocode<T>>& pyGeocode)
                         Raster to which the number of radar-grid looks
                         associated with the geogrid will be saved.
                     out_geo_rtc: isce3.io.Raster, optional
-                        Output RTC area factor (in geo-coordinates).
+                        Output RTC area factor (in geo-coordinates) to
+                        normalize the `output_raster` to the same radiometric
+                        convention as the `input_raster` (e.g., gamma0 to
+                        beta0).
                     out_geo_rtc_gamma0_to_sigma0: isce3.io.Raster, optional
                         Output RTC area factor gamma0 to sigma0 array
                         (in geo-coordinates).
                     phase_screen_raster: isce3.io.Raster, optional
                         Phase screen to be removed before geocoding
-                    az_time_correction: LUT2d
-                        geo2rdr azimuth additive correction, in seconds,
+                    az_time_correction: isce3.core.LUT2d
+                        Azimuth additive correction, in seconds,
                         as a function of azimuth and range
-                    slant_range_correction: LUT2d
-                        geo2rdr slant range additive correction, in meters,
+                    slant_range_correction: isce3.core.LUT2d
+                        Slant range additive correction, in meters,
                         as a function of azimuth and range
-                    in_rtc: isce3.io.Raster, optional
-                        Input RTC area factor (in slant-range).
+                    input_rtc: isce3.io.Raster, optional
+                        Input RTC normalization values (in
+                        slant-range geometry) used to convert the radiometric
+                        convention of the `input_raster` (e.g., beta0) to that
+                        of the `output_raster` (e.g., gamma0). These
+                        normalization values are applied by dividing
+                        the `input_raster` by them, ensuring consistency
+                        with the `output_raster`'s radiometric convention.
+                        This normalization is only applied if `flag_apply_rtc`
+                        is set to `true`. If `flag_apply_rtc` is
+                        `true`, but `input_rtc` is not provided, the RTC module
+                        will be used to compute the normalization values.
                     output_rtc: isce3.io.Raster, optional
-                        Output RTC area factor (in slant-range).
+                        Output RTC area normalization factor (ANF)
+                        (in slant-range geometry) to convert the radiometric
+                        convention of the `output_raster` (e.g., gamma0) to
+                        that of the `input_raster` (e.g., beta0). These values
+                        are only computed if `flag_apply_rtc` is `true`
+                        and `input_rtc` is not provided.
                     input_layover_shadow_mask_raster: isce3.io.Raster, optional
                         Input layover/shadow mask raster (in radar geometry).
                         Samples identified as SHADOW or LAYOVER_AND_SHADOW are

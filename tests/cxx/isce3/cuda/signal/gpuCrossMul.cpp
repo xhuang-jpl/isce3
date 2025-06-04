@@ -52,7 +52,7 @@ TEST(gpuCrossmul, Crossmul)
     const isce3::core::LUT2d<double> dop1 =
         product.metadata().procInfo().dopplerCentroid('A');
 
-    // Since this test careates an interferogram between the refernce SLC and itself,
+    // Since this test careates an interferogram between the reference SLC and itself,
     // the second Doppler is the same as the first
     isce3::core::LUT2d<double> dop2 = dop1;
 
@@ -128,7 +128,7 @@ TEST(gpuCrossmul, MultilookCrossmul)
     isce3::core::LUT2d<double> dop1 =
         product.metadata().procInfo().dopplerCentroid('A');
 
-    // Since this test careates an interferogram between the refernce SLC and itself,
+    // Since this test careates an interferogram between the reference SLC and itself,
     // the second Doppler is the same as the first
     isce3::core::LUT2d<double> dop2 = dop1;
 

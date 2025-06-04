@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import iscetest
 from isce3.signal import (cheby_equi_ripple_filter,
-    design_shaped_lowpass_filter, design_shaped_bandpass_filter)
+    design_shaped_lowpass_filter, design_shaped_bandpass_filter,
+    build_multi_rate_fir_filter)
 import numpy as np
 import numpy.testing as npt
 import bisect
@@ -61,14 +62,14 @@ def test_cheby_equi_ripple_filter():
     npt.assert_allclose(rect_bw_est, bandwidth, rtol=rtol_bw,
                         err_msg='Wrong bandwidth!')
 
-    # get the expected [low, high[ index wihtin pass-band region
+    # get the expected [low, high[ index within pass-band region
     frq_pass_low = -0.5 * bandwidth + centerfreq
     frq_pass_high = 0.5 * bandwidth + centerfreq
     idx_pass_low = bisect.bisect_left(freq, frq_pass_low)
     idx_pass_high = bisect.bisect_right(freq, frq_pass_high)
     slice_pass = slice(idx_pass_low, idx_pass_high)
 
-    # make sure the peak occurs wihtin expected [low,high[ of passband
+    # make sure the peak occurs within expected [low,high[ of passband
     idx_max = pow_spec.argmax()
     npt.assert_equal(idx_pass_low <= idx_max and idx_max <= idx_pass_high,
                      True, err_msg='The peak gain occurs outside expected \
@@ -99,6 +100,44 @@ pass-band region')
                         err_msg='Wrong stop-band attenuation on the left')
     npt.assert_allclose(min_att_right, stopatt, rtol=rtol_stop,
                         err_msg='Wrong stop-band attenuation on the right')
+
+
+def test_build_multi_rate_fir_filter():
+    # desired filter spec of multi-rate filter
+    samprate = 240e6  # (Hz)
+    bandwidth = 80e6  # (Hz)
+    over_samp_fact = 1.2  # roll off or oversampling factor (-)
+    ripple = 0.1  # pass band ripple (dB)
+    stopatt = 40.0  # min stop-band attenutation (dB)
+    centerfreq = 1257.5e6  # (Hz)
+
+    # expected filter parameters and output rate
+    up_fact = 2
+    down_fact = 5
+    rate_out = 96e6
+    num_taps = 111
+    group_del = 55
+
+    flt = build_multi_rate_fir_filter(
+        samprate, bandwidth, over_samp_fact, centerfreq,
+        ripple=ripple, stopatt=stopatt
+        )
+    npt.assert_equal(
+        flt.numtaps, num_taps, err_msg='Wrong filter length.'
+        )
+    npt.assert_equal(
+        flt.upfact, up_fact, err_msg='Wrong up-sampling factor.'
+        )
+    npt.assert_equal(
+        flt.downfact, down_fact, err_msg='Wrong down-sampling factor.'
+        )
+    npt.assert_equal(
+        flt.groupdelsamp, group_del, err_msg='Wrong group delay samples.'
+        )
+    npt.assert_allclose(
+        flt.rateout, rate_out, rtol=0, atol=1e-8,
+        err_msg='Wrong output sampling rate.'
+        )
 
 
 def db2amp(x):
