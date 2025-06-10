@@ -7,6 +7,7 @@ from nisar.products.insar import (GOFFWriter, GUNWWriter, RIFGWriter,
                                   ROFFWriter, RUNWWriter)
 from nisar.workflows.h5_prep import get_products_and_paths
 
+
 def prepare_insar_hdf5(cfg, output_hdf5, dst):
     """
     Prepare InSAR (GOFF, GUNW, RIFG, ROFF,  RUNW) HDF5 products.
