@@ -26,6 +26,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
     info_channel.log("starting INSAR")
 
     scratch_path =  pathlib.Path(cfg['product_path_group']['scratch_path'])
+    intermediate_files_removal_flag = cfg['worker']['intermediate_files_removal_enabled']
 
     t_all = time.time()
 
@@ -40,7 +41,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
 
     # Remove the rdr2geo scratch folder
     rdr2geo_scratch_path = pathlib.Path(f"{scratch_path}/rdr2geo")
-    if rdr2geo_scratch_path.exists():
+    if rdr2geo_scratch_path.exists() and intermediate_files_removal_flag:
         shutil.rmtree(rdr2geo_scratch_path)
         info_channel.log(f"removed the {rdr2geo_scratch_path} folder")
 
@@ -66,7 +67,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
     # Remove the offsets scratch folders
     for offset_name in ['offsets_product','dense_offsets']:
         offsets_scratch_path =  pathlib.Path(f"{scratch_path}/{offset_name}")
-        if offsets_scratch_path.exists():
+        if offsets_scratch_path.exists() and intermediate_files_removal_flag:
             shutil.rmtree(offsets_scratch_path)
             info_channel.log(f"removed the {offsets_scratch_path} folder")
 
@@ -80,7 +81,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
 
         # Remove the coarse resample scratch folder
         coarse_resample_scratch_path =  pathlib.Path(f"{scratch_path}/coarse_resample_slc")
-        if coarse_resample_scratch_path.exists():
+        if coarse_resample_scratch_path.exists() and intermediate_files_removal_flag:
             shutil.rmtree(coarse_resample_scratch_path)
             info_channel.log(f"removed the {coarse_resample_scratch_path} folder")
 
@@ -105,7 +106,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
     for workflow_name in ['fine_resample_slc','coarse_resample_slc',
                           'crossmul', 'unwrap']:
         workflow_scratch_path =  pathlib.Path(f"{scratch_path}/{workflow_name}")
-        if workflow_scratch_path.exists():
+        if workflow_scratch_path.exists() and intermediate_files_removal_flag:
             shutil.rmtree(workflow_scratch_path)
             info_channel.log(f"removed the {workflow_scratch_path} folder")
 
@@ -118,7 +119,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
     # Remove the 'rubbersheet_offsets','ionosphere', 'geo2rdr' scratch folders
     for workflow_name in ['rubbersheet_offsets','ionosphere', 'geo2rdr']:
         workflow_scratch_path =  pathlib.Path(f"{scratch_path}/{workflow_name}")
-        if workflow_scratch_path.exists():
+        if workflow_scratch_path.exists() and intermediate_files_removal_flag:
             shutil.rmtree(workflow_scratch_path)
             info_channel.log(f"removed the {workflow_scratch_path} folder")
 
@@ -134,7 +135,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
 
     # Remove the  geocode scratch folder
     geocode_scratch_path =  pathlib.Path(f"{scratch_path}/geocode_corrections")
-    if geocode_scratch_path.exists():
+    if geocode_scratch_path.exists() and intermediate_files_removal_flag:
         shutil.rmtree(geocode_scratch_path)
         info_channel.log(f"removed the {geocode_scratch_path} folder")
 
@@ -144,7 +145,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
 
         # Remove the  troposhere scratch folder
         tropo_scratch_path =  pathlib.Path(f"{scratch_path}/weather_model_files")
-        if tropo_scratch_path.exists():
+        if tropo_scratch_path.exists() and intermediate_files_removal_flag:
             shutil.rmtree(tropo_scratch_path)
             info_channel.log(f"removed the {tropo_scratch_path} folder")
 
@@ -157,7 +158,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
     # Remove the 'bandpass','baseline' scratch folders
     for workflow_name in ['bandpass','baseline']:
         workflow_scratch_path =  pathlib.Path(f"{scratch_path}/{workflow_name}")
-        if workflow_scratch_path.exists():
+        if workflow_scratch_path.exists() and intermediate_files_removal_flag:
             shutil.rmtree(workflow_scratch_path)
             info_channel.log(f"removed the {workflow_scratch_path} folder")
 
