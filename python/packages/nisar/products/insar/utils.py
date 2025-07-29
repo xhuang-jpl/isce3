@@ -418,16 +418,16 @@ def generate_dem_rdr(radar_grid_obj,
 
     Parameters
     ---------
-    radar_grid_obj : SLC
+    radar_grid_obj : isce3.product.RadarGridParameters
         The radar grid object for the reference RSLC
     orbit_obj : isce3.core.Orbit
         The SLC object for the secondary RSLC
     dem_file  : str
-        DEM file
+        Input DEM file in geocoded coordinates
     out_dem_rdr_path : str
         output path of the DEM in radar grid
     use_gpu : boolean (default: True)
-        Indicator to use the GPU or not
+        Indicator to use the GPU for rdr2geo computations
     dem_interp_method : str (default: BIQUINTIC)
         DEM interpolation method, one of 'BILINEAR', 'BICUBIC', 'NEAREST', and 'BIQUINTIC'
     threshold : float (default: 1.0e-7)
@@ -437,7 +437,7 @@ def generate_dem_rdr(radar_grid_obj,
     extraiter : integer (default: 10)
          Maximum number of secondary iterations
     lines_per_block : integer (default: 1000)
-         Lines per block to write the generated DEM to the hard drive
+         Lines per block to run rdr2geo
     """
 
     error_journal = journal.error('utils.generate_insar_dem')
@@ -452,14 +452,12 @@ def generate_dem_rdr(radar_grid_obj,
     proj = isce3.core.make_projection(epsg)
     ellipsoid = proj.ellipsoid
 
-    # Default DEM interpolation method is BIQUINTIC
-    interp_method = isce3.core.DataInterpMethod.BIQUINTIC
-    if dem_interp_method == 'BILINEAR':
-        interp_method = isce3.core.DataInterpMethod.BILINEAR
-    if dem_interp_method == 'BICUBIC':
-        interp_method = isce3.core.DataInterpMethod.BICUBIC
-    if dem_interp_method == 'NEAREST':
-        interp_method = isce3.core.DataInterpMethod.NEAREST
+    try:
+         interp_method = getattr(isce3.core.DataInterpMethod, dem_interp_method)
+    except AttributeError:
+         err_str = f"invalid interpolation method: {dem_interp_method}"
+         error_journal.log(err_str)
+         raise ValueError(err_str)
 
     # Use the GPU or CPU version
     if use_gpu:
@@ -482,11 +480,13 @@ def generate_dem_rdr(radar_grid_obj,
 
     x_raster, y_raster, incidence_raster,\
         heading_raster, local_incidence_raster, local_psi_raster,\
-            simulated_amplitude_raster, shadow_raster = [None] * 8
+            simulated_amplitude_raster, shadow_raster,\
+                ground_to_sat_x_ratser, ground_to_sat_y_raster= [None] * 10
     rdr2geo_obj.topo(dem_raster, x_raster, y_raster, dem_src,
                      incidence_raster, heading_raster, local_incidence_raster,
                      local_psi_raster, simulated_amplitude_raster,
-                     shadow_raster, None, None)
+                     shadow_raster,
+                     ground_to_sat_x_ratser, ground_to_sat_y_raster)
 
     # Clean the memory
     dem_raster = None
