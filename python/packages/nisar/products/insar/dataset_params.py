@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 import numpy as np
+from nisar.products.utils import to_bytes
 
 
 @dataclass
@@ -46,7 +47,7 @@ def add_dataset_and_attrs(group, dataset_param_item):
         Internal convenience function where if type str encountered, convert
         and return as np.bytes_. Otherwise return as is.
         """
-        val = np.bytes_(val) if isinstance(val, str) else val
+        val = to_bytes(val) if isinstance(val, str) else val
         return val
 
     # Convert data to written if necessary
