@@ -162,7 +162,7 @@ class L1InSARWriter(InSARBaseWriter):
         interferogram_ds_params = [
             DatasetParams(
                 "commonBandRangeFilterApplied",
-                to_bytes(str(range_filter)),
+                str(range_filter),
                 (
                     "Flag to indicate if common band range filter has been"
                     " applied"
@@ -170,7 +170,7 @@ class L1InSARWriter(InSARBaseWriter):
             ),
             DatasetParams(
                 "commonBandAzimuthFilterApplied",
-                to_bytes(str(azimuth_filter)),
+                str(azimuth_filter),
                 (
                     "Flag to indicate if common band azimuth filter has been"
                     " applied"
@@ -178,7 +178,7 @@ class L1InSARWriter(InSARBaseWriter):
             ),
             DatasetParams(
                 "ellipsoidalFlatteningApplied",
-                to_bytes(str(flatten)),
+                str(flatten),
                 (
                     "Flag to indicate if the interferometric phase has been "
                     "flattened with respect to a zero height ellipsoid"
@@ -186,7 +186,7 @@ class L1InSARWriter(InSARBaseWriter):
             ),
             DatasetParams(
                 "topographicFlatteningApplied",
-                to_bytes(str(flatten)),
+                str(flatten),
                 (
                     "Flag to indicate if the interferometric phase has been "
                     "flattened with respect to topographic height using a DEM"
