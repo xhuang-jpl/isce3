@@ -202,7 +202,7 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
         geogrids = pcfg["geocode"]["geogrids"]
         wrapped_igram_geogrids = pcfg["geocode"]["wrapped_igram_geogrids"]
 
-        grids_val = to_bytes("projection")
+        grids_val = "projection"
 
         # Only add the common fields such as list of polarizations, pixel offsets, and center frequency
         for freq, pol_list, _ in get_cfg_freq_pols(self.cfg):

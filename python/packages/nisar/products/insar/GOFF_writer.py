@@ -85,7 +85,7 @@ class GOFFWriter(ROFFWriter, L2InSARWriter):
 
         proc_cfg = self.cfg["processing"]
         geogrids = proc_cfg["geocode"]["geogrids"]
-        grids_val = to_bytes("projection")
+        grids_val = "projection"
 
         # Extract offset layer names for later processing
         layers = [

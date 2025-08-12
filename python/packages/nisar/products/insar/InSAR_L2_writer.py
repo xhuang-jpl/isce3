@@ -184,9 +184,9 @@ class L2InSARWriter(L1InSARWriter):
             str(zero_dopp_azimuth_time_units),
             'seconds since ')
         if time_str is not None:
-            zero_dopp_azimuth_time_units = time_str
+            zero_dopp_azimuth_time_units = to_bytes(time_str)
         radar_grid['zeroDopplerAzimuthTime'].attrs['units'] = \
-            to_bytes(zero_dopp_azimuth_time_units)
+            zero_dopp_azimuth_time_units
         radar_grid['zeroDopplerAzimuthTime'].attrs['description'] = \
             to_bytes("Zero doppler azimuth time of the reference RSLC image")
 
