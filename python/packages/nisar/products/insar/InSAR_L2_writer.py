@@ -229,7 +229,7 @@ class L2InSARWriter(L1InSARWriter):
             to_bytes("Absolute value of the platform velocity"
                        " scaled at the target height")
         radar_grid["groundTrackVelocity"].attrs["units"] = \
-            to_bytes("meters / second")
+            to_bytes(Units.meter_per_second)
 
         # Add the baseline dataset to radargrid
         self.add_baseline_info_to_cubes(radar_grid,
