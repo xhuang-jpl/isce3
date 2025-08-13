@@ -15,7 +15,9 @@ class DatasetParams:
     name : str
         Dataset name
     value : object
-        Data to be stored in Dataset
+        Data to be stored in the Dataset.
+        For string values, pass a single string directly.
+        For a list of strings, first convert it to bytes using the `to_bytes` function.
     description : str
         Description attribute of Dataset. Could be in attr_dict but made
         independent member to highlight it as a requirement.
@@ -29,7 +31,7 @@ class DatasetParams:
 
 def add_dataset_and_attrs(group, dataset_param_item):
     """
-    Write a DatasetParam object to h5py.Group
+    Write a DatasetParam object to h5py.Group,
 
     Parameters
     ----------
@@ -44,8 +46,8 @@ def add_dataset_and_attrs(group, dataset_param_item):
 
     def _as_np_string_if_needed(val):
         """
-        Internal convenience function where if type str encountered, convert
-        and return as np.bytes_. Otherwise return as is.
+        Internal convenience function where if data type str encountered, convert
+        and return as bytes. Otherwise return as is.
         """
         val = to_bytes(val) if isinstance(val, str) else val
         return val
