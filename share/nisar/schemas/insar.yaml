@@ -34,6 +34,10 @@ runconfig:
             # 101-200 (distance from inlandwater boundary)
 
             water_mask_file: str(required=False)
+
+            # PLACEHOLDER - Water mask file description, optional
+            water_mask_file_description: str(required=False)
+
             orbit_files: include('external_orbit_options', required=False)
 
             # Troposphere weather model

@@ -31,6 +31,9 @@ runconfig:
             dem_file_description:
 
             water_mask_file:
+            # PLACEHOLDER - Water mask file description, optional
+            water_mask_file_description:
+
             orbit_files:
                 reference_orbit_file:
                 secondary_orbit_file:
