@@ -52,6 +52,20 @@ def get_parser():
                         choices=['A', 'B'],
                         help='Frequency band: "A" or "B"')
 
+    parser.add_argument('--spacing-y',
+                        dest='spacing_y',
+                        required=False,
+                        default=None,
+                        type=float,
+                        help='Y spacing, the same unit with the L2 product (default: None)')
+
+    parser.add_argument('--spacing-x',
+                        dest='spacing_x',
+                        required=False,
+                        default=None,
+                        type=float,
+                        help='X spacing, the same unit with the L2 product (default: None)')
+
     parser.add_argument('--dem-interp-method',
                         dest='dem_interp_method',
                         type=str,
@@ -212,6 +226,17 @@ def get_radar_grid(nisar_product_obj, args):
     grid_obj = nisar_product_obj.getGridMetadata(frequency_str)
     geogrid_obj = grid_obj.geogrid
     wavelength = grid_obj.wavelength
+
+    # Update the Geogrid according to the specified spacing x and y
+    if (args.spacing_x is not None) and (args.spacing_y is not None):
+        geogrid_obj.width = int((geogrid_obj.end_x -
+                                 geogrid_obj.start_x)/
+                                args.spacing_x + 0.5)
+        geogrid_obj.length = int((geogrid_obj.end_y -
+                                  geogrid_obj.start_y)/
+                                 args.spacing_y + 0.5)
+        geogrid_obj.spacing_y = args.spacing_y
+        geogrid_obj.spacing_x = args.spacing_x
 
     # Get grid Doppler (zero-Doppler) and native Doppler LUTs
     grid_doppler = isce3.core.LUT2d()
