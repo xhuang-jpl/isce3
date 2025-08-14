@@ -228,15 +228,17 @@ def get_radar_grid(nisar_product_obj, args):
     wavelength = grid_obj.wavelength
 
     # Update the Geogrid according to the specified spacing x and y
-    if (args.spacing_x is not None) and (args.spacing_y is not None):
+    if args.spacing_x is not None:
         geogrid_obj.width = int((geogrid_obj.end_x -
                                  geogrid_obj.start_x)/
                                 args.spacing_x + 0.5)
+        geogrid_obj.spacing_x = args.spacing_x
+
+    if args.spacing_y is not None:
         geogrid_obj.length = int((geogrid_obj.end_y -
                                   geogrid_obj.start_y)/
                                  args.spacing_y + 0.5)
         geogrid_obj.spacing_y = args.spacing_y
-        geogrid_obj.spacing_x = args.spacing_x
 
     # Get grid Doppler (zero-Doppler) and native Doppler LUTs
     grid_doppler = isce3.core.LUT2d()
