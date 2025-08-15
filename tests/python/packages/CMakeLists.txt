@@ -46,6 +46,8 @@ nisar/products/readers/raw.py
 nisar/products/readers/rslc.py
 nisar/products/readers/rslc_cal.py
 nisar/products/product_spec.py
+nisar/products/projection.py
+nisar/products/utils.py
 nisar/workflows/crossmul.py
 nisar/workflows/estimate_abscal_factor.py
 nisar/workflows/faraday_rot_angle_from_rslc.py
@@ -65,6 +67,7 @@ nisar/workflows/filter_interferogram.py
 nisar/workflows/bandpass_insar.py
 nisar/workflows/ionosphere.py
 nisar/workflows/troposphere.py
+nisar/workflows/solid_earth_tides.py
 nisar/workflows/baseline.py
 nisar/workflows/process_args.py
 nisar/workflows/rdr2geo.py
@@ -81,10 +84,11 @@ nisar/workflows/geocode_corrections.py
 
 if(WITH_CUDA)
     list(APPEND TESTFILES
-            nisar/workflows/dense_offsets.py
-            nisar/workflows/rubbersheet.py
-            nisar/workflows/cuda_insar.py
-        )
+        isce3/cuda/image/resample_slc.py
+        nisar/workflows/dense_offsets.py
+        nisar/workflows/rubbersheet.py
+        nisar/workflows/cuda_insar.py
+    )
 endif()
 
 foreach(TESTFILE ${TESTFILES})
