@@ -114,11 +114,6 @@ class InSARBaseWriter(h5py.File):
         self.sec_h5_slc_file = \
             self.cfg["input_file_group"]["secondary_rslc_file"]
 
-        ancillary_group = self.cfg["dynamic_ancillary_file_group"]
-        self.water_mask_source = ancillary_group["water_mask_file_description"]
-        if self.water_mask_source is None:
-            self.water_mask_source = "None"
-
         # Pull the frequency and polarizations
         self.freq_pols = \
             self.cfg["processing"]["input_subset"]\
@@ -144,6 +139,10 @@ class InSARBaseWriter(h5py.File):
         self.dem_source = ancillary_group["dem_file_description"]
         if self.dem_source is None:
             self.dem_source = "None"
+
+        self.water_mask_source = ancillary_group["water_mask_file_description"]
+        if self.water_mask_source is None:
+            self.water_mask_source = "None"
 
         # Check if reference and secondary exists as files
         orbit_files = \
