@@ -57,14 +57,18 @@ def get_parser():
                         required=False,
                         default=None,
                         type=float,
-                        help='Y spacing, the same unit with the L2 product (default: None)')
+                        help='Y spacing, the same unit with the L2 product (only'
+                        ' applicable if the input is a NISAR L2 product). Defaults'
+                        ' to the Y-coordinate spacing of the product.')
 
     parser.add_argument('--spacing-x',
                         dest='spacing_x',
                         required=False,
                         default=None,
                         type=float,
-                        help='X spacing, the same unit with the L2 product (default: None)')
+                        help='X spacing, the same unit with the L2 product (only'
+                        ' applicable if the input is a NISAR L2 product). Defaults'
+                        ' to the X-coordinate spacing of the product.')
 
     parser.add_argument('--dem-interp-method',
                         dest='dem_interp_method',
