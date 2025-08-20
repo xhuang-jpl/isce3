@@ -1106,6 +1106,18 @@ class InSARBaseWriter(h5py.File):
                     "False",
                     description))
 
+            # Update the description for the listOfObservationModes
+            ds_name = f"{rslc_name}ListOfObservationModes"
+            description = f'List of observation modes of the L0B data used to generate the {rslc_name} RSLC'
+            if ds_name in dst_id_group:
+                ds = dst_id_group[ds_name]
+                ds.attrs['description'] = np.bytes_(description)
+            else:
+                add_dataset_and_attrs(dst_id_group, DatasetParams(
+                    ds_name,
+                    [],
+                    description))
+
         # Granule ID follows the NISAR filename convention. The partial granule ID
         # has placeholders (curly brackets) which will be filled by the InSAR SAS
         # (Partial Granule ID Example:
