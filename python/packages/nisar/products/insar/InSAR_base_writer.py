@@ -1112,7 +1112,8 @@ class InSARBaseWriter(h5py.File):
 
             # Update the description for the listOfObservationModes
             ds_name = f"{rslc_name}ListOfObservationModes"
-            description = f'List of observation modes of the L0B data used to generate the {rslc_name} RSLC'
+            description = 'List of observation modes of the L0B datasets'+\
+                f' used to generate the {rslc_name} RSLC (one mode per L0B)'
             if ds_name in dst_id_group:
                 ds = dst_id_group[ds_name]
                 ds.attrs['description'] = to_bytes(description)
