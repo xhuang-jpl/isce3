@@ -1060,7 +1060,8 @@ class InSARBaseWriter(h5py.File):
         datasets_to_copy = ["zeroDopplerStartTime",
                             "zeroDopplerEndTime",
                             "absoluteOrbitNumber",
-                            "isJointObservation"]
+                            "isJointObservation",
+                            "listOfObservationModes"]
         cap = lambda x: f"{x[0].upper()}{x[1:]}"
 
         for ds_name in datasets_to_copy:
