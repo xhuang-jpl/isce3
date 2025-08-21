@@ -43,6 +43,9 @@ runconfig:
             # TEC correction is applied
             tec_file: str(required=False)
 
+        ceos_analysis_ready_data:
+            static_layers_data_access: str(required=False)
+
         product_path_group:
             # Directory where PGE will place results
             product_path: str()
