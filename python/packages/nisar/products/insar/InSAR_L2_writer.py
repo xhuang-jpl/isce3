@@ -36,6 +36,13 @@ class L2InSARWriter(L1InSARWriter):
 
         self.add_radar_grid_cubes()
         self.add_grids_to_hdf5()
+        self.add_ceos_analysis_ready_data_to_metata()
+
+    def add_ceos_analysis_ready_data_to_metata(self):
+        """
+        Add the CEOS analysis ready data to the metadata
+        """
+        pass
 
     def add_secondary_radar_grid_cube(self, sec_cube_group_path,
                                        geogrid, heights, radar_grid, orbit,
