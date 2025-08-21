@@ -47,8 +47,7 @@ runconfig:
             # TEC correction is applied
             tec_file: str(required=False)
 
-        ceos_analysis_ready_data:
-            static_layers_data_access: str(required=False)
+        ceos_analysis_ready_data: include('ceos_analysis_ready_data_options', required=False)
 
         product_path_group:
             # Directory where PGE will place results
@@ -171,6 +170,9 @@ external_orbit_options:
 troposphere_weather_model_options:
      reference_troposphere_file: str(required=False)
      secondary_troposphere_file: str(required=False)
+
+ceos_analysis_ready_data_options:
+    static_layers_data_access: str(required=False)
 
 phase_unwrap_options:
     crossmul_path: str(required=False)

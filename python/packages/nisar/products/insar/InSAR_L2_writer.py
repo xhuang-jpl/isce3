@@ -48,7 +48,6 @@ class L2InSARWriter(L1InSARWriter):
 
         primary_exec_cfg = self.cfg["primary_executable"]
         static_layers_data_access_cfg = self.cfg['ceos_analysis_ready_data']
-
         partial_granule_id = primary_exec_cfg.get("partial_granule_id")
         static_layers_data_access = \
             static_layers_data_access_cfg.get('static_layers_data_access')
@@ -57,10 +56,12 @@ class L2InSARWriter(L1InSARWriter):
         if not partial_granule_id:
             granule_id = "None"
         else:
-            granule_id = get_insar_granule_id(self.ref_h5_slc_file, self.sec_h5_slc_file,
-                                            partial_granule_id, freq=frequency,
-                                            pol_process=self.freq_pols.get(frequency),
-                                            product_type=self.product_info.ProductType)
+            granule_id = get_insar_granule_id(self.ref_h5_slc_file,
+                                              self.sec_h5_slc_file,
+                                              partial_granule_id,
+                                              freq=frequency,
+                                              pol_process=self.freq_pols.get(frequency),
+                                              product_type=self.product_info.ProductType)
         static_layers_data_access_url = get_static_layers_data_access(static_layers_data_access,
                                                                       granule_id)
         static_layers_data_access_url = to_bytes(static_layers_data_access_url)
