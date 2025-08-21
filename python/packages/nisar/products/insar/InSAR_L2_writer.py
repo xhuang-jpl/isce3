@@ -50,7 +50,8 @@ class L2InSARWriter(L1InSARWriter):
         static_layers_data_access_cfg = self.cfg['ceos_analysis_ready_data']
 
         partial_granule_id = primary_exec_cfg.get("partial_granule_id")
-        static_layers_data_access = static_layers_data_access_cfg.get('static_layers_data_access')
+        static_layers_data_access = \
+            static_layers_data_access_cfg.get('static_layers_data_access')
 
         frequency = list(self.freq_pols.keys())[0]
         if not partial_granule_id:
@@ -62,9 +63,16 @@ class L2InSARWriter(L1InSARWriter):
                                             product_type=self.product_info.ProductType)
         static_layers_data_access_url = get_static_layers_data_access(static_layers_data_access,
                                                                       granule_id)
+        static_layers_data_access_url = to_bytes(static_layers_data_access_url)
 
+        # Create the staticLayersDataAccess dataset
         ds_group = self.require_group(f"{self.group_paths.MetadataPath}/ceosAnalysisReadyData")
-        ds = ds_group.require_dataset('staticLayersDataAccess', dtype=dtype, shape=shape)
+        ds = ds_group.require_dataset('staticLayersDataAccess',
+                                      dtype=static_layers_data_access_url.dtype,
+                                      shape=())
+        ds[...] = static_layers_data_access_url
+        ds.attrs['description'] = to_bytes('Location of the static layers product '
+                                           'associated with this product (URL or DOI)')
 
     def add_secondary_radar_grid_cube(self, sec_cube_group_path,
                                        geogrid, heights, radar_grid, orbit,
