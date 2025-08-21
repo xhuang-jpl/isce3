@@ -138,7 +138,11 @@ class InSARBaseWriter(h5py.File):
         ancillary_group = self.cfg["dynamic_ancillary_file_group"]
         self.dem_source = ancillary_group["dem_file_description"]
         if self.dem_source is None:
-            self.dem_source = "None"
+            self.dem_source = "(NOT SPECIFIED)"
+
+        self.water_mask_source = ancillary_group["water_mask_file_description"]
+        if self.water_mask_source is None:
+            self.water_mask_source = "(NOT SPECIFIED)"
 
         # Check if reference and secondary exists as files
         orbit_files = \
@@ -373,11 +377,20 @@ class InSARBaseWriter(h5py.File):
                                   ' radar modes, "False" otherwise')
         ds_params = [
             DatasetParams(
+                "rfiMitigation",
+                np.bytes_(rfi_mitigation),
+                (
+                    f'Algorithm used for radio frequency interference (RFI) mitigation in ' \
+                      'the {rslc_name} RSLC, either "ST-EVD" or "FDNF" (or "disabled" if no RFI ' \
+                      'mitigation was applied)'
+                ),
+            ),
+            DatasetParams(
                 "rfiMitigationApplied",
                 rfi_mitigation_flag,
                 (
-                    "Flag to indicate if RFI mitigation has been applied"
-                    f" to {rslc_name} RSLC"
+                    "Flag to indicate if radio frequency interference (RFI) mitigation was applied"
+                    f" during the generation of the {rslc_name} RSLC"
                 ),
             ),
             mixed_mode,
@@ -790,6 +803,11 @@ class InSARBaseWriter(h5py.File):
                 "demSource",
                 self.dem_source,
                 "Description of the input digital elevation model (DEM)",
+            ),
+            DatasetParams(
+                "waterMaskSource",
+                self.water_mask_source,
+                "Description of the input water mask",
             ),
             DatasetParams(
                 "l1ReferenceSlcGranules",
