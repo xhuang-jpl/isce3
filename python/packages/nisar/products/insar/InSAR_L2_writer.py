@@ -13,8 +13,7 @@ from .InSAR_base_writer import InSARBaseWriter
 from .InSAR_L1_writer import L1InSARWriter
 from .product_paths import L2GroupsPaths
 from .units import Units
-from .utils import (extract_datetime_from_string,
-                    get_static_layers_data_access)
+from .utils import extract_datetime_from_string, get_static_layers_data_access
 
 
 class L2InSARWriter(L1InSARWriter):
@@ -39,9 +38,9 @@ class L2InSARWriter(L1InSARWriter):
 
         self.add_radar_grid_cubes()
         self.add_grids_to_hdf5()
-        self.add_ceos_analysis_ready_data_to_metata()
+        self.add_ceos_analysis_ready_data_to_metadata()
 
-    def add_ceos_analysis_ready_data_to_metata(self):
+    def add_ceos_analysis_ready_data_to_metadata(self):
         """
         Add the CEOS analysis ready data to the metadata
         """
