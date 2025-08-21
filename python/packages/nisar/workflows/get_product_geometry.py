@@ -57,8 +57,9 @@ def get_parser():
                         required=False,
                         default=None,
                         type=float,
-                        help='Y spacing, the same unit with the L2 product (only'
-                        ' applicable if the input is a NISAR L2 product). Defaults'
+                        help='Y spacing, the same unit with the L2 product. It'
+                        'can be positive or negative and only applicable if the'
+                        ' input is a NISAR L2 product. Defaults'
                         ' to the Y-coordinate spacing of the product.')
 
     parser.add_argument('--spacing-x',
@@ -69,6 +70,22 @@ def get_parser():
                         help='X spacing, the same unit with the L2 product (only'
                         ' applicable if the input is a NISAR L2 product). Defaults'
                         ' to the X-coordinate spacing of the product.')
+
+    parser.add_argument('--margin-y',
+                        dest='margin_y',
+                        required=False,
+                        default=0.0,
+                        type=float,
+                        help='Y margin, the same unit with the L2 product. '
+                        'It is only applicable if the input is a NISAR L2 product.')
+
+    parser.add_argument('--margin-x',
+                        dest='margin_x',
+                        required=False,
+                        default=0.0,
+                        type=float,
+                        help='X margin, the same unit with the L2 product. '
+                        'It is only applicable if the input is a NISAR L2 product.')
 
     parser.add_argument('--dem-interp-method',
                         dest='dem_interp_method',
@@ -230,6 +247,20 @@ def get_radar_grid(nisar_product_obj, args):
     grid_obj = nisar_product_obj.getGridMetadata(frequency_str)
     geogrid_obj = grid_obj.geogrid
     wavelength = grid_obj.wavelength
+
+    # Add the margin along x 
+    geogrid_obj.width = int(np.ceil((geogrid_obj.end_x +
+                                     2*args.margin_x -
+                                     geogrid_obj.start_x)/
+                                    geogrid_obj.spacing_x))
+    geogrid_obj.start_x -= args.margin_x
+
+    # Add the margin along y
+    geogrid_obj.length = int(np.ceil((geogrid_obj.end_y -
+                                     2*args.margin_y -
+                                     geogrid_obj.start_y)/
+                                     geogrid_obj.spacing_y))
+    geogrid_obj.start_y += args.margin_y
 
     # Update the Geogrid according to the specified spacing x and y
     if args.spacing_x is not None:
