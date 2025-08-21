@@ -7,11 +7,13 @@ from nisar.workflows.h5_prep import (_get_raster_from_hdf5_ds,
 from nisar.workflows.helpers import get_cfg_freq_pols
 
 from .dataset_params import DatasetParams, add_dataset_and_attrs
+from .granule_id import get_insar_granule_id
 from .InSAR_base_writer import InSARBaseWriter
 from .InSAR_L1_writer import L1InSARWriter
 from .product_paths import L2GroupsPaths
 from .units import Units
-from .utils import extract_datetime_from_string
+from .utils import (extract_datetime_from_string,
+                    get_static_layers_data_access)
 
 
 class L2InSARWriter(L1InSARWriter):
@@ -42,7 +44,26 @@ class L2InSARWriter(L1InSARWriter):
         """
         Add the CEOS analysis ready data to the metadata
         """
-        pass
+
+        primary_exec_cfg = self.cfg["primary_executable"]
+        static_layers_data_access_cfg = self.cfg['ceos_analysis_ready_data']
+
+        partial_granule_id = primary_exec_cfg.get("partial_granule_id")
+        static_layers_data_access = static_layers_data_access_cfg.get('static_layers_data_access')
+
+        frequency = list(self.freq_pols.keys())[0]
+        if not partial_granule_id:
+            granule_id = "None"
+        else:
+            granule_id = get_insar_granule_id(self.ref_h5_slc_file, self.sec_h5_slc_file,
+                                            partial_granule_id, freq=frequency,
+                                            pol_process=self.freq_pols.get(frequency),
+                                            product_type=self.product_info.ProductType)
+        static_layers_data_access_url = get_static_layers_data_access(static_layers_data_access,
+                                                                      granule_id)
+
+        ds_group = self.require_group(f"{self.group_paths.MetadataPath}/ceosAnalysisReadyData")
+        ds = ds_group.require_dataset('staticLayersDataAccess', dtype=dtype, shape=shape)
 
     def add_secondary_radar_grid_cube(self, sec_cube_group_path,
                                        geogrid, heights, radar_grid, orbit,
