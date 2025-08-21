@@ -573,3 +573,45 @@ def generate_insar_subswath_mask(ref_rslc_obj,
         (len(azi_idx_arr),
          len(rg_idx_arr))).astype(np.uint8)
 
+def get_static_layers_data_access(static_layers_data_access_runconfig,
+                                  granule_id):
+    """
+    Read static layers data access template from the input runconfig field
+    `static_layers_data_access` and replace placeholder(s) with
+    the actual values.
+    Parameters
+    ----------
+    static_layers_data_access_runconfig: scalar
+        Value from runconfig field
+        `ceos_analysis_ready_data.static_layers_data_access`
+    granule_id: str
+        Product's granule ID
+    Returns
+    -------
+    static_layers_data_access: str
+        An URL representing the static layers data access with all
+        placeholders replaced. Returns "(NOT SPECIFIED)" if
+        `static_layers_data_access_runconfig` is None or an empty
+        string.
+    """
+
+    if not static_layers_data_access_runconfig:
+        return '(NOT SPECIFIED)'
+
+    static_layers_data_access = static_layers_data_access_runconfig
+
+    if '{granule_id}' in static_layers_data_access_runconfig:
+        if not granule_id or granule_id == '(NOT SPECIFIED)':
+            error_msg = ('The placeholder "{granule_id}" is included in'
+                         ' the runconfig field'
+                         ' "static_layers_data_access", but the'
+                         ' field "partial_granule_id" was not provided')
+            error_channel = journal.error('get_static_layers_data_access')
+            error_channel.log(error_msg)
+            raise NotImplementedError(error_msg)
+
+        static_layers_data_access = \
+            static_layers_data_access_runconfig.replace('{granule_id}',
+                                                        granule_id)
+
+    return static_layers_data_access
