@@ -1120,7 +1120,7 @@ class InSARBaseWriter(h5py.File):
             else:
                 add_dataset_and_attrs(dst_id_group, DatasetParams(
                     ds_name,
-                    [],
+                    to_bytes(['(NOT SPECIFIED)']),
                     description))
 
         # Granule ID follows the NISAR filename convention. The partial granule ID
