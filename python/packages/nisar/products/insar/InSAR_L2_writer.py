@@ -45,7 +45,8 @@ class L2InSARWriter(L1InSARWriter):
         Add the identification group
         """
         L1InSARWriter.add_identification_to_hdf5(self)
-        
+
+        # Add the CEOS analysis ready data to metadata
         self.add_ceos_analysis_ready_data_to_metadata()
 
     def add_ceos_analysis_ready_data_to_metadata(self):
@@ -57,12 +58,13 @@ class L2InSARWriter(L1InSARWriter):
         static_layers_data_access = \
             static_layers_data_access_cfg.get('static_layers_data_access')
 
-        static_layers_data_access_url = get_static_layers_data_access(static_layers_data_access,
-                                                                      self.granule_id)
+        static_layers_data_access_url = \
+            get_static_layers_data_access(static_layers_data_access,
+                                          self.granule_id)
         static_layers_data_access_url = to_bytes(static_layers_data_access_url)
 
         # Create the staticLayersDataAccess dataset
-        id_group = self.require_group(f"{self.group_paths.IdentificationPath}")
+        id_group = self.require_group(self.group_paths.IdentificationPath)
         ds = id_group.require_dataset('staticLayersDataAccess',
                                       dtype=static_layers_data_access_url.dtype,
                                       shape=())
