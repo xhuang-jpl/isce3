@@ -8,7 +8,6 @@ from nisar.workflows.h5_prep import (_get_raster_from_hdf5_ds,
 from nisar.workflows.helpers import get_cfg_freq_pols
 
 from .dataset_params import DatasetParams, add_dataset_and_attrs
-from .granule_id import get_insar_granule_id
 from .InSAR_base_writer import InSARBaseWriter
 from .InSAR_L1_writer import L1InSARWriter
 from .product_paths import L2GroupsPaths
