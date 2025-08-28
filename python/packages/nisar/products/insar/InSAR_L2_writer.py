@@ -53,9 +53,8 @@ class L2InSARWriter(L1InSARWriter):
         Add the CEOS analysis ready data to the metadata
         """
 
-        static_layers_data_access_cfg = self.cfg['ceos_analysis_ready_data']
         static_layers_data_access = \
-            static_layers_data_access_cfg.get('static_layers_data_access')
+            self.cfg.get('static_layers_data_access')
 
         static_layers_data_access_url = \
             get_static_layers_data_access(static_layers_data_access,
