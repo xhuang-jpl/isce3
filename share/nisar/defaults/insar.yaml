@@ -45,9 +45,6 @@ runconfig:
                 reference_troposphere_file:
                 secondary_troposphere_file:
 
-        # CEOS analysis ready data
-        static_layers_data_access:
-
         product_path_group:
             # Directory where PGE will place results. Irrelevant to SAS.
             product_path: product_path
@@ -86,7 +83,7 @@ runconfig:
                 runw_doi:
                 goff_doi:
                 gunw_doi:
-
+            static_layers_data_access:
         debug_level_group:
             debug_switch: false
 
