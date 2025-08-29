@@ -132,7 +132,7 @@ class InSARBaseWriter(h5py.File):
         self.product_info = InSARProductsInfo.Base()
 
         # Granule ID
-        self.granule_id = "None"
+        self.granule_id = '(NOT SPECIFIED)'
 
         # DEM file
         self.dem_file = \
@@ -1150,7 +1150,7 @@ class InSARBaseWriter(h5py.File):
         # NISAR_{Level}_PR_{ProductType}_001_001_A_001_003_{MODE}_{PO}_A_{StartDateTime}_{EndDateTime}_D00341_P_C_J_001_.h5)
 
         if partial_granule_id is None:
-            self.granule_id = "None"
+            self.granule_id = '(NOT SPECIFIED)'
         else:
             # Get the first frequency to process and corresponding polarizations
             frequency = list(self.freq_pols.keys())[0]
