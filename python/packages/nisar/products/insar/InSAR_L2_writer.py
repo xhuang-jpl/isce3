@@ -1,7 +1,7 @@
 import isce3
 import numpy as np
 from isce3.core import LUT2d
-from nisar.products.utils import to_bytes
+from nisar.products.utils import get_static_layers_data_access,to_bytes
 from nisar.workflows.h5_prep import (_get_raster_from_hdf5_ds,
                                      add_radar_grid_cubes_to_hdf5,
                                      set_get_geo_info)
@@ -12,7 +12,7 @@ from .InSAR_base_writer import InSARBaseWriter
 from .InSAR_L1_writer import L1InSARWriter
 from .product_paths import L2GroupsPaths
 from .units import Units
-from .utils import extract_datetime_from_string, get_static_layers_data_access
+from .utils import extract_datetime_from_string
 
 
 class L2InSARWriter(L1InSARWriter):
@@ -45,12 +45,12 @@ class L2InSARWriter(L1InSARWriter):
         """
         L1InSARWriter.add_identification_to_hdf5(self)
 
-        # Add the CEOS analysis ready data to metadata
-        self.add_ceos_analysis_ready_data_to_metadata()
+        # Add the static layers data access to identification group
+        self.add_static_layers_data_access_to_id_group()
 
-    def add_ceos_analysis_ready_data_to_metadata(self):
+    def add_static_layers_data_access_to_id_group(self):
         """
-        Add the CEOS analysis ready data to the metadata
+        Add the static layers data access to the identification group
         """
 
         primary_executale_cfg = self.cfg['primary_executable']
