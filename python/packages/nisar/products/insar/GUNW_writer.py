@@ -155,13 +155,13 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
         unwrap_rg_looks = proc_cfg["phase_unwrap"]["range_looks"]
         unwrap_az_looks = proc_cfg["phase_unwrap"]["azimuth_looks"]
 
-        unwrap_igram_range_looks = wrap_igram_range_looks
-        unwrap_igram_azimuth_looks = wrap_igram_azimuth_looks
-
         if (unwrap_az_looks != 1) or (unwrap_rg_looks != 1):
             unwrap_igram_range_looks = unwrap_rg_looks
             unwrap_igram_azimuth_looks = unwrap_az_looks
-
+        else:
+            unwrap_igram_range_looks = wrap_igram_range_looks
+            unwrap_igram_azimuth_looks = wrap_igram_azimuth_looks
+            
         # the unwrappedInterfergram group under the processingInformation/parameters
         # group is copied from the RUNW product, but the name in RUNW product is
         # 'interferogram', while in GUNW its name is 'unwrappedInterferogram'. Here
