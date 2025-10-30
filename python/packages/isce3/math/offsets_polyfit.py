@@ -69,10 +69,8 @@ def polyfit_offsets(
         [id, line, pixel, dL, dP, coherence].
     degree : int
         Degree of the 2D polynomial (1=affine, 2=quadratic, etc.).
-    coherence_threshold : float
-        Discard tie points with coherence below this threshold.
     prf, abw, rsr, rbw : float, optional
-        SAR system parameters used to estimate SIGMAL/SIGMAP if provided.
+        SAR system parameters used to estimate prior standard deviations for line and pixel offsets.
     crit_value : float
         Critical value for the w-test.
     max_iterations : int
