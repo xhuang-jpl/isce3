@@ -55,8 +55,8 @@ def invert_from_cholesky(L):
 def polyfit_offsets(
     Data,
     degree=2,
-    prf=None, abw=None, rsr=None, rbw=None,  # SAR parameters for sigma estimation
-    sigmaL=None, sigmaP=None,                # Prior standard deviations
+    prf=None, abw=None,
+    rsr=None, rbw=None,
     crit_value=0.1,
     max_iterations=50
 ):
@@ -74,11 +74,8 @@ def polyfit_offsets(
         Discard tie points with coherence below this threshold.
     prf, abw, rsr, rbw : float, optional
         SAR system parameters used to estimate SIGMAL/SIGMAP if provided.
-    sigmaL, sigmaP : float, optional
-        Prior standard deviations for line and pixel offsets.
-        If not provided, they are estimated from SAR parameters.
     crit_value : float
-        Critical value for the w-test (typically 3.0).
+        Critical value for the w-test.
     max_iterations : int
         Maximum number of outlier rejection iterations.
 
@@ -94,16 +91,13 @@ def polyfit_offsets(
           "design_nunk": int, number of unknown coefficients.
         }
     """
-    # Estimate or set SIGMAL, SIGMAP
-    if sigmaL is None or sigmaP is None:
-        if (prf is None) or (abw is None) or (rsr is None) or (rbw is None):
-            SIGMAL = 0.15 / 1.1
-            SIGMAP = 0.10 / 1.1
-        else:
-            SIGMAL = 0.15 / (prf / abw)
-            SIGMAP = 0.10 / (rsr / rbw)
+    # Estimate SIGMAL, SIGMAP
+    if (prf is None) or (abw is None) or (rsr is None) or (rbw is None):
+        SIGMAL = 0.15 / 1.1
+        SIGMAP = 0.10 / 1.1
     else:
-        SIGMAL, SIGMAP = float(sigmaL), float(sigmaP)
+        SIGMAL = 0.15 / (prf / abw)
+        SIGMAP = 0.10 / (rsr / rbw)
 
     minL, maxL = Data[:,1].min(), Data[:,1].max()
     minP, maxP = Data[:,2].min(), Data[:,2].max()
@@ -240,20 +234,18 @@ def _poly_design_batch(lines, pixels, degree, minL, maxL, minP, maxP):
     lines = np.asarray(lines, dtype=float)
     pixels = np.asarray(pixels, dtype=float)
 
-    # Normalize (safe for zero ranges)
+    # Normalize
     l = 0.0 if maxL == minL else (lines - minL) / (maxL - minL)
     p = 0.0 if maxP == minP else (pixels - minP) / (maxP - minP)
 
-    # Flatten (we’ll reshape later)
     l = np.ravel(l)
     p = np.ravel(p)
 
     Aidx, Bidx = _expo_pairs(degree)
     ar = np.arange(degree + 1, dtype=np.int64)
 
-    # Precompute powers once per sample
-    l_pows = np.power(l[:, None], ar[None, :])  # (N, D+1)
-    p_pows = np.power(p[:, None], ar[None, :])  # (N, D+1)
+    l_pows = np.power(l[:, None], ar[None, :])
+    p_pows = np.power(p[:, None], ar[None, :])
 
     # Gather needed powers and multiply to get terms in training order
     return l_pows.take(Aidx, axis=1) * p_pows.take(Bidx, axis=1)
@@ -279,82 +271,9 @@ def predict_offsets_batch(lines, pixels, coefL, coefP, degree, minL, maxL, minP,
 
     # One BLAS call for both outputs
     C = np.column_stack((np.asarray(coefL, dtype=float).ravel(),
-                         np.asarray(coefP, dtype=float).ravel()))  # (nunk, 2)
-    Y = A @ C  # (N, 2)
+                         np.asarray(coefP, dtype=float).ravel()))
+    Y = A @ C
 
     dL = Y[:, 0].reshape(out_shape)
     dP = Y[:, 1].reshape(out_shape)
     return dL, dP
-
-def test():
-
-    rng = np.random.default_rng(0)
-    N = 200
-    lines = rng.uniform(0, 4000, size=N)
-    pixels = rng.uniform(0, 6000, size=N)
-
-    def true_model(l, p):
-        return 0.1 + 2e-4*l + 3e-4*p + 1e-8*l*p + 1e-8*l*l + 1e-8*p*p
-
-    dL_true = true_model(lines, pixels)
-    dP_true = -true_model(lines, pixels) * 0.8
-
-    noiseL = rng.normal(0, 0.05, size=N)
-    noiseP = rng.normal(0, 0.05, size=N)
-
-    dL = dL_true #+ noiseL
-    dP = dP_true #+ noiseP
-    coherence = rng.uniform(0.3, 1.0, size=N)
-
-    outlier_idx = rng.choice(N, size=10, replace=False)
-    print(outlier_idx)
-    print(dL[outlier_idx])
-    print(rng.normal(2.0, 0.5, size=10))
-
-    dL[outlier_idx] += rng.normal(15.0, 5, size=10)
-    dP[outlier_idx] += rng.normal(-15.0, 5, size=10)
-    print(dL[outlier_idx])
-    data = np.column_stack([
-        np.arange(N), lines, pixels, dL, dP, coherence
-    ])
-
-    res = polyfit_offsets(
-        data,
-        degree=2,
-        sigmaL=0.15/1.1,
-        sigmaP=0.10/1.1,
-        crit_value=0.001,
-        max_iterations=200
-    )
-
-    print("Degree:", res["degree"])
-    print("Nunk:", res["design_nunk"])
-    print("CoefL:", res["coefL"])
-    print("CoefP:", res["coefP"])
-    print("Inliers:", res["inliers"].shape[0], "/", N)
-    print("Removed IDs:", res["removed_indices"])
-
-    # pull fit + normalization bounds (use the same min/max from the inliers you fitted)
-    coefL = res["coefL"]
-    coefP = res["coefP"]
-    degree = res["degree"]
-
-    inliers = res["inliers"]
-    minL, maxL = inliers[:,1].min(), inliers[:,1].max()
-    minP, maxP = inliers[:,2].min(), inliers[:,2].max()
-
-    # single point prediction
-    line0, pixel0 = 1234.5, 4567.8
-    dL0, dP0 = predict_offsets(line0, pixel0, coefL, coefP, degree, minL, maxL, minP, maxP)
-    print(dL0, dP0)
-
-    # grid prediction (e.g., to visualize a surface)
-    Lvec = np.linspace(minL, maxL, 50)
-    Pvec = np.linspace(minP, maxP, 50)
-    LL, PP = np.meshgrid(Lvec, Pvec, indexing="ij")
-    dL_grid, dP_grid = predict_offsets_batch(LL, PP, coefL, coefP, degree, minL, maxL, minP, maxP)
-
-    print(dL_grid, dP_grid)
-
-if __name__ == "__main__":
-    test()
