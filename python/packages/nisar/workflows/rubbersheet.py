@@ -159,8 +159,8 @@ def polyfit_offsets(cfg: dict, output_hdf5: str = None):
                 height = ds_rg.RasterYSize
 
                 drv = gdal.GetDriverByName("ENVI")
-                dst_az = drv.Create(az_off_path, width, height, 1, gdal.GDT_Float32)
-                dst_rg = drv.Create(rg_off_path, width, height, 1, gdal.GDT_Float32)
+                dst_az = drv.Create(az_off_path, width, height, 1, gdal.GDT_Float64)
+                dst_rg = drv.Create(rg_off_path, width, height, 1, gdal.GDT_Float64)
 
                 out_band_az = dst_az.GetRasterBand(1)
                 out_band_rg = dst_rg.GetRasterBand(1)
@@ -183,9 +183,16 @@ def polyfit_offsets(cfg: dict, output_hdf5: str = None):
 
                     coarse_az = band_az.ReadAsArray(0, row_off, width, h)
                     coarse_rg = band_rg.ReadAsArray(0, row_off, width, h)
+
                     # Summation
                     out_band_az.WriteArray(az_off_block + coarse_az, xoff=0, yoff=row_off)
                     out_band_rg.WriteArray(rg_off_block + coarse_rg, xoff=0, yoff=row_off)
+
+                out_band_az.FlushCache()
+                out_band_rg.FlushCache()
+
+                dst_az = None
+                ds_rg = None
 
     t_all_elapsed = time.time() - t_all
     info_channel.log(
