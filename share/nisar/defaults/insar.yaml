@@ -564,8 +564,6 @@ runconfig:
                     samples_along_range: 50
                     # Number of samples  along the azimuth in pixels for polyfitting
                     samples_along_azimuth: 50
-                     # Number of lines per block to process in batch
-                    lines_per_block: 4096
 
             fine_resample:
                 # Flag to enable/disable fine resampling

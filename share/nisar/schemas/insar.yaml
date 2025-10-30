@@ -574,8 +574,6 @@ polyfitting_options:
     samples_along_range: num(min=0, required=False)
     # Number of samples  along the azimuth in pixels for polyfitting
     samples_along_azimuth: num(min=0, required=False)
-    # Number of lines per block to process in batch
-    lines_per_block: int(min=1, required=False)
 
 crossmul_options:
     # Path to HDF5 file or directory with coregistered SLCs
