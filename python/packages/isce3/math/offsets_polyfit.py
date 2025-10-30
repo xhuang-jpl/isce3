@@ -1,5 +1,4 @@
 import numpy as np
-from functools import lru_cache
 
 def ncoeffs(degree: int) -> int:
     """Return the number of coefficients in a 2D polynomial
@@ -91,13 +90,13 @@ def polyfit_offsets(
           "design_nunk": int, number of unknown coefficients.
         }
     """
-    # Estimate SIGMAL, SIGMAP
+    # sigmaL, sigmaP are prior standard deviations for line and pixel offsets
     if (prf is None) or (abw is None) or (rsr is None) or (rbw is None):
-        SIGMAL = 0.15 / 1.1
-        SIGMAP = 0.10 / 1.1
+        sigmaL = 0.15 / 1.1
+        sigmaP = 0.10 / 1.1
     else:
-        SIGMAL = 0.15 / (prf / abw)
-        SIGMAP = 0.10 / (rsr / rbw)
+        sigmaL = 0.15 / (prf / abw)
+        sigmaP = 0.10 / (rsr / rbw)
 
     minL, maxL = Data[:,1].min(), Data[:,1].max()
     minP, maxP = Data[:,2].min(), Data[:,2].max()
@@ -145,8 +144,8 @@ def polyfit_offsets(
         Qe[np.diag_indices_from(Qe)] += 1.0
         diag_Qe = np.clip(np.diag(Qe), 1e-12, None)
 
-        wL = eL[:,0] / (np.sqrt(diag_Qe) * SIGMAL)
-        wP = eP[:,0] / (np.sqrt(diag_Qe) * SIGMAP)
+        wL = eL[:,0] / (np.sqrt(diag_Qe) * sigmaL)
+        wP = eP[:,0] / (np.sqrt(diag_Qe) * sigmaP)
         wsum = wL**2 + wP**2
 
         maxwL = np.max(np.abs(wL))
@@ -216,7 +215,6 @@ def predict_offsets(line, pixel, coefL, coefP, degree, minL, maxL, minP, maxP):
     dP = float(v @ coefP)
     return dL, dP
 
-@lru_cache(maxsize=None)
 def _expo_pairs(degree: int):
     # Returns arrays A,B so term_i = l**A[i] * p**B[i]
     A, B = [], []
@@ -276,4 +274,5 @@ def predict_offsets_batch(lines, pixels, coefL, coefP, degree, minL, maxL, minP,
 
     dL = Y[:, 0].reshape(out_shape)
     dP = Y[:, 1].reshape(out_shape)
+
     return dL, dP
