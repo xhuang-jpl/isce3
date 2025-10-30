@@ -45,10 +45,9 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
 
     ref_slc = SLC(hdf5file=ref_hdf5)
 
-    with HDF5OptimizedReader(name=output_hdf5, mode='r+', libver='latest', swmr=True) as dst_h5:
-
+    with HDF5OptimizedReader(name=output_hdf5, mode='r+',
+                             libver='latest', swmr=True) as dst_h5:
         for freq, _, pol_list in get_cfg_freq_pols(cfg):
-
             # Get the slant range and zero doppler time spacing
             ref_radar_grid = ref_slc.getRadarGrid(freq)
             ref_slant_range_spacing = ref_radar_grid.range_pixel_spacing
@@ -70,8 +69,10 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
             off_slant_range = dst_h5[f'{pixel_offsets_path}/slantRange'][()]
             off_zero_doppler_time = dst_h5[f'{pixel_offsets_path}/zeroDopplerTime'][()]
 
-            off_az_indices = ((off_zero_doppler_time - ref_az_times[0]) * ref_radar_grid.prf).astype(int)
-            off_rg_indices = ((off_slant_range - ref_slant_ranges[0])/ref_slant_range_spacing).astype(int)
+            off_az_indices = ((off_zero_doppler_time - ref_az_times[0]) *
+                              ref_radar_grid.prf).astype(int)
+            off_rg_indices = ((off_slant_range - ref_slant_ranges[0])/
+                              ref_slant_range_spacing).astype(int)
 
             # Produce ground track velocity for the frequency under processing
             ground_track_velocity_file = get_ground_track_velocity_product(ref_slc,
@@ -138,14 +139,14 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
                 ])
 
                 # Remove outliers using the correlation peak threshold
-                Data = data[data[:, 5] >= rubbersheet_params['polyfitting']['threshold']].copy()
+                data = data[data[:, 5] >= rubbersheet_params['polyfitting']['threshold']].copy()
 
                 # polyfitting the range and azimuth offsets
                 results = offsets_polyfit.polyfit_offsets(
-                    Data,degree=rubbersheet_params['polyfitting']['degree'],
+                    data,degree=rubbersheet_params['polyfitting']['degree'],
                     prf=prf, rbw=rbw, abw=abw,rsr=rsr,
                     crit_value=rubbersheet_params['polyfitting']['critical_value'],
-                    max_iterations=len(Data))
+                    max_iterations=len(data))
 
                 print(f"Polyfitting Degree: {results["degree"]}")
                 print(f"Polyfitting CoefL: {results["coefL"]}")
