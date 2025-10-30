@@ -227,8 +227,9 @@ def run(cfg: dict, output_hdf5: str = None):
     with HDF5OptimizedReader(name=output_hdf5, mode='r+', libver='latest', swmr=True) as dst_h5:
 
         for freq, _, pol_list in get_cfg_freq_pols(cfg):
-
+          
             ref_radar_grid = ref_slc.getRadarGrid(freq)
+
             # Get the slant range and zero doppler time spacing
             ref_slant_range_spacing = ref_radar_grid.range_pixel_spacing
             ref_zero_doppler_time_spacing = ref_radar_grid.az_time_interval
