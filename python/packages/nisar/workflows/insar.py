@@ -116,8 +116,8 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
         split_spectrum.run(cfg)
         ionosphere.run(cfg, out_paths['RUNW'])
 
-    # Remove the 'rubbersheet_offsets','ionosphere', 'geo2rdr' scratch folders
-    for workflow_name in ['rubbersheet_offsets','ionosphere', 'geo2rdr']:
+    # Remove the 'rubbersheet_offsets' and 'geo2rdr' scratch folders
+    for workflow_name in ['rubbersheet_offsets', 'geo2rdr']:
         workflow_scratch_path =  pathlib.Path(f"{scratch_path}/{workflow_name}")
         if workflow_scratch_path.exists() and intermediate_files_removal_flag:
             shutil.rmtree(workflow_scratch_path)
@@ -133,11 +133,12 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
         # Geocode ROFF
         geocode_insar.run(cfg, out_paths['ROFF'], out_paths['GOFF'], InputProduct.ROFF)
 
-    # Remove the  geocode scratch folder
-    geocode_scratch_path =  pathlib.Path(f"{scratch_path}/geocode_corrections")
-    if geocode_scratch_path.exists() and intermediate_files_removal_flag:
-        shutil.rmtree(geocode_scratch_path)
-        info_channel.log(f"removed the {geocode_scratch_path} folder")
+    # Remove the 'geocode_corrections' and 'ionosphere' scratch folder
+    for workflow_name in ['geocode_corrections', 'ionosphere']:
+        workflow_scratch_path =  pathlib.Path(f"{scratch_path}/{workflow_name}")
+        if workflow_scratch_path.exists() and intermediate_files_removal_flag:
+            shutil.rmtree(workflow_scratch_path)
+            info_channel.log(f"removed the {workflow_scratch_path} folder")
 
     if 'GUNW' in out_paths and run_steps['troposphere'] and \
             cfg['processing']['troposphere_delay']['enabled']:
