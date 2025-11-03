@@ -34,7 +34,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
     info_channel = journal.info("insar.run")
     info_channel.log("starting INSAR")
 
-    scratch_path =  pathlib.Path(cfg['product_path_group']['scratch_path'])
+    scratch_path = pathlib.Path(cfg['product_path_group']['scratch_path'])
     intermediate_files_removal_flag = cfg['worker']['intermediate_files_removal_enabled']
 
     t_all = time.time()
@@ -74,7 +74,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
 
     # Remove the offsets scratch folders
     for offset_name in ['offsets_product','dense_offsets']:
-        offsets_scratch_path =  pathlib.Path(f"{scratch_path}/{offset_name}")
+        offsets_scratch_path = pathlib.Path(f"{scratch_path}/{offset_name}")
         _remove_intermediate_dir(offsets_scratch_path,
                                  intermediate_files_removal_flag,
                                  info_channel)
@@ -88,7 +88,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
         resample_slc_v2.run(cfg, 'fine')
 
         # Remove the coarse resample scratch folder
-        coarse_resample_scratch_path =  pathlib.Path(f"{scratch_path}/coarse_resample_slc")
+        coarse_resample_scratch_path = pathlib.Path(f"{scratch_path}/coarse_resample_slc")
         _remove_intermediate_dir(coarse_resample_scratch_path,
                                  intermediate_files_removal_flag,
                                  info_channel)
@@ -113,7 +113,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
     # Remove the 'fine_resample_slc','crossmul', 'coarse_resample_slc', 'unwrap' scratch folders
     for workflow_name in ['fine_resample_slc','coarse_resample_slc',
                           'crossmul','unwrap']:
-        workflow_scratch_path =  pathlib.Path(f"{scratch_path}/{workflow_name}")
+        workflow_scratch_path = pathlib.Path(f"{scratch_path}/{workflow_name}")
         _remove_intermediate_dir(workflow_scratch_path,
                                  intermediate_files_removal_flag,
                                  info_channel)
@@ -126,7 +126,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
 
     # Remove the 'rubbersheet_offsets', 'geo2rdr' scratch folders
     for workflow_name in ['rubbersheet_offsets','geo2rdr']:
-        workflow_scratch_path =  pathlib.Path(f"{scratch_path}/{workflow_name}")
+        workflow_scratch_path = pathlib.Path(f"{scratch_path}/{workflow_name}")
         _remove_intermediate_dir(workflow_scratch_path,
                                  intermediate_files_removal_flag,
                                  info_channel)
@@ -141,9 +141,9 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
         # Geocode ROFF
         geocode_insar.run(cfg, out_paths['ROFF'], out_paths['GOFF'], InputProduct.ROFF)
 
-    # Remove the 'ionosphere', 'geocode_corrections' scratch folders
+    # Remove the 'ionosphere' and 'geocode_corrections' scratch folders
     for workflow_name in ['ionosphere','geocode_corrections']:
-        workflow_scratch_path =  pathlib.Path(f"{scratch_path}/{workflow_name}")
+        workflow_scratch_path = pathlib.Path(f"{scratch_path}/{workflow_name}")
         _remove_intermediate_dir(workflow_scratch_path,
                                  intermediate_files_removal_flag,
                                  info_channel)
@@ -153,7 +153,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
         troposphere.run(cfg, out_paths['GUNW'])
 
         # Remove the  troposhere scratch folder
-        tropo_scratch_path =  pathlib.Path(f"{scratch_path}/weather_model_files")
+        tropo_scratch_path = pathlib.Path(f"{scratch_path}/weather_model_files")
         _remove_intermediate_dir(tropo_scratch_path,
                                 intermediate_files_removal_flag,
                                 info_channel)
@@ -166,7 +166,7 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
 
     # Remove the 'bandpass','baseline' scratch folders
     for workflow_name in ['bandpass','baseline']:
-        workflow_scratch_path =  pathlib.Path(f"{scratch_path}/{workflow_name}")
+        workflow_scratch_path = pathlib.Path(f"{scratch_path}/{workflow_name}")
         _remove_intermediate_dir(workflow_scratch_path,
                                 intermediate_files_removal_flag,
                                 info_channel)
