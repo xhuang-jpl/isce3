@@ -144,9 +144,12 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
                 # polyfitting the range and azimuth offsets
                 results = offsets_polyfit.polyfit_offsets(
                     data,degree=rubbersheet_params['polyfitting']['degree'],
-                    prf=prf, rbw=rbw, abw=abw,rsr=rsr,
                     crit_value=rubbersheet_params['polyfitting']['critical_value'],
-                    max_iterations=len(data))
+                    max_iterations=len(data),
+                    minL=minL, maxL=maxL,
+                    minP=minP, maxP=maxP,
+                    prf=prf, rbw=rbw,
+                    abw=abw, rsr=rsr,)
 
                 print(f"Polyfitting Degree: {results["degree"]}")
                 print(f"Polyfitting CoefL: {results["coefL"]}")
