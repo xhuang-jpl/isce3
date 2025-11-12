@@ -205,7 +205,7 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
         grids_val = "projection"
 
         # Only add the common fields such as list of polarizations, pixel offsets, and center frequency
-        for freq, pol_list, _ in get_cfg_freq_pols(self.cfg):
+        for freq, pol_list, offset_pol_list in get_cfg_freq_pols(self.cfg):
             # Create the swath group
             grids_freq_group_name = (
                 f"{self.group_paths.GridsPath}/frequency{freq}"
@@ -364,6 +364,8 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                         yds=yds,
                     )
 
+            # Polarization in offset
+            for pol in offset_pol_list:
                 pixeloffsets_pol_name = f"{pixeloffsets_group_name}/{pol}"
                 pixeloffsets_pol_group = self.require_group(
                     pixeloffsets_pol_name
