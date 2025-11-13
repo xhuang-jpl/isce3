@@ -154,7 +154,7 @@ def polyfit_offsets(
 
     The function estimates two polynomial surfaces (line and pixel directions)
     from tie-point measurements by building a 2D polynomial design matrix up to
-    `degree`, solving with (weighted) normal equations, and iteratively removing
+    `degree`, solving with weighted normal equations, and iteratively removing
     outliers using a w-test controlled by `crit_value`.
 
     Parameters

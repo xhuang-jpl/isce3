@@ -138,9 +138,6 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
                     corr_peak.ravel()
                 ])
 
-                # Remove outliers using the correlation peak threshold
-                data = data[data[:, 5] >= rubbersheet_params['polyfitting']['threshold']].copy()
-
                 # polyfitting the range and azimuth offsets
                 results = offsets_polyfit.polyfit_offsets(
                     data,degree=rubbersheet_params['polyfitting']['degree'],

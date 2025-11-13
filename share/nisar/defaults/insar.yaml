@@ -556,8 +556,6 @@ runconfig:
                     enabled: false
                     # The degrees for the polyfitting
                     degree: 2
-                    # Correlation peak threshold to remove the outliers
-                    threshold: 0.1
                     # Critical value for the w-test to remove the outliers
                     critical_value: 0.1
                     # Number of samples along the range in pixels for polyfitting

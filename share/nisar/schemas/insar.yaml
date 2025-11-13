@@ -566,8 +566,6 @@ polyfitting_options:
     enabled: bool(required=False)
     # The degrees for the polyfitting
     degree: num(min=1, required=False)
-    # Correlation peak threshold to remove the outliers
-    threshold: num(min=0, required=False)
     # Critical value for the w-test to remove the outliers
     critical_value: num(min=0, required=False)
     # Number of samples along the range in pixels for polyfitting
