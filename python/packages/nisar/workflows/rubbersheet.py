@@ -104,8 +104,7 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
                     corr_peak_path = str(f'{off_prod_dir}/{layer_keys[-1]}/correlation_peak')
                     dense_offsets_path =  str(f'{off_prod_dir}/{layer_keys[-1]}/dense_offsets')
 
-                # Sampling the offsets grid to avoid a large desgin matrix
-                # for the polyfitting
+                # Sampling
                 az_sampled_indices = np.linspace(0,
                                                  len(off_az_indices)-1,
                                                  rubbersheet_params['polyfitting']['samples_along_azimuth'],
