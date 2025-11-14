@@ -145,7 +145,7 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
                     minL=minL, maxL=maxL,
                     minP=minP, maxP=maxP,
                     prf=prf, rbw=rbw,
-                    abw=abw, rsr=rsr,)
+                    abw=abw, rsr=rsr)
 
                 print(f"Polyfitting Degree: {results["degree"]}")
                 print(f"Polyfitting CoefL: {results["coefL"]}")
