@@ -147,13 +147,17 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
                     prf=prf, rbw=rbw,
                     abw=abw, rsr=rsr)
 
-                print(f"Polyfitting Degree: {results["degree"]}")
-                print(f"Polyfitting CoefL: {results["coefL"]}")
-                print(f"Polyfitting CoefP: {results["coefP"]}")
+                polyfitting_degree = results["degree"]
+                polyfitting_coefL = results["coefL"]
+                polyfitting_coefP = results["coefP"]
 
-                info_channel.log(f"Polyfitting Degree: {results["degree"]}")
-                info_channel.log(f"Polyfitting CoefL: {results["coefL"]}")
-                info_channel.log(f"Polyfitting CoefP: {results["coefP"]}")
+                print(f"Polyfitting Degree: {polyfitting_degree}")
+                print(f"Polyfitting CoefL: {polyfitting_coefL}")
+                print(f"Polyfitting CoefP: {polyfitting_coefP}")
+
+                info_channel.log(f"Polyfitting Degree: {polyfitting_degree}")
+                info_channel.log(f"Polyfitting CoefL: {polyfitting_coefL}")
+                info_channel.log(f"Polyfitting CoefP: {polyfitting_coefP}")
 
                 lines, pixels = np.meshgrid(off_az_indices, off_rg_indices, indexing="ij")
                 culled_az_offsets, culled_rg_offsets =\
