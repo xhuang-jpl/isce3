@@ -1,6 +1,6 @@
 
 import numpy as np
-from isce3.math import build_design_matrix, ncoeffs, normalize, polyfit_offsets
+from isce3.math import offsets_polyfit
 
 def _make_test_data(N=400, degree=2, seed=42):
     """
@@ -16,11 +16,10 @@ def _make_test_data(N=400, degree=2, seed=42):
     minL, maxL = lines.min(), lines.max()
     minP, maxP = pixels.min(), pixels.max()
 
-    Ln = normalize(lines, minL, maxL)
-    Pn = normalize(pixels, minP, maxP)
-    A = build_design_matrix(Ln, Pn, degree)
+    A = offsets_polyfit.build_design_matrix(lines, pixels, degree,
+                                            minL, maxL, minP, maxP)
 
-    M = ncoeffs(degree)
+    M = offsets_polyfit.ncoeffs(degree)
     assert A.shape == (N, M)
 
     true_coefL = np.array([0.3, -0.2, 0.1, 0.05, -0.04, 0.02])
@@ -33,7 +32,7 @@ def _make_test_data(N=400, degree=2, seed=42):
     yP = A @ true_coefP
 
     ids = np.arange(N, dtype=np.int64)
-    
+
     # equal weights
     corr_peak = np.ones(N, dtype=float)
 
@@ -51,7 +50,7 @@ def test_polyfit_offsets_quadratic_no_outliers():
         N=400, degree=degree
     )
 
-    result = polyfit_offsets(
+    result = offsets_polyfit.polyfit_offsets(
         data.copy(),
         degree=degree,
         crit_value=0.5,   # residuals are exactly 0, so this is generous
@@ -92,7 +91,7 @@ def test_polyfit_offsets_quadratic_removes_outliers():
     data[outlier_ids, 3] += 30.0  # dL
     data[outlier_ids, 4] -= 25.0  # dP
 
-    result = polyfit_offsets(
+    result = offsets_polyfit.polyfit_offsets(
         data.copy(),
         degree=degree,
         crit_value=0.1,

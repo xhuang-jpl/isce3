@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import pathlib
 import time
+import warnings
 
 import isce3
 import journal
@@ -70,16 +71,19 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
             off_zero_doppler_time = dst_h5[f'{pixel_offsets_path}/zeroDopplerTime'][()]
 
             off_az_indices = ((off_zero_doppler_time - ref_az_times[0]) *
-                              ref_radar_grid.prf).astype(int)
+                              ref_radar_grid.prf).round().astype(int)
             off_rg_indices = ((off_slant_range - ref_slant_ranges[0])/
-                              ref_slant_range_spacing).astype(int)
+                              ref_slant_range_spacing).round().astype(int)
 
             # Produce ground track velocity for the frequency under processing
-            ground_track_velocity_file = get_ground_track_velocity_product(ref_slc,
-                                                                           off_slant_range,
-                                                                           off_zero_doppler_time,
-                                                                           dem_file,
-                                                                           rubbersheet_dir)
+            ground_track_velocity_file = \
+                get_ground_track_velocity_product(
+                    ref_rslc=ref_slc,
+                    slant_range=off_slant_range,
+                    zero_doppler_time=off_zero_doppler_time,
+                    dem_file=dem_file,
+                    output_dir=rubbersheet_dir)
+
             for pol in pol_list:
 
                 pol_group_path = f'{pixel_offsets_path}/{pol}'
@@ -104,14 +108,36 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
                     corr_peak_path = str(f'{off_prod_dir}/{layer_keys[-1]}/correlation_peak')
                     dense_offsets_path =  str(f'{off_prod_dir}/{layer_keys[-1]}/dense_offsets')
 
+                # Check the number of samples along the azimuth and range
+                number_of_samples_along_azimuth = \
+                    rubbersheet_params['polyfitting']['samples_along_azimuth']
+                number_of_samples_along_range =  \
+                    rubbersheet_params['polyfitting']['samples_along_range']
+
+                # Add the warning if the number of samples are larger
+                if number_of_samples_along_azimuth > len(off_az_indices):
+                    warning_msg = (
+                        f'the number of samples along the azimuth {number_of_samples_along_azimuth} '
+                        f'is larger than the length {len(off_az_indices)} of the offsets product')
+                    warnings.warn(warning_msg)
+                    info_channel.log(warning_msg)
+                    number_of_samples_along_azimuth = len(off_az_indices)
+                if number_of_samples_along_range > len(off_rg_indices):
+                    warning_msg = (
+                        f'the number of samples along the range {number_of_samples_along_range} '
+                        f'is larger than the width {len(off_rg_indices)} of the offsets product')
+                    warnings.warn(warning_msg)
+                    info_channel.log(warning_msg)
+                    number_of_samples_along_range = len(off_rg_indices)
+
                 # Sampling
                 az_sampled_indices = np.linspace(0,
                                                  len(off_az_indices)-1,
-                                                 rubbersheet_params['polyfitting']['samples_along_azimuth'],
+                                                 number_of_samples_along_azimuth,
                                                  dtype=int)
                 rg_sampled_indices = np.linspace(0,
                                                  len(off_rg_indices)-1,
-                                                 rubbersheet_params['polyfitting']['samples_along_range'],
+                                                 number_of_samples_along_range,
                                                  dtype=int)
 
                 az_polyfit_indices = off_az_indices[az_sampled_indices]
@@ -139,7 +165,8 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
 
                 # polyfitting the range and azimuth offsets
                 results = offsets_polyfit.polyfit_offsets(
-                    data,degree=rubbersheet_params['polyfitting']['degree'],
+                    data,
+                    degree=rubbersheet_params['polyfitting']['degree'],
                     crit_value=rubbersheet_params['polyfitting']['critical_value'],
                     max_iterations=len(data),
                     minL=minL, maxL=maxL,
@@ -161,14 +188,14 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
 
                 lines, pixels = np.meshgrid(off_az_indices, off_rg_indices, indexing="ij")
                 culled_az_offsets, culled_rg_offsets =\
-                    offsets_polyfit.predict_offsets_batch(lines, pixels,
-                                                          results["coefL"],
-                                                          results["coefP"],
-                                                          results["degree"],
-                                                          minL, maxL, minP, maxP)
+                    offsets_polyfit.predict_offsets(lines, pixels,
+                                                    results["coefL"],
+                                                    results["coefP"],
+                                                    results["degree"],
+                                                    minL, maxL, minP, maxP)
 
-                _write_to_disk(str(f'{out_dir}/culled_az_offsets'),culled_az_offsets)
-                _write_to_disk(str(f'{out_dir}/culled_rg_offsets'),culled_rg_offsets)
+                _write_to_disk(str(f'{out_dir}/culled_az_offsets'), culled_az_offsets)
+                _write_to_disk(str(f'{out_dir}/culled_rg_offsets'), culled_rg_offsets)
 
                 # Get ground velocity and correlation peak
                 ground_track_velocity = _open_raster(ground_track_velocity_file)
@@ -181,9 +208,10 @@ def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
                 # Assign cross-correlation peak
                 offset_peak_prod[...] = _open_raster(corr_peak_path)
                 # Convert the along track and slant range pixel offsets to meters
-                offset_az_prod[...] = \
-                    culled_az_offsets * ground_track_velocity \
-                    * ref_zero_doppler_time_spacing
+                offset_az_prod[...] = (culled_az_offsets *
+                                       ground_track_velocity *
+                                       ref_zero_doppler_time_spacing)
+
                 offset_rg_prod[...] = culled_rg_offsets * ref_slant_range_spacing
 
                 # Compute statistics for the offsets and correlation peak

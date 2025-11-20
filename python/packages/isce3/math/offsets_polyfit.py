@@ -1,7 +1,7 @@
 import itertools
 
 import numpy as np
-
+import scipy
 
 def ncoeffs(degree: int) -> int:
     """
@@ -12,6 +12,7 @@ def ncoeffs(degree: int) -> int:
     ----------
     degree : int
         The maximum total degree of the 2D polynomial.
+        (Same in both dimensions)
 
     Returns
     -------
@@ -21,18 +22,18 @@ def ncoeffs(degree: int) -> int:
     return (degree + 1) * (degree + 2) // 2
 
 
-def normalize(x, xmin, xmax):
+def normalize_to_unit_range(x, xmin=None, xmax=None):
     """
     Linearly normalize values to the range [0, 1].
 
     Parameters
     ----------
     x : array_like
-        Input array or scalar to be normalized.
+        Input array to be normalized.
     xmin : float or int
-        Minimum value of the input range.
+        Minimum value of the input range (default: None).
     xmax : float or int
-        Maximum value of the input range.
+        Maximum value of the input range (default: None).
 
     Returns
     -------
@@ -40,49 +41,96 @@ def normalize(x, xmin, xmax):
         Normalized array with values scaled to the interval [0, 1].
         If `xmax` equals `xmin`, returns an array of zeros with the same shape as `x`.
     """
+
+    xmin = x.min() if xmin is None else xmin
+    xmax = x.max() if xmax is None else xmax
+
     if xmax == xmin:
         return np.zeros_like(x, dtype=float)
+
     return (x - xmin) / (xmax - xmin)
 
-
-def build_design_matrix(lines_n, pixels_n, degree: int):
+def _expo_pairs(degree: int):
     """
-    Build the design matrix for a 2D polynomial regression.
+    Generate exponent pairs for a 2D polynomial of a given total degree.
 
-    Each row of the design matrix corresponds to one observation, with
-    columns containing all polynomial terms up to the specified total degree.
-    Specifically, for each observation `i`:
+    For each total degree ``j = 0..degree`` and partial degree ``k = 0..j``,
+    this function produces the exponents ``(a, b)`` corresponding to the term:
 
-        A[i, :] = [l^(j-k) * p^k]  for all  0 <= j <= degree,  0 <= k <= j
+        term = l**a * p**b
 
-    where `l` and `p` are the normalized line and pixel coordinates.
+    The resulting arrays define the exponent structure used to construct the
+    polynomial design matrix or to evaluate the polynomial.
 
     Parameters
     ----------
-    lines_n : array_like
-        Normalized line coordinates (independent variable 1).
-    pixels_n : array_like
-        Normalized pixel coordinates (independent variable 2).
     degree : int
-        The maximum total degree of the 2D polynomial.
+        Total degree of the 2D polynomial.
 
     Returns
     -------
-    A : ndarray of shape (N, M)
-        The design matrix, where `N` is the number of observations and
-        `M` is the number of polynomial coefficients, given by:
-
-        M = (degree + 1) * (degree + 2) / 2
+    A : (M,) ndarray of int
+        Exponents for the line variable `l`, where
+        ``M = (degree + 1) * (degree + 2) // 2``.
+    B : (M,) ndarray of int
+        Exponents for the pixel variable `p`, matching the order of `A`.
     """
-    N = lines_n.size
-    A = np.zeros((N, ncoeffs(degree)), dtype=float)
-    idx = 0
-    for j in range(degree + 1):
-        for k in range(j + 1):
-            A[:, idx] = (lines_n ** (j - k)) * (pixels_n ** k)
-            idx += 1
-    return A
 
+    A, B = [], []
+    for j in range(degree + 1):
+        k = np.arange(j + 1)
+        A.append(j - k)
+        B.append(k)
+    return np.concatenate(A).astype(np.int64), np.concatenate(B).astype(np.int64)
+
+def build_design_matrix(lines, pixels, degree,
+                        minL, maxL, minP, maxP):
+    """
+    Build the full 2D polynomial design matrix for arrays of line and pixel coordinates.
+
+    Each row corresponds to one (line, pixel) pair, and each column corresponds to
+    a polynomial term of the form ``l**a * p**b`` for all combinations of exponents
+    satisfying ``a + b <= degree``. Normalization of the coordinates ensures
+    consistent scaling with the fitting process.
+
+    Parameters
+    ----------
+    lines : (N,) array_like
+        Array of line coordinates.
+    pixels : (N,) array_like
+        Array of pixel coordinates.
+    degree : int
+        Total degree of the 2D polynomial.
+    minL, maxL : float
+        Minimum and maximum line coordinates used for normalization.
+    minP, maxP : float
+        Minimum and maximum pixel coordinates used for normalization.
+
+    Returns
+    -------
+    A : (N, M) ndarray
+        Design matrix where ``M = (degree + 1) * (degree + 2) // 2``.
+        Each element ``A[i, j]`` represents the j-th polynomial term evaluated
+        at the i-th normalized coordinate pair.
+    """
+
+    lines = np.asarray(lines, dtype=float)
+    pixels = np.asarray(pixels, dtype=float)
+
+    # Normalize
+    l = normalize_to_unit_range(lines, minL, maxL)
+    p = normalize_to_unit_range(pixels, minP, maxP)
+
+    l = np.ravel(l)
+    p = np.ravel(p)
+
+    Aidx, Bidx = _expo_pairs(degree)
+    ar = np.arange(degree + 1, dtype=np.int64)
+
+    l_pows = np.power(l[:, None], ar[None, :])
+    p_pows = np.power(p[:, None], ar[None, :])
+
+    return l_pows.take(Aidx, axis=1) * p_pows.take(Bidx, axis=1)
 
 def cholesky_solve(N_mat, rhs):
     """
@@ -111,9 +159,8 @@ def cholesky_solve(N_mat, rhs):
         Lower-triangular Cholesky factor of `N_mat`.
     """
 
-    L = np.linalg.cholesky(N_mat)
-    y = np.linalg.solve(L, rhs)
-    x = np.linalg.solve(L.T, y)
+    L = scipy.linalg.cholesky(N_mat, lower=True)
+    x = scipy.linalg.cho_solve((L, True), rhs)
 
     return x, L
 
@@ -168,7 +215,7 @@ def polyfit_offsets(
         - *id* : int-like identifier.
         - *line, pixel* : coordinates of the tie point.
         - *dL, dP* : measured offsets in line and pixel directions.
-        - *corr_peak* : correlation peak or quality metric.
+        - *corr_peak* : correlation peak or quality metric in interval (0, 1], and measurements with larger values get more weight.
     degree : int, optional
         Total degree of the 2D polynomial (``1`` = affine, ``2`` = quadratic, ...).
         Default is ``2``.
@@ -230,12 +277,17 @@ def polyfit_offsets(
 
     # number of unknonw parameters or coefficients for the polyfitting
     Nunk = ncoeffs(degree)
-    eps = 1e-8
+    eps = np.sqrt(np.finfo(float).eps)
+
     # The indices that will be removed
     removed_indices = []
 
+    # Build the design matrix
+    lines, pixels = data[:, 1], data[:, 2]
+    A = build_design_matrix(lines, pixels, degree,
+                            minL, maxL, minP, maxP)
+
     for iteration in itertools.count():
-        lines, pixels = data[:, 1], data[:, 2]
         yL, yP = data[:, 3:4], data[:, 4:5]
         Nobs = data.shape[0]
         if Nobs <= Nunk:
@@ -245,10 +297,6 @@ def polyfit_offsets(
         w = np.clip(data[:, 5], eps, 1.0)
         Qy_diag = 1.0 / (w * w)
         W = w[:, None]
-
-        # Design
-        Ln, Pn = normalize(lines, minL, maxL), normalize(pixels, minP, maxP)
-        A = build_design_matrix(Ln, Pn, degree)
 
         # Weighted normal equations
         A_til = A * W
@@ -292,179 +340,10 @@ def polyfit_offsets(
         worst = int(np.argmax(wL * wL + wP * wP))
         removed_indices.append(int(data[worst, 0]))
         data = np.delete(data, worst, axis=0)
+        A = np.delete(A, worst, axis=0)
 
-def _poly_design(line, pixel, degree, minL, maxL, minP, maxP):
-    """
-    Build a single 2D polynomial design vector for given line and pixel coordinates.
-
-    The polynomial terms are ordered consistently with the convention used in
-    polynomial fitting: for each total degree ``j = 0..degree`` and partial degree
-    ``k = 0..j``, the term is defined as ``l^(j-k) * p^k``, where ``l`` and ``p``
-    are the normalized line and pixel coordinates within [0, 1].
-
-    Parameters
-    ----------
-    line : float
-        Line coordinate of the tie point.
-    pixel : float
-        Pixel coordinate of the tie point.
-    degree : int
-        Total degree of the 2D polynomial.
-    minL, maxL : float
-        Minimum and maximum line coordinates used for normalization.
-    minP, maxP : float
-        Minimum and maximum pixel coordinates used for normalization.
-
-    Returns
-    -------
-    a : (M,) ndarray
-        Design vector containing all polynomial terms up to the given degree,
-        where ``M = (degree + 1) * (degree + 2) // 2``.
-    """
-
-    l = 0.0 if maxL == minL else (line - minL) / (maxL - minL)
-    p = 0.0 if maxP == minP else (pixel - minP) / (maxP - minP)
-
-    row = []
-    for j in range(degree + 1):
-        for k in range(j + 1):
-            row.append((l ** (j - k)) * (p ** k))
-    return np.array(row, dtype=float)
-
-def predict_offsets(line, pixel, coefL, coefP, degree, minL, maxL, minP, maxP):
-    """
-    Predict line and pixel offsets (ΔL, ΔP) at a given image coordinate
-    using fitted 2D polynomial coefficients.
-
-    The prediction is based on the same polynomial basis and normalization
-    used during model fitting. The normalized coordinates are computed as:
-
-        l = (line - minL) / (maxL - minL)
-        p = (pixel - minP) / (maxP - minP)
-
-    and the predicted offsets are obtained as:
-
-        ΔL = A(l, p) · coefL
-        ΔP = A(l, p) · coefP
-
-    where A(l, p) is the 1D design vector containing all polynomial terms up to
-    `degree`, ordered consistently with the fitting procedure.
-
-    Parameters
-    ----------
-    line : float
-        Line coordinate of the point to predict.
-    pixel : float
-        Pixel coordinate of the point to predict.
-    coefL : (M,) array_like
-        Polynomial coefficients for the line offset model.
-    coefP : (M,) array_like
-        Polynomial coefficients for the pixel offset model.
-    degree : int
-        Total degree of the 2D polynomial.
-    minL, maxL : float
-        Minimum and maximum line coordinates used for normalization.
-    minP, maxP : float
-        Minimum and maximum pixel coordinates used for normalization.
-
-    Returns
-    -------
-    dL : float
-        Predicted offset in the line direction.
-    dP : float
-        Predicted offset in the pixel direction.
-    """
-
-    v = _poly_design(line, pixel, degree, minL, maxL, minP, maxP)
-    dL = float(v @ coefL)
-    dP = float(v @ coefP)
-    return dL, dP
-
-def _expo_pairs(degree: int):
-    """
-    Generate exponent pairs for a 2D polynomial of a given total degree.
-
-    For each total degree ``j = 0..degree`` and partial degree ``k = 0..j``,
-    this function produces the exponents ``(a, b)`` corresponding to the term:
-
-        term = l**a * p**b
-
-    The resulting arrays define the exponent structure used to construct the
-    polynomial design matrix or to evaluate the polynomial.
-
-    Parameters
-    ----------
-    degree : int
-        Total degree of the 2D polynomial.
-
-    Returns
-    -------
-    A : (M,) ndarray of int
-        Exponents for the line variable `l`, where
-        ``M = (degree + 1) * (degree + 2) // 2``.
-    B : (M,) ndarray of int
-        Exponents for the pixel variable `p`, matching the order of `A`.
-    """
-
-    A, B = [], []
-    for j in range(degree + 1):
-        k = np.arange(j + 1)
-        A.append(j - k)
-        B.append(k)
-    return np.concatenate(A).astype(np.int64), np.concatenate(B).astype(np.int64)
-
-def _poly_design_batch(lines, pixels, degree,
-                       minL, maxL, minP, maxP):
-    """
-    Build the full 2D polynomial design matrix for arrays of line and pixel coordinates.
-
-    Each row corresponds to one (line, pixel) pair, and each column corresponds to
-    a polynomial term of the form ``l**a * p**b`` for all combinations of exponents
-    satisfying ``a + b <= degree``. Normalization of the coordinates ensures
-    consistent scaling with the fitting process.
-
-    Parameters
-    ----------
-    lines : (N,) array_like
-        Array of line coordinates.
-    pixels : (N,) array_like
-        Array of pixel coordinates.
-    degree : int
-        Total degree of the 2D polynomial.
-    minL, maxL : float
-        Minimum and maximum line coordinates used for normalization.
-    minP, maxP : float
-        Minimum and maximum pixel coordinates used for normalization.
-
-    Returns
-    -------
-    A : (N, M) ndarray
-        Design matrix where ``M = (degree + 1) * (degree + 2) // 2``.
-        Each element ``A[i, j]`` represents the j-th polynomial term evaluated
-        at the i-th normalized coordinate pair.
-    """
-
-    lines = np.asarray(lines, dtype=float)
-    pixels = np.asarray(pixels, dtype=float)
-
-    # Normalize
-    l = 0.0 if maxL == minL else (lines - minL) / (maxL - minL)
-    p = 0.0 if maxP == minP else (pixels - minP) / (maxP - minP)
-
-    l = np.ravel(l)
-    p = np.ravel(p)
-
-    Aidx, Bidx = _expo_pairs(degree)
-    ar = np.arange(degree + 1, dtype=np.int64)
-
-    l_pows = np.power(l[:, None], ar[None, :])
-    p_pows = np.power(p[:, None], ar[None, :])
-
-    return l_pows.take(Aidx, axis=1) * p_pows.take(Bidx, axis=1)
-
-
-def predict_offsets_batch(lines, pixels, coefL, coefP,
-                          degree, minL, maxL, minP, maxP):
+def predict_offsets(lines, pixels, coefL, coefP,
+                    degree, minL, maxL, minP, maxP):
     """
     Predict line and pixel offsets (ΔL, ΔP) for arrays of coordinates using
     a 2D polynomial model.
@@ -508,7 +387,7 @@ def predict_offsets_batch(lines, pixels, coefL, coefP,
     pixels = np.asarray(pixels)
     out_shape = np.broadcast_shapes(lines.shape, pixels.shape)
 
-    A = _poly_design_batch(
+    A = build_design_matrix(
         np.broadcast_to(lines, out_shape),
         np.broadcast_to(pixels, out_shape),
         degree, minL, maxL, minP, maxP
