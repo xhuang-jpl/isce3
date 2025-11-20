@@ -1,4 +1,7 @@
+import itertools
+
 import numpy as np
+
 
 def ncoeffs(degree: int) -> int:
     """
@@ -207,17 +210,31 @@ def polyfit_offsets(
     """
 
     # Prior std for w-test
-    sigmaL = 0.15 / ((prf / abw) if ((prf is not None) and (abw is not None)) else 1.1)
-    sigmaP = 0.10 / ((rsr / rbw) if ((rsr is not None) and (rbw is not None)) else 1.1)
+    sigmaL = 0.15 / ((prf / abw) if (None not in [prf, abw]) else 1.1)
+    sigmaP = 0.10 / ((rsr / rbw) if (None not in [rsr, rbw]) else 1.1)
 
-    if None in (minL, maxL, minP, maxP):
-        minL, maxL = data[:, 1].min(), data[:, 1].max()
-        minP, maxP = data[:, 2].min(), data[:, 2].max()
+    maxL = data[:, 1].max() if maxL is None else maxL
+    minL = data[:, 1].min() if minL is None else minL
+    maxP = data[:, 2].max() if maxP is None else maxP
+    minP = data[:, 2].min() if minP is None else minP
 
-    Nunk, eps = ncoeffs(degree), 1e-8
-    removed_indices, iteration = [], 0
+    if minL >= maxL:
+        raise ValueError(
+            f"minL value {minL} greater than or equal to maxL value {maxL}. "
+            "minL must be less than maxL.")
 
-    while True:
+    if minP >= maxP:
+        raise ValueError(
+            f"minP value {minP} greater than or equal to maxP value {maxP}. "
+            "minP must be less than maxP.")
+
+    # number of unknonw parameters or coefficients for the polyfitting
+    Nunk = ncoeffs(degree)
+    eps = 1e-8
+    # The indices that will be removed
+    removed_indices = []
+
+    for iteration in itertools.count():
         lines, pixels = data[:, 1], data[:, 2]
         yL, yP = data[:, 3:4], data[:, 4:5]
         Nobs = data.shape[0]
@@ -275,7 +292,6 @@ def polyfit_offsets(
         worst = int(np.argmax(wL * wL + wP * wP))
         removed_indices.append(int(data[worst, 0]))
         data = np.delete(data, worst, axis=0)
-        iteration += 1
 
 def _poly_design(line, pixel, degree, minL, maxL, minP, maxP):
     """
