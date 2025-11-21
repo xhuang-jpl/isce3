@@ -516,7 +516,7 @@ runconfig:
                 # Covariance: offsets with range/azimuth covariance above threshold are outliers
                 # Median filter: offsets with median absolute deviation above thresholds are outliers
                 threshold: 0.75
-                # Flag to enable mask refinement The intent of this refinement is to remove
+                # Flag to enable0 mask refinement The intent of this refinement is to remove
                 # noisy spots on 1-2 pixels after the first outlier identification.
                 # The refinement is performed by thresholding the median absolute deviation of
                 # the offsets where outlier locations have been filled with zeros
