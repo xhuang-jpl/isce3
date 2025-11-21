@@ -559,9 +559,9 @@ runconfig:
                     # Critical value for the w-test to remove the outliers
                     critical_value: 0.1
                     # Number of samples along the range in pixels for polyfitting
-                    samples_along_range: 1000
+                    samples_along_range: 300
                     # Number of samples  along the azimuth in pixels for polyfitting
-                    samples_along_azimuth: 1000
+                    samples_along_azimuth: 300
 
             fine_resample:
                 # Flag to enable/disable fine resampling
