@@ -116,7 +116,7 @@ def compute_phase_jump(previous_with_pad, current_image, half_pad_length):
 
     Returns
     -------
-    current_image : numpy.ndarray   
+    current_image : numpy.ndarray
         The current image with the phase jump corrected.
     difference_jump : float
         The computed phase jump value, which was applied to correct the
@@ -602,7 +602,7 @@ def insar_ionosphere_pair(original_cfg, runw_hdf5):
                     'list_of_frequencies'])
     orig_product_type = original_cfg['primary_executable']['product_type']
 
-    iono_insar_cfg = original_cfg.copy()
+    iono_insar_cfg = copy.deepcopy(original_cfg)
     iono_insar_cfg['primary_executable'][
                 'product_type'] = 'RUNW'
 
