@@ -49,7 +49,8 @@ def run(cfg: dict, out_paths: dict, run_steps: dict):
     # Remove the rdr2geo scratch folder
     rdr2geo_scratch_path = pathlib.Path(f"{scratch_path}/rdr2geo")
     _remove_intermediate_dir(rdr2geo_scratch_path,
-                             intermediate_files_removal_flag)
+                             intermediate_files_removal_flag,
+                             info_channel)
 
     if run_steps['prepare_insar_hdf5']:
         prepare_insar_hdf5.run(cfg)
