@@ -337,7 +337,11 @@ def run_rubbersheet_with_interpolation(cfg: dict, output_hdf5: str = None):
                     nan_count = np.count_nonzero(np.isnan(offset))
                     if nan_count > 0:
                         if rubbersheet_params['interpolation_method'] == 'idw':
-                            offsets[k] = _interpolate_offsets_by_idw(offset)
+                            # Get the IDW parameters
+                            power, number, radius = ( rubbersheet_params['idw_interpolation'].get(k)
+                                                     for k in ('power', 'number', 'radius'))
+                            offsets[k] = _interpolate_offsets_by_idw(offset, power, number, radius)
+                            # Additional linear interpolation is required to fill the extra outliers beyond the radius
                             offsets[k] =  _interpolate_offsets(offset[k],'linear')
                         else:
                             offsets[k] = _interpolate_offsets(offset,
