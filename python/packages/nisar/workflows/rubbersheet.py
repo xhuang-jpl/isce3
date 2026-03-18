@@ -14,7 +14,7 @@ from isce3.io import HDF5OptimizedReader
 from isce3.math import offsets_polyfit
 from nisar.products.insar.product_paths import RIFGGroupsPaths
 from nisar.products.readers import SLC
-from nisar.workflows import prepare_insar_hdf5
+from nisar.workflows import h5_prep
 from nisar.workflows.compute_stats import compute_stats_real_hdf5_dataset
 from nisar.workflows.helpers import (get_cfg_freq_pols,
                                      get_ground_track_velocity_product,
@@ -343,7 +343,7 @@ def run_rubbersheet_with_interpolation(cfg: dict, output_hdf5: str = None):
                                                      for k in ('power', 'number', 'radius'))
                             offsets[k] = _interpolate_offsets_by_idw(offset, power, number, radius)
                             # Additional linear interpolation is required to fill the extra outliers beyond the radius
-                            offsets[k] =  _interpolate_offsets(offset[k],'linear')
+                            offsets[k] =  _interpolate_offsets(offsets[k],'linear')
                         else:
                             offsets[k] = _interpolate_offsets(offset,
                                                               rubbersheet_params['interpolation_method'])
@@ -1044,5 +1044,5 @@ if __name__ == "__main__":
 
     # Prepare RIFG. Culled offsets will be
     # allocated in RIFG product
-    out_paths = prepare_insar_hdf5.run(rubbersheet_runconfig.cfg)
+    _, out_paths = h5_prep.get_products_and_paths(rubbersheet_runconfig.cfg)
     run(rubbersheet_runconfig.cfg, out_paths['RIFG'])
