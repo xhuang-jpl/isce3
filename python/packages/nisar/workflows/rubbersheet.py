@@ -25,6 +25,7 @@ from osgeo import gdal
 from scipy import interpolate, ndimage, signal
 from scipy.spatial import cKDTree
 
+
 def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
     '''
     Run rubbersheet via polyfitting method
