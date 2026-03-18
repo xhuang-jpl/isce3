@@ -23,7 +23,7 @@ from nisar.workflows.rubbersheet_runconfig import RubbersheetRunConfig
 from nisar.workflows.yaml_argparse import YamlArgparse
 from osgeo import gdal
 from scipy import interpolate, ndimage, signal
-
+from scipy.spatial import cKDTree
 
 def run_rubbersheet_with_polyfit(cfg: dict, output_hdf5: str = None):
     '''
@@ -336,8 +336,12 @@ def run_rubbersheet_with_interpolation(cfg: dict, output_hdf5: str = None):
                     # If there are residual NaNs, use interpolation to fill residual holes
                     nan_count = np.count_nonzero(np.isnan(offset))
                     if nan_count > 0:
-                        offsets[k] = _interpolate_offsets(offset,
-                                                          rubbersheet_params['interpolation_method'])
+                        if rubbersheet_params['interpolation_method'] == 'idw':
+                            offsets[k] = _interpolate_offsets_by_idw(offset)
+                            offsets[k] =  _interpolate_offsets(offset[k],'linear')
+                        else:
+                            offsets[k] = _interpolate_offsets(offset,
+                                                              rubbersheet_params['interpolation_method'])
                     # If required, filter offsets
                     offsets[k] = _filter_offsets(offsets[k], rubbersheet_params)
                     # Save offsets on disk for resampling
@@ -727,6 +731,108 @@ def _offset_blending(off_product_dir, rubbersheet_params, layer_keys):
 
     return offset_az, offset_rg
 
+
+def _interpolate_offsets_by_idw(
+    Z: np.ndarray,
+    power: float = 2.0,
+    number: int | None = 100,
+    radius: float | None = 200.0,
+    eps: float = 1e-12):
+    '''
+    Performs IDW interpolation on a 2D grid containing NaN values.
+    Missing pixels are filled using inverse distance weighting (IDW)
+    based on nearby valid samples. The interpolation can optionally
+    limit the number of nearest neighbors and the maximum search
+    radius to improve efficiency and control smoothing.
+
+    Parameters
+    ---------
+    Z: np.ndarray
+        2D array of shape (H, W) containing NaN values to be filled
+    power: float
+        Power parameter p controlling the distance weighting
+    number: int or None
+        Number of nearest neighbors used for interpolation.
+        If None, all valid points are used (default: 100)
+    radius: float or None
+        Maximum search radius in pixels. If None, no radius
+        limitation is applied (default: 200)
+    eps: float
+        Small value added to distance to avoid division by zero
+
+    Returns
+    -------
+    filled: np.ndarray
+        2D array with the same shape as Z where NaN values
+        have been filled using IDW interpolation
+    '''
+
+    valid = np.isfinite(Z)
+    yy, xx = np.nonzero(valid)
+    if yy.size == 0:
+        raise ValueError("No valid points found to interpolate from.")
+
+    points = np.column_stack([xx, yy]).astype(float)   # (x, y)
+    values = Z[yy, xx].astype(float)
+
+    # Query points (NaNs)
+    qmask = ~valid
+    yq, xq = np.nonzero(qmask)
+    if yq.size == 0:
+        return Z.copy()
+
+    qpoints = np.column_stack([xq, yq]).astype(float)
+
+    # KDTree for neighbors
+    tree = cKDTree(points)
+
+    # If number is None, use all valid points
+    k = points.shape[0] if number is None else number
+
+    # Query neighbors
+    if radius is None:
+        dists, idxs = tree.query(qpoints, k=min(k, points.shape[0]))
+        # dists: (M, k)
+        # idxs : (M, k)
+        use_mask = np.isfinite(dists)
+    else:
+        dists, idxs = tree.query(qpoints, k=min(k, points.shape[0]), distance_upper_bound=radius)
+        # For neighbors not found within radius, idxs == points.shape[0], dists == inf
+        use_mask = np.isfinite(dists) & (idxs < points.shape[0])
+
+    # Filled values
+    filled_vals = np.full(qpoints.shape[0], np.nan, dtype=float)
+
+    # Fill the value with nearest neighbor if distance is too small.
+    zero_hit = np.any((dists <= eps) & use_mask, axis=1)
+    if np.any(zero_hit):
+        row = np.where(zero_hit)[0]
+        col = np.argmax(((dists <= eps) & use_mask)[row], axis=1)
+        filled_vals[row] = values[idxs[row, col]]
+
+    # For the rest, compute IDW
+    rest = ~zero_hit
+    if np.any(rest):
+        d = dists[rest]
+        ii = idxs[rest]
+        m = use_mask[rest]
+
+        # weights = 1 / d^p, ignore invalid neighbors
+        w = np.zeros_like(d, dtype=float)
+        w[m] = 1.0 / np.maximum(d[m], eps) ** power
+
+        v = np.zeros_like(d, dtype=float)
+        v[m] = values[ii[m]]
+
+        ws = w.sum(axis=1)
+        # If no neighbors (ws==0), leave as NaN (no extrapolation)
+        ok = ws > 0
+        filled_vals[np.where(rest)[0][ok]] = (w[ok] * v[ok]).sum(axis=1) / ws[ok]
+
+    out = Z.copy()
+    out[yq, xq] = filled_vals
+
+    return out
 
 def _interpolate_offsets(offset, interp_method):
     '''
