@@ -728,11 +728,6 @@ def _offset_blending(off_product_dir, rubbersheet_params, layer_keys):
     return offset_az, offset_rg
 
 
-import journal
-import numpy as np
-from scipy import interpolate
-
-
 def _interpolate_offsets(offset, interp_method):
     '''
     Replace NaN in offset with interpolated values
