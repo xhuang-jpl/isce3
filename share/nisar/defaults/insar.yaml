@@ -544,7 +544,7 @@ runconfig:
                     kernel_size: 3
                 # Interpolation method. Interpolation is used to fill residual outlier
                 # holes if present
-                interpolation_method: linear
+                interpolation_method: idw
                 # IDW interpolation method parameters
                 idw_interpolation:
                     # Power parameter controlling the distance weighting
