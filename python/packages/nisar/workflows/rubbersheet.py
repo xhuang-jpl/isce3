@@ -12,6 +12,7 @@ import journal
 import numpy as np
 from isce3.io import HDF5OptimizedReader
 from isce3.math import offsets_polyfit
+from isce3.unwrap.preprocess import interpret_subswath_mask
 from nisar.products.insar.product_paths import RIFGGroupsPaths
 from nisar.products.readers import SLC
 from nisar.workflows import h5_prep
@@ -292,6 +293,12 @@ def run_rubbersheet_with_interpolation(cfg: dict, output_hdf5: str = None):
                                                                            zero_doppler_time,
                                                                            dem_file,
                                                                            rubbersheet_dir)
+            # Apply the subswath mask for the interpolation
+            pixel_offsets_mask_path = f'{pixel_offsets_path}/mask'
+            subswath_mask = dst_h5[pixel_offsets_mask_path][()]
+            ref_valid, sec_valid, _ = interpret_subswath_mask(subswath_mask)
+            valid_mask = ref_valid & sec_valid
+
             for pol in pol_list:
                 # Create input and output directories for pol under processing
                 pol_group_path = f'{pixel_offsets_path}/{pol}'
@@ -306,7 +313,7 @@ def run_rubbersheet_with_interpolation(cfg: dict, output_hdf5: str = None):
                     # Identify outliers
                     offset_az_culled, offset_rg_culled = identify_outliers(
                         str(dense_offsets_dir),
-                        rubbersheet_params)
+                        rubbersheet_params, valid_mask)
                     # Fill outliers holes
                     offset_az = fill_outliers_holes(offset_az_culled,
                                                     rubbersheet_params)
@@ -326,7 +333,9 @@ def run_rubbersheet_with_interpolation(cfg: dict, output_hdf5: str = None):
                                   key.startswith('layer')]
                     # Apply offset blending
                     offset_az, offset_rg = _offset_blending(off_product_dir,
-                                                            rubbersheet_params, layer_keys)
+                                                            rubbersheet_params,
+                                                            layer_keys,
+                                                            valid_mask)
 
                     # Get correlation peak path for the first offset layer
                     corr_peak_path = str(f'{off_prod_dir}/{layer_keys[0]}/correlation_peak')
@@ -443,7 +452,7 @@ def _write_to_disk(outpath, array, format='ENVI',
     ds.GetRasterBand(1).WriteArray(array)
     ds.FlushCache()
 
-def identify_outliers(offsets_dir, rubbersheet_params):
+def identify_outliers(offsets_dir, rubbersheet_params, mask = None):
     '''
     Identify outliers in the offset fields.
     Outliers are identified by a thresholding
@@ -457,6 +466,8 @@ def identify_outliers(offsets_dir, rubbersheet_params):
         where pixel offsets are located
     rubbersheet_params: cfg
         Dictionary containing rubbersheet parameters
+    mask: np.ndarray
+        A mask indicating the interested region (default: None)
 
     Returns
     -------
@@ -477,6 +488,9 @@ def identify_outliers(offsets_dir, rubbersheet_params):
     elif metric == 'median_filter':
         offset_az = _open_raster(f'{offsets_dir}/dense_offsets', 1)
         offset_rg = _open_raster(f'{offsets_dir}/dense_offsets', 2)
+        if mask is not None:
+            offset_az[~mask] = np.nan
+            offset_rg[~mask] = np.nan
         mask_data = compute_mad_mask(offset_az, window_az, window_rg, threshold) | \
                     compute_mad_mask(offset_rg, window_az, window_rg, threshold)
     elif metric == 'covariance':
@@ -680,7 +694,7 @@ def _fill_nan_with_mean(arr_in, arr_out, neighborhood_size):
     return filled_arr
 
 
-def _offset_blending(off_product_dir, rubbersheet_params, layer_keys):
+def _offset_blending(off_product_dir, rubbersheet_params, layer_keys, mask = None):
     '''
     Blends offsets layers at different resolution. Implements a
     pyramidal filling algorithm using the offset layer at higher
@@ -698,6 +712,8 @@ def _offset_blending(off_product_dir, rubbersheet_params, layer_keys):
         Dictionary containing the user-defined rubbersheet options
     layer_keys: list
         List of layers within the offset product
+    mask: np.ndarray
+        A mask indicting the interested region, default: None
 
     Returns
     -------
@@ -709,7 +725,7 @@ def _offset_blending(off_product_dir, rubbersheet_params, layer_keys):
 
     # Filter outliers from layer one
     offset_az, offset_rg = identify_outliers(str(off_product_dir / layer_keys[0]),
-                                             rubbersheet_params)
+                                             rubbersheet_params, mask)
 
     # Replace the NaN locations in layer1 with the mean of pixels in layers
     # at lower resolution computed in a neighborhood centered at the NaN location
@@ -720,12 +736,12 @@ def _offset_blending(off_product_dir, rubbersheet_params, layer_keys):
 
         if nan_count_az > 0:
             offset_az_culled, _ = identify_outliers(str(off_product_dir / layer_key),
-                                                    rubbersheet_params)
+                                                    rubbersheet_params, mask)
             offset_az = _fill_nan_with_mean(offset_az, offset_az_culled, filter_size)
 
         if nan_count_rg > 0:
             _, offset_rg_culled = identify_outliers(str(off_product_dir / layer_key),
-                                                    rubbersheet_params)
+                                                    rubbersheet_params, mask)
             offset_rg = _fill_nan_with_mean(offset_rg, offset_rg_culled, filter_size)
 
     # Fill remaining holes by iteratively filling the output offset layer
