@@ -735,6 +735,93 @@ def _offset_blending(off_product_dir, rubbersheet_params, layer_keys):
 
     return offset_az, offset_rg
 
+def _build_connected_components(
+    arr: np.ndarray,
+    connectivity: int = 4,
+    return_sizes: bool = True):
+    '''
+    Build connected components from a 2D floating-point array.
+
+    Parameters
+    ----------
+    arr : (H, W) float array
+        Input array.
+    connectivity : int
+        Pixel connectivity for labeling (4 or 8).
+    return_sizes : bool
+        If True, return the pixel counts for each component.
+
+    Returns
+    -------
+    labeled : (H, W) int array
+        Labeled component map (0 = background, 1..N = components).
+    num_features : int
+        Number of connected components.
+    valid_mask : (H, W) bool array
+        Boolean mask used to determine foreground pixels.
+    sizes : 1D int array, optional
+        Pixel count for each component label.
+    '''
+    if arr.ndim != 2:
+        raise ValueError(f"Expected a 2D array, got shape {arr.shape}")
+
+    if connectivity not in (4, 8):
+        raise ValueError("connectivity must be 4 or 8")
+
+    valid_mask = ~np.isnan(arr)
+
+    # Choose connectivity structure for 2D
+    if connectivity == 4:
+        structure = np.array([[0, 1, 0],
+                              [1, 1, 1],
+                              [0, 1, 0]], dtype=np.int8)
+    else:  # 8-connectivity
+        structure = np.ones((3, 3), dtype=np.int8)
+
+    labeled, num_features = ndimage.label(valid_mask, structure=structure)
+
+    if return_sizes:
+        sizes = np.bincount(labeled.ravel())  # sizes[0] is background count
+        return labeled, num_features, valid_mask, sizes
+
+    return labeled, num_features, valid_mask
+
+def _remove_small_components(arr: np.ndarray,
+                            labeled: np.ndarray,
+                            sizes: np.ndarray,
+                            min_size: int = 21,
+                            fill_value: float = np.nan):
+    '''
+    Remove small connected components from an array.
+
+    Components with pixel count smaller than min_size are set to fill_value.
+
+    Parameters
+    ----------
+    arr : (H, W) float array
+        Input array to be modified.
+    labeled : (H, W) int array
+        Connected component labels (0 = background), typically from ndimage.label.
+    sizes : 1D int array
+        Pixel counts for each label (e.g., np.bincount(labeled.ravel())).
+    min_size : int
+        Minimum number of pixels required to keep a component.
+    fill_value : float
+        Value used to replace pixels in removed components.
+
+    Returns
+    -------
+    arr : (H, W) float array
+        Array with small components removed.
+    '''
+
+    # labels to remove (exclude background label 0)
+    small_labels = np.where((sizes < min_size) & (np.arange(len(sizes)) != 0))[0]
+    mask_small = np.isin(labeled, small_labels)
+
+    out = arr.copy()
+    out[mask_small] = fill_value
+    return out, small_labels
 
 def _interpolate_offsets_by_idw(
     Z: np.ndarray,
