@@ -545,6 +545,10 @@ runconfig:
                 # Interpolation method. Interpolation is used to fill residual outlier
                 # holes if present
                 interpolation_method: idw
+
+                # Flag to enable the use of subswath mask for the outlier detection
+                subswath_mask_apply_enabled: True
+
                 # IDW interpolation method parameters
                 idw_interpolation:
                     # Power parameter controlling the distance weighting

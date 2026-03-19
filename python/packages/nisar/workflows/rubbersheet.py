@@ -293,11 +293,13 @@ def run_rubbersheet_with_interpolation(cfg: dict, output_hdf5: str = None):
                                                                            zero_doppler_time,
                                                                            dem_file,
                                                                            rubbersheet_dir)
-            # Apply the subswath mask for the interpolation
-            pixel_offsets_mask_path = f'{pixel_offsets_path}/mask'
-            subswath_mask = dst_h5[pixel_offsets_mask_path][()]
-            ref_valid, sec_valid, _ = interpret_subswath_mask(subswath_mask)
-            valid_mask = ref_valid & sec_valid
+            valid_mask = None
+            # Apply the subswath mask to the outlier detection
+            if rubbersheet_params['subswath_mask_apply_enabled']:
+                pixel_offsets_mask_path = f'{pixel_offsets_path}/mask'
+                subswath_mask = dst_h5[pixel_offsets_mask_path][()]
+                ref_valid, sec_valid, _ = interpret_subswath_mask(subswath_mask)
+                valid_mask = ref_valid & sec_valid
 
             for pol in pol_list:
                 # Create input and output directories for pol under processing
