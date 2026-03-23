@@ -274,7 +274,7 @@ def _extract_params_from_gunw_hdf5(gunw_hdf5_path: str):
         else:
             err_msg = (
                 f"Neither 'frequencyA' nor 'frequencyB' centerFrequency found "
-                f"in '{gunw_obj.GridsPath}' for the solid earth tides compuation")
+                f"in '{gunw_obj.GridsPath}' for solid earth tides computation")
             err_channel.log(err_msg)
             raise KeyError(err_msg)
 
