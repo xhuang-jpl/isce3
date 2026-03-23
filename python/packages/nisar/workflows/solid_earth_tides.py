@@ -266,7 +266,7 @@ def _extract_params_from_gunw_hdf5(gunw_hdf5_path: str):
         projection_dataset = h5_obj[f'{rdr_grid_path}/projection']
         epsg = projection_dataset.attrs['epsg_code']
 
-        # Wavelength in meters
+        # Wavelength in meters; fall back to frequencyB if frequencyA is not found
         for freq in ('A', 'B'):
             if (key := f'{gunw_obj.GridsPath}/frequency{freq}/centerFrequency') in h5_obj:
                 wavelength = isce3.core.speed_of_light / h5_obj[key][()]
