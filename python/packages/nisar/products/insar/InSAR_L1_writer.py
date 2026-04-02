@@ -493,18 +493,21 @@ class L1InSARWriter(InSARBaseWriter):
             self._create_2d_dataset(offset_group,
                                     'mask',
                                     shape=(off_length, off_width),
-                                    dtype=np.uint8,
-                                    description=("Mask indicating the subswaths of valid samples in the reference RSLC"
-                                                 " and geometrically-coregistered secondary RSLC."
-                                                 " Each pixel value is a two-digit number:"
-                                                 " the least significant digit represents the"
-                                                 " subswath number of that pixel in the secondary RSLC,"
-                                                 " and the most significant digit represents"
-                                                 " the subswath number of that pixel in the reference RSLC."
-                                                 " A value of 0 in either digit indicates an invalid sample"
-                                                 " in the corresponding RSLC"),
-                                    fill_value=255)
-            offset_group['mask'].attrs['long_name'] = to_bytes("Valid samples subswath mask")
+                                    dtype=np.uint32,
+                                    description=("Mask indicating the subswaths of valid samples and data anomalies"
+                                                 " in the reference RSLC and the geometrically coregistered secondary RSLC."
+                                                 " Each pixel value is encoded as a 32-bit unsigned integer."
+                                                 " Bits 0–7 represent subswath encoding,"
+                                                 " where the most significant digit corresponds to the subswath number of the reference RSLC"
+                                                 " and the least significant digit corresponds to the subswath number of the secondary RSLC;"
+                                                 " a value of 0 in either digit indicates an invalid sample in the corresponding RSLC."
+                                                 " Bits 8–15 represent bitwise anomaly flags for the secondary RSLC,"
+                                                 " and bits 16–23 represent bitwise anomaly flags for the reference RSLC,"
+                                                 " with each bit corresponding to a specific anomaly condition."
+                                                 " A value of 0 in the anomaly bits indicates that no anomaly is detected in the corresponding RSLC."
+                                                 " Bits 24–31 are reserved for future use"),
+                                    fill_value=np.iinfo(np.uint32).max)
+            offset_group['mask'].attrs['long_name'] = to_bytes("Valid samples subswath and data anomaly mask")
             offset_group['mask'].attrs['valid_min'] = 0
 
             range_offset_path = \
@@ -531,6 +534,8 @@ class L1InSARWriter(InSARBaseWriter):
             offset_group['mask'][...] = \
                 generate_insar_subswath_mask(self.ref_rslc,
                                              self.sec_rslc,
+                                             self.ref_h5py_file_obj,
+                                             self.sec_h5py_file_obj,
                                              range_offset_path,
                                              azimuth_offset_path,
                                              freq,
@@ -706,19 +711,22 @@ class L1InSARWriter(InSARBaseWriter):
             self._create_2d_dataset(igram_group,
                                     'mask',
                                     shape=igram_shape,
-                                    dtype=np.uint8,
-                                    description=("Mask indicating the subswaths of valid samples in the reference RSLC"
-                                                 " and geometrically-coregistered secondary RSLC."
-                                                 " Each pixel value is a two-digit number:"
-                                                 " the least significant digit represents the"
-                                                 " subswath number of that pixel in the secondary RSLC,"
-                                                 " and the most significant digit represents"
-                                                 " the subswath number of that pixel in the reference RSLC."
-                                                 " A value of 0 in either digit indicates an invalid sample"
-                                                 " in the corresponding RSLC"),
-                                    fill_value=255)
+                                    dtype=np.uint32,
+                                    description=("Mask indicating the subswaths of valid samples and data anomalies"
+                                                 " in the reference RSLC and the geometrically coregistered secondary RSLC."
+                                                 " Each pixel value is encoded as a 32-bit unsigned integer."
+                                                 " Bits 0–7 represent subswath encoding,"
+                                                 " where the most significant digit corresponds to the subswath number of the reference RSLC"
+                                                 " and the least significant digit corresponds to the subswath number of the secondary RSLC;"
+                                                 " a value of 0 in either digit indicates an invalid sample in the corresponding RSLC."
+                                                 " Bits 8–15 represent bitwise anomaly flags for the secondary RSLC,"
+                                                 " and bits 16–23 represent bitwise anomaly flags for the reference RSLC,"
+                                                 " with each bit corresponding to a specific anomaly condition."
+                                                 " A value of 0 in the anomaly bits indicates that no anomaly is detected in the corresponding RSLC."
+                                                 " Bits 24–31 are reserved for future use"),
+                                    fill_value=np.iinfo(np.uint32).max)
             igram_group['mask'].attrs['valid_min'] = 0
-            igram_group['mask'].attrs['long_name'] = to_bytes("Valid samples subswath mask")
+            igram_group['mask'].attrs['long_name'] = to_bytes("Valid samples subswath and data anomaly mask")
 
             range_offset_path = \
                 os.path.join(self.topo_path,
@@ -744,6 +752,8 @@ class L1InSARWriter(InSARBaseWriter):
             igram_group['mask'][...] = \
                 generate_insar_subswath_mask(self.ref_rslc,
                                              self.sec_rslc,
+                                             self.ref_h5py_file_obj,
+                                             self.sec_h5py_file_obj,
                                              range_offset_path,
                                              azimuth_offset_path,
                                              freq,
