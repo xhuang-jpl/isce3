@@ -1078,7 +1078,8 @@ class InSARBaseWriter(h5py.File):
                             "isJointObservation",
                             "plannedObservationId",
                             "plannedDatatakeId",
-                            "listOfObservationModes"]
+                            "listOfObservationModes",
+                            "hasInputDataException"]
         cap = lambda x: f"{x[0].upper()}{x[1:]}"
 
         for ds_name in datasets_to_copy:
@@ -1135,6 +1136,20 @@ class InSARBaseWriter(h5py.File):
             ds_name = f"{rslc_name}ListOfObservationModes"
             description = 'List of observation modes of the L0B granules'+\
                 f' used to generate the {rslc_name} RSLC (one mode per L0B)'
+            if ds_name in dst_id_group:
+                ds = dst_id_group[ds_name]
+                ds.attrs['description'] = to_bytes(description)
+            else:
+                add_dataset_and_attrs(dst_id_group, DatasetParams(
+                    ds_name,
+                    to_bytes(['(NOT SPECIFIED)']),
+                    description))
+
+            # Update the description for the hasInputDataException
+            ds_name = f"{rslc_name}HasInputDataException"
+            description = f'Indication of input {rslc_name} RSLC data exceptions or anomalies.'+\
+                ' Zero when no known exception affects this product,'+\
+                    ' otherwise the bitwise OR of exception codes (2: NISAR LSAR qFSP-H1 sample slip)'
             if ds_name in dst_id_group:
                 ds = dst_id_group[ds_name]
                 ds.attrs['description'] = to_bytes(description)
