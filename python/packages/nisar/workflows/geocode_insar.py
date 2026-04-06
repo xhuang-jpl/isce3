@@ -215,7 +215,7 @@ def _project_water_to_geogrid(input_water_path, geogrid):
 
 def add_water_to_mask(cfg, freq, geogrid, dst_h5,
                       input_product_type,
-                      fill_vaue = np.iinfo(np.uint32).max):
+                      fill_vaue = 255):
     """
     Add water mask to mask layer in GUNW and GOFF product.
 
@@ -1089,7 +1089,7 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                 # Geocode subswath mask
                 desired_geo_dataset_names = ["mask"]
                 interpolation_methods = [isce3.core.DataInterpMethod.NEAREST]
-                invalid_values = [np.iinfo(np.uint32).max]
+                invalid_values = [255]
 
                 rdr_geometry = isce3.container.RadarGeometry(radar_grid,
                                                              orbit,
@@ -1203,7 +1203,7 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                 # Geocode subswath mask
                 desired_geo_dataset_names = ["mask"]
                 interpolation_methods = [isce3.core.DataInterpMethod.NEAREST]
-                invalid_values = [np.iinfo(np.uint32).max]
+                invalid_values = [255]
 
                 rdr_geometry = isce3.container.RadarGeometry(radar_grid,
                                                              orbit,
@@ -1271,7 +1271,7 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                 # Geocode subswath mask
                 desired_geo_dataset_names = ["mask"]
                 interpolation_methods = [isce3.core.DataInterpMethod.NEAREST]
-                invalid_values = [np.iinfo(np.uint32).max]
+                invalid_values = [255]
 
                 gpu_geocode_rasters(geocoded_dataset_flags,
                                     desired_geo_dataset_names,
@@ -1318,7 +1318,7 @@ def gpu_run(cfg, input_hdf5, output_hdf5, input_product_type=InputProduct.RUNW):
                 # Geocode subswath mask
                 desired_geo_dataset_names = ["mask"]
                 interpolation_methods = [isce3.core.DataInterpMethod.NEAREST]
-                invalid_values = [np.iinfo(np.uint32).max]
+                invalid_values = [255]
 
                 gpu_geocode_rasters(geocoded_dataset_flags,
                                     desired_geo_dataset_names,

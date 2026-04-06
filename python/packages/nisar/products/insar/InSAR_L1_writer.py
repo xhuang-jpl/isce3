@@ -506,7 +506,7 @@ class L1InSARWriter(InSARBaseWriter):
                                                  " with each bit corresponding to a specific anomaly condition."
                                                  " A value of 0 in the anomaly bits indicates that no anomaly is detected in the corresponding RSLC."
                                                  " Bits 24–31 are reserved for future use"),
-                                    fill_value=np.iinfo(np.uint32).max)
+                                    fill_value=255)
             offset_group['mask'].attrs['long_name'] = to_bytes("Valid samples subswath and data anomaly mask")
             offset_group['mask'].attrs['valid_min'] = 0
 
@@ -724,7 +724,7 @@ class L1InSARWriter(InSARBaseWriter):
                                                  " with each bit corresponding to a specific anomaly condition."
                                                  " A value of 0 in the anomaly bits indicates that no anomaly is detected in the corresponding RSLC."
                                                  " Bits 24–31 are reserved for future use"),
-                                    fill_value=np.iinfo(np.uint32).max)
+                                    fill_value=255)
             igram_group['mask'].attrs['valid_min'] = 0
             igram_group['mask'].attrs['long_name'] = to_bytes("Valid samples subswath and data anomaly mask")
 

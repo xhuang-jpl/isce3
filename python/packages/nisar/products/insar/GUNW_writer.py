@@ -309,7 +309,7 @@ class GUNWWriter(RUNWWriter, RIFGWriter, L2InSARWriter):
                     grid_mapping=grids_val,
                     xds=xds,
                     yds=yds,
-                    fill_value=np.iinfo(np.uint32).max,
+                    fill_value=255,
                 )
             ds_group['mask'].attrs['valid_min'] = 0
             ds_group['mask'].attrs['percentage_water'] = 0.0
