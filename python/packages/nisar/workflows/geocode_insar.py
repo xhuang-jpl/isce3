@@ -231,7 +231,7 @@ def add_water_to_mask(cfg, freq, geogrid, dst_h5,
         h5py.File object where geocoded data is to be written
     input_product_type : enum
         Product type of the input hdf5
-    fill_value: unsigned 32 bit integer
+    fill_value: unsigned 8 bit integer
         The fill value of the mask layer
     """
     water_mask_path = cfg['dynamic_ancillary_file_group']['water_mask_file']

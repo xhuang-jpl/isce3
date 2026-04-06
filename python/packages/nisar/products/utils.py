@@ -80,7 +80,7 @@ def get_static_layers_data_access(
     return static_layers_data_access
 
 
-def interpret_subswath_mask(mask, nodata=np.iinfo(np.uint32).max):
+def interpret_subswath_mask(mask, nodata=255):
     """
     Interprets a subswath mask integer by decoding its digits into boolean
     flags indicating reference validity, secondary validity, and water
@@ -97,7 +97,7 @@ def interpret_subswath_mask(mask, nodata=np.iinfo(np.uint32).max):
             Non-zero indicates valid; zero indicates invalid.
         - Hundreds digit (100s place): Water presence flag.
             Non-zero indicates presence of water; zero indicates absence.
-    nodata : int, default np.iinfo(np.uint32).max
+    nodata : int, default 255
 
     Returns
     -------
