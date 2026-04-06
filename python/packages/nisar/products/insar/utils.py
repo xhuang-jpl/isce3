@@ -532,6 +532,7 @@ def generate_insar_subswath_mask(ref_rslc_obj,
 
     # Reference and Secondary RSLC files
     ref_swath = ref_rslc_obj.getSwathMetadata(freq)
+    sec_swath = sec_rslc_obj.getSwathMetadata(freq)
     ref_subswaths = ref_rslc_obj.getSwathMetadata(freq).sub_swaths()
     sec_subswaths = sec_rslc_obj.getSwathMetadata(freq).sub_swaths()
 
@@ -542,17 +543,20 @@ def generate_insar_subswath_mask(ref_rslc_obj,
     range_offset_band = src_range_offset.GetRasterBand(1)
     azimuth_offset_band = src_azimuth_offset.GetRasterBand(1)
 
+    # Load the input data exception mask
     input_exception_mask_path = \
         lambda swath: f"{swath}/frequency{freq}/inputDataExceptionMask"
-    ref_input_exception_mask = \
-        ref_rslc_h5_obj[input_exception_mask_path(ref_rslc_obj.SwathPath)][()].astype(np.uint8)
-    sec_input_exception_mask = \
-        sec_rslc_h5_obj[input_exception_mask_path(sec_rslc_obj.SwathPath)][()].astype(np.uint8)
+    def _load_exception_mask(h5_obj, rslc_obj, swath):
+        path = input_exception_mask_path(rslc_obj.SwathPath)
+        return h5_obj[path][()].astype(np.uint8) if path in h5_obj \
+            else np.zeros((swath.lines, swath.samples), dtype=np.uint8)
+
+    ref_input_exception_mask = _load_exception_mask(ref_rslc_h5_obj, ref_rslc_obj, ref_swath)
+    sec_input_exception_mask = _load_exception_mask(sec_rslc_h5_obj, sec_rslc_obj, sec_swath)
     sec_lines, sec_samples = sec_input_exception_mask.shape
 
     mask = []
     for i in azi_idx_arr:
-
         # Check if the azimuth index is within the radar grid
         if i >= 0 and i < ref_swath.lines:
             range_off = \
@@ -600,6 +604,9 @@ def generate_insar_subswath_mask(ref_rslc_obj,
         # The azimuth index is not in the radar grid meaning no subswath mask
         else:
             mask += [0] * len(rg_idx_arr)
+
+    del ref_input_exception_mask
+    del sec_input_exception_mask
 
     return np.array(mask).reshape(
         (len(azi_idx_arr),
