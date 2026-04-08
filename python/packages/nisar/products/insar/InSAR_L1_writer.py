@@ -18,7 +18,7 @@ from .InSAR_base_writer import InSARBaseWriter
 from .product_paths import L1GroupsPaths
 from .units import Units
 from .utils import (extract_datetime_from_string, generate_dem_rdr,
-                    generate_insar_subswath_mask,
+                    generate_insar_mask,
                     get_geolocation_grid_cube_obj, save_to_hdf5_ds)
 
 
@@ -532,15 +532,15 @@ class L1InSARWriter(InSARBaseWriter):
                                for az in offset_zero_doppler_time])
 
             offset_group['mask'][...] = \
-                generate_insar_subswath_mask(self.ref_rslc,
-                                             self.sec_rslc,
-                                             self.ref_h5py_file_obj,
-                                             self.sec_h5py_file_obj,
-                                             range_offset_path,
-                                             azimuth_offset_path,
-                                             freq,
-                                             az_idx,
-                                             rg_idx)
+                generate_insar_mask(self.ref_rslc,
+                                    self.sec_rslc,
+                                    self.ref_h5py_file_obj,
+                                    self.sec_h5py_file_obj,
+                                    range_offset_path,
+                                    azimuth_offset_path,
+                                    freq,
+                                    az_idx,
+                                    rg_idx)
 
         # add the datasets to pixel offsets group
         self._add_datasets_to_pixel_offset_group()
@@ -750,15 +750,15 @@ class L1InSARWriter(InSARBaseWriter):
                                for az in igram_zero_doppler_time])
 
             igram_group['mask'][...] = \
-                generate_insar_subswath_mask(self.ref_rslc,
-                                             self.sec_rslc,
-                                             self.ref_h5py_file_obj,
-                                             self.sec_h5py_file_obj,
-                                             range_offset_path,
-                                             azimuth_offset_path,
-                                             freq,
-                                             az_idx,
-                                             rg_idx)
+                generate_insar_mask(self.ref_rslc,
+                                    self.sec_rslc,
+                                    self.ref_h5py_file_obj,
+                                    self.sec_h5py_file_obj,
+                                    range_offset_path,
+                                    azimuth_offset_path,
+                                    freq,
+                                    az_idx,
+                                    rg_idx)
 
             # add the interferogram and pixelOffsets groups to the polarization group
             for pol in pol_list:

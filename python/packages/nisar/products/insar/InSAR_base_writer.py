@@ -1100,21 +1100,21 @@ class InSARBaseWriter(h5py.File):
             # rename the End time to stop
             time_in_description = 'stop' if start_or_stop == 'End' else 'start'
             ds.attrs['description'] = \
-                f"Azimuth {time_in_description} time (in UTC) of {rslc_name} RSLC product in the format YYYY-mm-ddTHH:MM:SS.sssssssss"
+                to_bytes(f"Azimuth {time_in_description} time (in UTC) of {rslc_name} RSLC product in the format YYYY-mm-ddTHH:MM:SS.sssssssss")
 
         for rslc_name in ['reference', 'secondary']:
              # Update descriptions for absolute orbit number, planned datatakes and observation
             ds = dst_id_group[f"{rslc_name}AbsoluteOrbitNumber"]
             ds.attrs['description'] = \
-            f'Absolute orbit number for the {rslc_name} RSLC'
+            to_bytes(f'Absolute orbit number for the {rslc_name} RSLC')
 
             ds = dst_id_group[f"{rslc_name}PlannedDatatakeId"]
             ds.attrs['description'] = \
-            f'List of planned datatakes included in the {rslc_name} RSLC'
+            to_bytes(f'List of planned datatakes included in the {rslc_name} RSLC')
 
             ds = dst_id_group[f"{rslc_name}PlannedObservationId"]
             ds.attrs['description'] = \
-            f'List of planned observations included in the {rslc_name} RSLC'
+            to_bytes(f'List of planned observations included in the {rslc_name} RSLC')
 
             #  Update the description for the isJointObservation
             #  If there is no isJointObservation in the identification group,

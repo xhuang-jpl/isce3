@@ -494,18 +494,18 @@ def generate_dem_rdr(radar_grid_obj,
     dem_src = None
 
 
-def generate_insar_subswath_mask(ref_rslc_obj,
-                                 sec_rslc_obj,
-                                 ref_rslc_h5_obj,
-                                 sec_rslc_h5_obj,
-                                 range_offset_path,
-                                 azimuth_offset_path,
-                                 freq,
-                                 azi_idx_arr,
-                                 rg_idx_arr):
+def generate_insar_mask(ref_rslc_obj,
+                        sec_rslc_obj,
+                        ref_rslc_h5_obj,
+                        sec_rslc_h5_obj,
+                        range_offset_path,
+                        azimuth_offset_path,
+                        freq,
+                        azi_idx_arr,
+                        rg_idx_arr):
 
     """
-    Generate the InSAR subswath 2d array mask
+    Generate the InSAR  2d array mask
 
     Parameters
     ---------
@@ -551,8 +551,12 @@ def generate_insar_subswath_mask(ref_rslc_obj,
         return h5_obj[path][()].astype(np.uint8) if path in h5_obj \
             else np.zeros((swath.lines, swath.samples), dtype=np.uint8)
 
-    ref_input_exception_mask = _load_exception_mask(ref_rslc_h5_obj, ref_rslc_obj, ref_swath)
-    sec_input_exception_mask = _load_exception_mask(sec_rslc_h5_obj, sec_rslc_obj, sec_swath)
+    ref_input_exception_mask = _load_exception_mask(ref_rslc_h5_obj,
+                                                    ref_rslc_obj,
+                                                    ref_swath)
+    sec_input_exception_mask = _load_exception_mask(sec_rslc_h5_obj,
+                                                    sec_rslc_obj,
+                                                    sec_swath)
 
     mask = []
     for i in azi_idx_arr:
@@ -588,8 +592,8 @@ def generate_insar_subswath_mask(ref_rslc_obj,
                     ref_input_exception_mask_id = ref_input_exception_mask[int(i),int(j)] << 16
 
                     # secondary RSLC input  exception mask id
-                    sec_i = int(int(i) + azimuth_off[0,int(j)] + 0.5)
-                    sec_j = int(int(j) + range_off[0,int(j)] + 0.5)
+                    sec_i = round(i + azimuth_off[0,int(j)])
+                    sec_j = round(j + range_off[0,int(j)])
                     if ((sec_i >=0 and sec_i < sec_swath.lines) and
                         (sec_j >=0 and sec_j < sec_swath.samples)):
                         sec_input_exception_mask_id = sec_input_exception_mask[sec_i,sec_j] << 8
