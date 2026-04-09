@@ -758,12 +758,11 @@ def _interpolate_offsets_by_idw(
     Z: np.ndarray,
     power: float = 2.0,
     number: int | None = 100,
-    radius: float | None = 200.0,
-    eps: float = 1e-12):
+    radius: float | None = 200.0):
     '''
-    Performs IDW interpolation on a 2D grid containing NaN values.
-    Missing pixels are filled using inverse distance weighting (IDW)
-    based on nearby valid samples. The interpolation can optionally
+    Performs Inverse Distance Weighting (IDW) interpolation on a 2D grid containing NaN values.
+    Missing pixels are filled using IDW interpolation based on nearby
+    valid samples. The interpolation can optionally
     limit the number of nearest neighbors and the maximum search
     radius to improve efficiency and control smoothing.
 
@@ -794,10 +793,9 @@ def _interpolate_offsets_by_idw(
     if yy.size == 0:
         raise ValueError("No valid points found to interpolate from.")
 
-    points = np.column_stack([xx, yy]).astype(float)   # (x, y)
+    points = np.column_stack([xx, yy]).astype(float)
     values = Z[yy, xx].astype(float)
 
-    # Query points (NaNs)
     qmask = ~valid
     yq, xq = np.nonzero(qmask)
     if yq.size == 0:
@@ -805,51 +803,30 @@ def _interpolate_offsets_by_idw(
 
     qpoints = np.column_stack([xq, yq]).astype(float)
 
-    # KDTree for neighbors
     tree = cKDTree(points)
+    k = points.shape[0] if number is None else min(number, points.shape[0])
 
-    # If number is None, use all valid points
-    k = points.shape[0] if number is None else number
+    dists, idxs = tree.query(
+        qpoints, k=k, workers=-1,
+        **({'distance_upper_bound': radius} if radius is not None else {}))
 
-    # Query neighbors
-    if radius is None:
-        dists, idxs = tree.query(qpoints, k=min(k, points.shape[0]))
-        # dists: (M, k)
-        # idxs : (M, k)
-        use_mask = np.isfinite(dists)
-    else:
-        dists, idxs = tree.query(qpoints, k=min(k, points.shape[0]), distance_upper_bound=radius)
-        # For neighbors not found within radius, idxs == points.shape[0], dists == inf
-        use_mask = np.isfinite(dists) & (idxs < points.shape[0])
+    # Ensure 2D — tree.query returns 1D when k=1
+    dists = np.reshape(dists, (qpoints.shape[0], -1))
+    idxs  = np.reshape(idxs,  (qpoints.shape[0], -1))
 
-    # Filled values
+    use_mask = np.isfinite(dists) & (idxs < points.shape[0])
+
+    # Clip out-of-bounds sentinel indices before indexing into values
+    safe_idxs = np.clip(idxs, 0, points.shape[0] - 1)
+
+    w = np.where(use_mask, 1.0 / dists**power, 0.0)
+    v = np.where(use_mask, values[safe_idxs], 0.0)
+
+    ws = w.sum(axis=1)
+    ok = ws > 0
+
     filled_vals = np.full(qpoints.shape[0], np.nan, dtype=float)
-
-    # Fill the value with nearest neighbor if distance is too small.
-    zero_hit = np.any((dists <= eps) & use_mask, axis=1)
-    if np.any(zero_hit):
-        row = np.where(zero_hit)[0]
-        col = np.argmax(((dists <= eps) & use_mask)[row], axis=1)
-        filled_vals[row] = values[idxs[row, col]]
-
-    # For the rest, compute IDW
-    rest = ~zero_hit
-    if np.any(rest):
-        d = dists[rest]
-        ii = idxs[rest]
-        m = use_mask[rest]
-
-        # weights = 1 / d^p, ignore invalid neighbors
-        w = np.zeros_like(d, dtype=float)
-        w[m] = 1.0 / np.maximum(d[m], eps) ** power
-
-        v = np.zeros_like(d, dtype=float)
-        v[m] = values[ii[m]]
-
-        ws = w.sum(axis=1)
-        # If no neighbors (ws==0), leave as NaN (no extrapolation)
-        ok = ws > 0
-        filled_vals[np.where(rest)[0][ok]] = (w[ok] * v[ok]).sum(axis=1) / ws[ok]
+    filled_vals[ok] = (w[ok] * v[ok]).sum(axis=1) / ws[ok]
 
     out = Z.copy()
     out[yq, xq] = filled_vals

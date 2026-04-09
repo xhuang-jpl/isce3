@@ -544,7 +544,7 @@ runconfig:
                     kernel_size: 3
                 # Interpolation method. Interpolation is used to fill residual outlier
                 # holes if present
-                interpolation_method: idw
+                interpolation_method: linear
 
                 # Flag to enable the use of subswath mask for the outlier detection
                 subswath_mask_apply_enabled: True
