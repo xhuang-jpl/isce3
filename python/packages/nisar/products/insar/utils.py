@@ -505,7 +505,7 @@ def generate_insar_mask(ref_rslc_obj,
                         rg_idx_arr):
 
     """
-    Generate the InSAR  2d array mask
+    Generate the InSAR 2d array mask
 
     Parameters
     ---------
