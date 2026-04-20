@@ -926,7 +926,7 @@ def _interpolate_offsets(offset, interp_method):
     return offset_interp
 
 
-def apply_filter(array, window_size, filter_type='mean', axis='azimuth'):
+def apply_filter(array, window_size, filter_type='mean', axis='both'):
     '''
     Apply mean or median filter along specified axis or both directions.
     Ignores NaN and Inf values when computing statistics.
@@ -942,7 +942,6 @@ def apply_filter(array, window_size, filter_type='mean', axis='azimuth'):
         Size of the filtering window.
         - If int: window size for the specified axis (or both if axis='both')
         - If tuple: (window_size_azimuth, window_size_range) when axis='both'
-        Must be odd and >= 1.
     filter_type: str
         Type of filter to apply: 'mean' or 'median' (default: 'mean')
     axis: str
