@@ -609,7 +609,7 @@ azimuth_offset_filter_options:
     # Spatial filter type applied to azimuth offsets to suppress offset jumps
     # caused by ionospheric disturbances or decorrelation
     offsets_filter: enum('none', 'median', 'mean', required=False)
-    # Kernel size in pixels for the spatial filter
+    # Kernel size in pixels for the spatial filter (both even and odd sizes supported)
     kernel_size: int(min=3, required=False)
 
 idw_interpolation_options:

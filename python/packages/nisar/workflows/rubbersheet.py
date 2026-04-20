@@ -770,7 +770,7 @@ def _offset_blending(off_product_dir, rubbersheet_params, layer_keys, mask = Non
                     filter_type=azimuth_filter_type,
                     axis='both'
                 )
-                
+
             offset_az = _fill_nan_with_mean(offset_az, offset_az_culled, filter_size)
 
         if nan_count_rg > 0:
@@ -946,7 +946,7 @@ def apply_filter(array, window_size, filter_type='mean', axis='azimuth'):
     filter_type: str
         Type of filter to apply: 'mean' or 'median' (default: 'mean')
     axis: str
-        Direction to filter: 'azimuth', 'range', or 'both' (default: 'azimuth')
+        Direction to filter: 'azimuth', 'range', or 'both' (default: 'both')
 
     Returns
     -------
@@ -982,10 +982,6 @@ def apply_filter(array, window_size, filter_type='mean', axis='azimuth'):
         raise ValueError(f"window_size_azimuth must be >= 1, got {window_size_az}")
     if window_size_rg < 1:
         raise ValueError(f"window_size_range must be >= 1, got {window_size_rg}")
-    if window_size_az % 2 == 0:
-        raise ValueError(f"window_size_azimuth must be odd, got {window_size_az}")
-    if window_size_rg % 2 == 0:
-        raise ValueError(f"window_size_range must be odd, got {window_size_rg}")
 
     # Handle trivial case
     if window_size_az == 1 and window_size_rg == 1:
@@ -1000,12 +996,18 @@ def apply_filter(array, window_size, filter_type='mean', axis='azimuth'):
     array_clean[~np.isfinite(array_clean)] = np.nan
 
     nrows, ncols = array_clean.shape
-    half_window_az = window_size_az // 2
-    half_window_rg = window_size_rg // 2
 
-    # Pad the array to handle edges
+    # Calculate padding for both odd and even window sizes
+    # For odd windows (e.g., 5): pad_before=2, pad_after=2 → 2+1+2=5 ✓
+    # For even windows (e.g., 4): pad_before=1, pad_after=2 → 1+1+2=4 ✓
+    pad_before_az = (window_size_az - 1) // 2
+    pad_after_az = window_size_az // 2
+    pad_before_rg = (window_size_rg - 1) // 2
+    pad_after_rg = window_size_rg // 2
+
+    # Pad the array to handle edges (asymmetric for even window sizes)
     padded = np.pad(array_clean,
-                    ((half_window_az, half_window_az), (half_window_rg, half_window_rg)),
+                    ((pad_before_az, pad_after_az), (pad_before_rg, pad_after_rg)),
                     mode='constant', constant_values=np.nan)
 
     if axis == 'both':
@@ -1014,20 +1016,14 @@ def apply_filter(array, window_size, filter_type='mean', axis='azimuth'):
         shape = (nrows, ncols, window_size_az, window_size_rg)
         strides = (padded.strides[0], padded.strides[1], padded.strides[0], padded.strides[1])
 
-        # Create a view with 2D sliding windows
+        # Create a view with 2D sliding windows (no copy, just metadata)
         windows = np.lib.stride_tricks.as_strided(padded, shape=shape, strides=strides)
 
-        # Reshape to (nrows, ncols, window_size_azimuth * window_size_range) for filtering
-        windows_flat = windows.reshape(nrows, ncols, -1)
-
-        # Apply filter function along the flattened window axis (axis=2)
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', r'All-NaN slice encountered')
-            warnings.filterwarnings('ignore', r'Mean of empty slice')
-            if filter_type == 'mean':
-                filtered = np.nanmean(windows_flat, axis=2)
-            else:  # median
-                filtered = np.nanmedian(windows_flat, axis=2)
+        # Apply filter function directly on 4D array
+        if filter_type == 'mean':
+            filtered = np.nanmean(windows, axis=(2, 3))
+        else:  # median
+            filtered = np.nanmedian(windows, axis=(2, 3))
     else:
         # Create 1D sliding window view
         # Shape will be (nrows, ncols, window_size)
@@ -1042,13 +1038,10 @@ def apply_filter(array, window_size, filter_type='mean', axis='azimuth'):
         windows = np.lib.stride_tricks.as_strided(padded, shape=shape, strides=strides)
 
         # Apply filter function along the window axis (axis=2)
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', r'All-NaN slice encountered')
-            warnings.filterwarnings('ignore', r'Mean of empty slice')
-            if filter_type == 'mean':
-                filtered = np.nanmean(windows, axis=2)
-            else:  # median
-                filtered = np.nanmedian(windows, axis=2)
+        if filter_type == 'mean':
+            filtered = np.nanmean(windows, axis=2)
+        else:  # median
+            filtered = np.nanmedian(windows, axis=2)
 
     return filtered
 
