@@ -931,8 +931,8 @@ def apply_filter(array, window_size, filter_type='mean', axis='both'):
     Apply mean or median filter along specified axis or both directions.
     Ignores NaN and Inf values when computing statistics.
 
-    This function uses fully vectorized operations with sliding windows
-    for maximum efficiency.
+    Uses scipy.ndimage.generic_filter for memory-efficient processing
+    that handles NaN values properly without creating large intermediate arrays.
 
     Parameters
     ----------
@@ -994,53 +994,17 @@ def apply_filter(array, window_size, filter_type='mean', axis='both'):
     array_clean = array.copy()
     array_clean[~np.isfinite(array_clean)] = np.nan
 
-    nrows, ncols = array_clean.shape
+    # Use numpy's built-in NaN-aware functions
+    filter_func = np.nanmean if filter_type == 'mean' else np.nanmedian
 
-    # Calculate padding for both odd and even window sizes
-    # For odd windows (e.g., 5): pad_before=2, pad_after=2 → 2+1+2=5 ✓
-    # For even windows (e.g., 4): pad_before=1, pad_after=2 → 1+1+2=4 ✓
-    pad_before_az = (window_size_az - 1) // 2
-    pad_after_az = window_size_az // 2
-    pad_before_rg = (window_size_rg - 1) // 2
-    pad_after_rg = window_size_rg // 2
-
-    # Pad the array to handle edges (asymmetric for even window sizes)
-    padded = np.pad(array_clean,
-                    ((pad_before_az, pad_after_az), (pad_before_rg, pad_after_rg)),
-                    mode='constant', constant_values=np.nan)
-
-    if axis == 'both':
-        # Create 2D sliding window view using stride tricks
-        # Shape will be (nrows, ncols, window_size_azimuth, window_size_range)
-        shape = (nrows, ncols, window_size_az, window_size_rg)
-        strides = (padded.strides[0], padded.strides[1], padded.strides[0], padded.strides[1])
-
-        # Create a view with 2D sliding windows (no copy, just metadata)
-        windows = np.lib.stride_tricks.as_strided(padded, shape=shape, strides=strides)
-
-        # Apply filter function directly on 4D array
-        if filter_type == 'mean':
-            filtered = np.nanmean(windows, axis=(2, 3))
-        else:  # median
-            filtered = np.nanmedian(windows, axis=(2, 3))
-    else:
-        # Create 1D sliding window view
-        # Shape will be (nrows, ncols, window_size)
-        if axis == 'azimuth':
-            shape = (nrows, ncols, window_size_az)
-            strides = (padded.strides[0], padded.strides[1], padded.strides[0])
-        else:  # range
-            shape = (nrows, ncols, window_size_rg)
-            strides = (padded.strides[0], padded.strides[1], padded.strides[1])
-
-        # Create a view with sliding windows
-        windows = np.lib.stride_tricks.as_strided(padded, shape=shape, strides=strides)
-
-        # Apply filter function along the window axis (axis=2)
-        if filter_type == 'mean':
-            filtered = np.nanmean(windows, axis=2)
-        else:  # median
-            filtered = np.nanmedian(windows, axis=2)
+    # Apply generic_filter with appropriate size
+    filtered = ndimage.generic_filter(
+        array_clean,
+        filter_func,
+        size=(window_size_az, window_size_rg),
+        mode='constant',
+        cval=np.nan
+    )
 
     return filtered
 
