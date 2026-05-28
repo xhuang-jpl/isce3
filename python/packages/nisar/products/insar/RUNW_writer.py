@@ -269,7 +269,7 @@ class RUNWWriter(L1InSARWriter):
         super().add_parameters_to_procinfo_group()
         self.add_ionosphere_to_procinfo_params_group()
 
-    def add_interferogram_to_swaths_group(self,is_unwrapped=False):
+    def add_interferogram_to_swaths_group(self, is_unwrapped=False):
         """
         Add interferogram group to swaths group
         """

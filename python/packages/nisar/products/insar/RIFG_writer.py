@@ -65,7 +65,7 @@ class RIFGWriter(L1InSARWriter):
         super().add_algorithms_to_procinfo_group()
         self.add_interferogramformation_to_algo_group()
 
-    def add_interferogram_to_swaths_group(self,is_unwrapped=False):
+    def add_interferogram_to_swaths_group(self, is_unwrapped=False):
         """
         Add interferogram group to swaths
         """
