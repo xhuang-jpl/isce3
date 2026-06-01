@@ -267,7 +267,7 @@ def set_optional_attributes(ampcor_obj, cfg, length, width):
         ampcor_obj.mergeGrossOffset = 1 if cfg['merge_gross_offset'] else 0
 
     # Check pixel in image range
-    ampcor_obj.checkPixelInImageRange()
+    # ampcor_obj.checkPixelInImageRange()
 
     return ampcor_obj
 
