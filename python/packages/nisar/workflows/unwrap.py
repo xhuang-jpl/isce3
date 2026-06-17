@@ -354,16 +354,17 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
                         corr_path = \
                             str(f'{crossmul_scratch}/coherence_rg{unwrap_rg_looks}_az{unwrap_az_looks}')
                         corr = open_raster(corr_path)
+                        corr_raster = isce3.io.Raster(corr_path)
                         dst_h5[dst_path][:, :] = corr
+                        compute_stats_real_data(corr_raster, dst_dataset)
                     else:
                         dst_h5[dst_path][:, :] = src_h5[src_path][()]
+                        dst_dataset = dst_h5[dst_path]
 
-                    dst_dataset = dst_h5[dst_path]
-                    dst_raster = isce3.io.Raster(
-                        f"IH5:::ID={dst_dataset.id.id}".encode("utf-8"),
-                        update=True)
-                    compute_stats_real_data(dst_raster, dst_dataset)
-
+                        src_dataset = src_h5[src_path]
+                        src_raster = isce3.io.Raster(
+                            f"IH5:::ID={src_dataset.id.id}".encode("utf-8"))
+                        compute_stats_real_data(src_raster, dst_dataset)
 
     t_all_elapsed = time.time() - t_all
     info_channel.log(
