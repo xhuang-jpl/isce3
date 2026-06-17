@@ -356,6 +356,7 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
                         corr = open_raster(corr_path)
                         corr_raster = isce3.io.Raster(corr_path)
                         dst_h5[dst_path][:, :] = corr
+                        dst_dataset = dst_h5[dst_path]
                         compute_stats_real_data(corr_raster, dst_dataset)
                     else:
                         dst_h5[dst_path][:, :] = src_h5[src_path][()]
