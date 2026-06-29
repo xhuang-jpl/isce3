@@ -199,7 +199,7 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                 Parameters
                 ----------
                 lon_datacube: np.ndarray
-                    radar-grid longitudes, last axis = range/x
+                    radar-grid longitudes in degrees, last axis = range/x
 
                 Returns
                 -------
@@ -220,13 +220,13 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                 Parameters
                 ----------
                 lat: np.ndarray
-                    radar-grid latitudes, last axis = range/x
+                    radar-grid latitudes in degrees, last axis = range/x
                 lon: np.ndarray
-                    radar-grid longitudes, last axis = range/x
+                    radar-grid longitudes in degrees, last axis = range/x
                 cols: np.ndarray
                     column indices belonging to this side
                 side: str
-                    one of 'west', 'east', or 'all'
+                    one of 'west_dateline', 'east_dateline', or 'all'
                 margin: float
                     bounding-box padding in degrees
 
@@ -238,10 +238,10 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                 lon = np.take(_norm_lon(lon), cols, axis=-1)
                 s = float(np.nanmin(lat)) - margin
                 n = float(np.nanmax(lat)) + margin
-                if side == "west":                                # +lon hemisphere
+                if side == "west_dateline":                                # +lon hemisphere
                     pos = lon[np.isfinite(lon) & (lon >= 0)]
                     return [s, n, float(np.min(pos)) - margin, 180.0]
-                if side == "east":                                # -lon hemisphere
+                if side == "east_dateline":                                # -lon hemisphere
                     neg = lon[np.isfinite(lon) & (lon < 0)]
                     return [s, n, -180.0, float(np.max(neg)) + margin]
                 return [s, n, float(np.nanmin(lon)) - margin, float(np.nanmax(lon)) + margin]
@@ -250,8 +250,7 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                                     xpts, ypts, los, height_levels, out_proj,
                                     weather_model_type=None,
                                     weather_model_output_dir=None,
-                                    hres_converter=None, margin=0.1,
-                                    tropo_delay_fn=None):
+                                    hres_converter=None, margin=0.1):
                 '''
                 Compute the RAiDER tropospheric delay with antimeridian handling.
 
@@ -268,9 +267,9 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                     weather model file (RAiDER NetCDF, or HRES NetCDF if
                     weather_model_type == 'HRES')
                 lat_datacube: np.ndarray
-                    radar-grid latitudes, last axis = range/x
+                    radar-grid latitudes in degrees, last axis = range/x
                 lon_datacube: np.ndarray
-                    radar-grid longitudes, last axis = range/x
+                    radar-grid longitudes in degrees, last axis = range/x
                 xpts: np.ndarray
                     output-grid x coordinates (xcoord_radar_grid)
                 ypts: np.ndarray
@@ -290,14 +289,11 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                     used to convert an HRES NetCDF to the RAiDER internal NetCDF per sub-AOI
                 margin: float, optional
                     AOI padding in degrees (default 0.1)
-                tropo_delay_fn: callable, optional
-                    override for RAiDER's tropo_delay (defaults to raider_tropo_delay)
 
                 Returns
                 -------
                     the (merged) xarray.Dataset tropospheric delay cube
                 '''
-                rtd = tropo_delay_fn or raider_tropo_delay
 
                 xpts = np.asarray(xpts, float)
                 ypts = np.asarray(ypts, float)
@@ -305,11 +301,14 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                 def _run(bounds, xsub):
                     wm = weather_model_file
                     if weather_model_type == "HRES" and hres_converter is not None:
-                        wm = hres_converter(weather_model_file, bounds, weather_model_output_dir)
+                        wm = hres_converter(weather_model_file, bounds,
+                                            weather_model_output_dir)
                     aoi = BoundingBox(bounds)
                     aoi.xpts, aoi.ypts = xsub, ypts
-                    return rtd(dt=dt, weather_model_file=wm, aoi=aoi, los=los,
-                            height_levels=height_levels, out_proj=out_proj)[0]
+                    return raider_tropo_delay(dt=dt, weather_model_file=wm,
+                                              aoi=aoi, los=los,
+                                              height_levels=height_levels,
+                                              out_proj=out_proj)[0]
 
                 # no crossing -> single call, original behaviour
                 if not _crosses_dateline(lon_datacube):
@@ -320,8 +319,8 @@ def compute_troposphere_delay(cfg: dict, gunw_hdf5: str):
                 # crossing -> split columns by side, run each, merge along x by orig index
                 rep = _lon_per_xcolumn(lon_datacube)
                 merged = None
-                for side, cols in (("west", np.where(rep <= 180.0)[0]),
-                                ("east", np.where(rep > 180.0)[0])):
+                for side, cols in (("west_dateline", np.where(rep <= 180.0)[0]),
+                                ("east_dateline", np.where(rep > 180.0)[0])):
                     if cols.size == 0:
                         continue
                     bounds = _side_bounds(lat_datacube, lon_datacube, cols, side, margin)
