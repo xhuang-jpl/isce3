@@ -1440,7 +1440,7 @@ class InSARBaseWriter(h5py.File):
             ds.dims[1].attach_scale(xds)
 
         if fill_value is not None:
-            ds.attrs["_FillValue"] = fill_value
+            ds.attrs["_FillValue"] = dtype(fill_value)
         # create fill value if not specified
         elif np.issubdtype(dtype, np.floating):
             ds.attrs["_FillValue"] = np.nan
