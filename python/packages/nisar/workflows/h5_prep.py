@@ -76,7 +76,7 @@ def get_complex_output_dtype(cfg: dict, dst_h5: h5py.File):
         # Creates a new object in the HDF5 file that teaches tools like
         # GDAL/netCDF about this custom datatype.
         h5_type = h5py.h5t.py_create(complex32)
-        h5_type.commit(dst_h5['/'].id, to_bytes('complex32'))
+        h5_type.commit(dst_h5['/'].id, np.bytes_('complex32'))
         ctype = complex32
         fill_value = to_complex32(np.array([fill_value]))[0]
     else:
