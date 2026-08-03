@@ -596,7 +596,7 @@ def _create_datasets(dst_grp, shape, ctype, dataset_name,
     attributes to avoid boilerplate calls
     '''
     if len(shape) == 1:
-        if ctype == to_bytes:
+        if ctype == np.bytes_:
             ds = dst_grp.create_dataset(dataset_name,
                                         data=to_bytes("         "))
         else:
