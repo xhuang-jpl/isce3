@@ -82,7 +82,7 @@ def get_complex_output_dtype(cfg: dict, dst_h5: h5py.File):
     else:
         # output_type is 'complex64' or 'complex64_zero_mantissa'.
         ctype = h5py.h5t.py_create(np.complex64)
-        ctype.commit(dst_h5['/'].id, to_bytes('complex64'))
+        ctype.commit(dst_h5['/'].id, np.bytes_('complex64'))
         # Cast fill value as np.complex64.
         fill_value = np.complex64(fill_value)
 
