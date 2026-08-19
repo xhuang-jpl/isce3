@@ -1443,7 +1443,7 @@ class InSARBaseWriter(h5py.File):
             ds.attrs["_FillValue"] = dtype(fill_value)
         # create fill value if not specified
         elif np.issubdtype(dtype, np.floating):
-            ds.attrs["_FillValue"] = np.nan
+            ds.attrs["_FillValue"] = dtype(np.nan)
         elif np.issubdtype(dtype, np.unsignedinteger):
             ds.attrs["_FillValue"] = np.iinfo(dtype).max
         elif np.issubdtype(dtype, np.signedinteger):
