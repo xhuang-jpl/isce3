@@ -35,10 +35,10 @@ def compute_stats_real_hdf5_dataset(h5_ds):
     h5_ds: h5py.Dataset
         hdf5 dataset object
     """
-    h5_ds.attrs.create('min_value', data=np.nanmin(h5_ds))
-    h5_ds.attrs.create('mean_value', data=np.nanmean(h5_ds))
-    h5_ds.attrs.create('max_value', data=np.nanmax(h5_ds))
-    h5_ds.attrs.create('sample_stddev', data=np.nanstd(h5_ds))
+    h5_ds.attrs.create('min_value', data=h5_ds.dtype.type(np.nanmin(h5_ds)))
+    h5_ds.attrs.create('mean_value', data=h5_ds.dtype.type(np.nanmean(h5_ds)))
+    h5_ds.attrs.create('max_value', data=h5_ds.dtype.type(np.nanmax(h5_ds)))
+    h5_ds.attrs.create('sample_stddev', data=h5_ds.dtype.type(np.nanstd(h5_ds)))
 
 def compute_stats_real_data(raster, h5_ds):
     """
@@ -53,11 +53,11 @@ def compute_stats_real_data(raster, h5_ds):
         stats_obj = isce3.math.compute_raster_stats_float64(raster)[0]
     else:
         stats_obj = isce3.math.compute_raster_stats_float32(raster)[0]
-    h5_ds.attrs.create('min_value', data=stats_obj.min)
-    h5_ds.attrs.create('mean_value', data=stats_obj.mean)
-    h5_ds.attrs.create('max_value', data=stats_obj.max)
+    h5_ds.attrs.create('min_value', data=h5_ds.dtype.type(stats_obj.min))
+    h5_ds.attrs.create('mean_value', data=h5_ds.dtype.type(stats_obj.mean))
+    h5_ds.attrs.create('max_value', data=h5_ds.dtype.type(stats_obj.max))
     h5_ds.attrs.create('sample_stddev',
-                       data=stats_obj.sample_stddev)
+                       data=h5_ds.dtype.type(stats_obj.sample_stddev))
 
 def compute_layover_shadow_water_stats(h5_ds, lines_per_block=1000):
     '''
