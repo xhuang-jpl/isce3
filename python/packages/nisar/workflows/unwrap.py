@@ -313,6 +313,55 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
                     # Compute statistics (stats module supports isce3.io.Raster)
                     unw_raster = isce3.io.Raster(unw_raster_path)
                     compute_stats_real_data(unw_raster, unw_dataset)
+                elif algorithm == "whirlwind":
+                    info_channel.log("Unwrapping with whirlwind")
+
+                    # Get whirlwind dictionary with user params
+                    whirlwind_cfg = unwrap_args["whirlwind"]
+
+                    # Get input array to run unwrapping with whirlwind-insar
+                    igram_array = open_raster(igram_path)
+                    coh_array = open_raster(corr_path)
+
+                    mask_array = open_raster(
+                        whirlwind_cfg['mask']) if whirlwind_cfg['mask'] is not None else None
+
+                    # Get effective number of looks
+                    if whirlwind_cfg['nlooks'] is not None:
+                        nlooks = whirlwind_cfg['nlooks']
+                    else:
+                        rg_spacing = src_h5[f"{src_freq_group_path}/interferogram/slantRangeSpacing"][()]
+                        az_spacing = src_h5[f"{src_freq_group_path}/interferogram/sceneCenterAlongTrackSpacing"][()]
+                        rg_bw = src_h5[f"{src_freq_bandwidth_group_path}/rangeBandwidth"][()]
+                        az_bw = src_h5[f"{src_freq_bandwidth_group_path}/azimuthBandwidth"][()]
+                        nlooks = get_effective_looks(ref_slc, ref_orbit, rg_spacing,
+                                                     az_spacing, rg_bw, az_bw, freq=freq)
+
+                    # Run whirlwind using whirlwind-insar
+                    try:
+                        import whirlwind as ww
+                    except ImportError:
+                        err_str = ("whirlwind-insar is not installed. "
+                                   "Install it with 'pip install whirlwind-insar' or "
+                                   "'conda install -c conda-forge whirlwind-insar'")
+                        error_channel.log(err_str)
+                        raise ImportError(err_str)
+
+                    # Get whirlwind parameters using helper function
+                    ww_kwargs = set_whirlwind_attributes(whirlwind_cfg)
+                    ww_kwargs['nlooks'] = float(nlooks)
+                    ww_kwargs['mask'] = mask_array if mask_array is not None else None
+
+                    # Run whirlwind unwrapping
+                    unwrapped, conncomp = ww.unwrap(igram_array, coh_array, **ww_kwargs)
+
+                    # Write results to HDF5
+                    dst_h5[unw_path][:, :] = np.asarray(unwrapped, dtype=np.float32)
+                    dst_h5[conn_comp_path][:, :] = np.asarray(conncomp, dtype=np.uint32)
+
+                    # Compute statistics
+                    unw_raster = isce3.io.Raster(unw_raster_path)
+                    compute_stats_real_data(unw_raster, unw_dataset)
 
                 else:
                     err_str = f"{algorithm} is an invalid unwrapping algorithm"
@@ -479,6 +528,63 @@ def set_phass_attributes(cfg: dict):
     unwrap.min_pixels_region = cfg["min_unwrap_area"]
 
     return unwrap
+
+
+def set_whirlwind_attributes(cfg: dict):
+    """
+    Return dictionary with whirlwind parameters from user-defined config
+
+    Parameters
+    ----------
+    cfg: dict
+        Dictionary containing user-defined whirlwind parameters
+
+    Returns
+    -------
+    ww_kwargs: dict
+        Dictionary of whirlwind parameters for whirlwind.unwrap()
+    """
+    ww_kwargs = {}
+
+    # Add parameters if specified in config
+    if cfg.get('bridge') is not None:
+        ww_kwargs['bridge'] = cfg['bridge']
+    if cfg.get('downsample') is not None:
+        ww_kwargs['downsample'] = cfg['downsample']
+    if cfg.get('interpolate') is not None:
+        ww_kwargs['interpolate'] = cfg['interpolate']
+    if cfg.get('interp_cutoff') is not None:
+        ww_kwargs['interp_cutoff'] = cfg['interp_cutoff']
+    if cfg.get('interp_num_neighbors') is not None:
+        ww_kwargs['interp_num_neighbors'] = cfg['interp_num_neighbors']
+    if cfg.get('interp_max_radius') is not None:
+        ww_kwargs['interp_max_radius'] = cfg['interp_max_radius']
+    if cfg.get('interp_min_radius') is not None:
+        ww_kwargs['interp_min_radius'] = cfg['interp_min_radius']
+    if cfg.get('interp_alpha') is not None:
+        ww_kwargs['interp_alpha'] = cfg['interp_alpha']
+    if cfg.get('conncomp_algorithm') is not None:
+        ww_kwargs['conncomp_algorithm'] = cfg['conncomp_algorithm']
+    if cfg.get('conncomp_min_coherence') is not None:
+        ww_kwargs['conncomp_min_coherence'] = cfg['conncomp_min_coherence']
+    if cfg.get('conncomp_reliability') is not None:
+        ww_kwargs['conncomp_reliability'] = cfg['conncomp_reliability']
+    if cfg.get('cost_threshold') is not None:
+        ww_kwargs['cost_threshold'] = cfg['cost_threshold']
+    if cfg.get('conncomp_cycle_prob') is not None:
+        ww_kwargs['conncomp_cycle_prob'] = cfg['conncomp_cycle_prob']
+    if cfg.get('conncomp_sigma') is not None:
+        ww_kwargs['conncomp_sigma'] = cfg['conncomp_sigma']
+    if cfg.get('min_size_px') is not None:
+        ww_kwargs['min_size_px'] = cfg['min_size_px']
+    if cfg.get('max_ncomps') is not None:
+        ww_kwargs['max_ncomps'] = cfg['max_ncomps']
+    if cfg.get('goldstein_alpha') is not None:
+        ww_kwargs['goldstein_alpha'] = cfg['goldstein_alpha']
+    if cfg.get('goldstein_psize') is not None:
+        ww_kwargs['goldstein_psize'] = cfg['goldstein_psize']
+
+    return ww_kwargs
 
 
 def igram_phase_to_vrt(raster_path, output_path):
