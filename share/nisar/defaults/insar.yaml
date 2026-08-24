@@ -811,10 +811,16 @@ runconfig:
                     #  enabled (since regrowing connected components would be redundant in that case).
                     regrow_conncomps: True
                 whirlwind:
-                    # Effective number of looks used to estimate coherence. Must be at least 1.
-                    # Higher nlooks means higher confidence in coherence and narrower cost model.
-                    # If not specified, nlooks is estimated from metadata using the same formula
-                    # as snaphu (range/azimuth spacing and bandwidth).
+                    # Effective number of looks used to form the sample coherence. Must be at least 1.
+                    # A higher number of looks means higher confidence in coherence and a narrower
+                    # coherence cost model. Very large values (above ~80 looks) are capped for the
+                    # cost model since the phase PDF has effectively converged by then.
+                    # If not specified, nlooks (n_e) is estimated as:
+                    # $$
+                    # n_e = \frac{d_r d_a}{\rho_r \rho_a}
+                    # $$
+                    # where $d_r$ and $d_a$ are the sample spacing in range and azimuth,
+                    # and $\rho_r$ and $\rho_a$ are the range and azimuth resolution.
                     nlooks:
                     # File path to a binary mask of valid pixels. Zeros in this raster indicate
                     # interferogram pixels that should be masked out. If provided, it must have
