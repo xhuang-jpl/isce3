@@ -363,8 +363,7 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
                         compute_stats_real_data(corr_raster, dst_dataset)
                     else:
                         dst_h5[dst_path][:, :] = src_h5[src_path][()]
-
-                        # Copy thes stats from the source dataset
+                        # Copy the stats from the source dataset
                         stats_attrs = ('min_value','mean_value',
                                        'max_value','sample_stddev')
                         dst_h5.attrs.update(
