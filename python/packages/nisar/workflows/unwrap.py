@@ -365,10 +365,10 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
                         dst_h5[dst_path][:, :] = src_h5[src_path][()]
 
                         # Copy thes stats from the source dataset
-                        for k in ('min_value','mean_value',
-                                  'max_value','sample_stddev'):
-                            dst_h5.attrs[k] = src_h5.attrs[k]
-
+                        stats_attrs = ('min_value','mean_value',
+                                       'max_value','sample_stddev')
+                        dst_h5.attrs.update(
+                            {k: src_h5.attrs[k] for k in stats_attrs if k in src_h5.attrs})
 
     t_all_elapsed = time.time() - t_all
     info_channel.log(
