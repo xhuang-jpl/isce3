@@ -118,7 +118,7 @@ def test_unwrap_run_whirlwind():
     looks of `insar_test.yaml` comfortably clear.
     '''
 
-    run_unwrap_workflow('runw_whirlwind.h5', algorithm='whirlwind')
+    run_unwrap_workflow('runw.h5', algorithm='whirlwind')
 
 
 def test_unwrap_validate_whirlwind():
@@ -130,7 +130,7 @@ def test_unwrap_validate_whirlwind():
     discarded as background and labeled 0.
     '''
 
-    validate_unwrap_workflow('runw_whirlwind.h5')
+    validate_unwrap_workflow('runw.h5')
 
 if __name__ == "__main__":
     test_unwrap_run()

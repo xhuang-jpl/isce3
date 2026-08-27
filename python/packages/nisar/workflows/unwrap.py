@@ -137,6 +137,7 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
 
                 # If enabled, preprocess wrapped phase: remove invalid pixels
                 # and fill their location with a filling algorithm
+                mask = None
                 if unwrap_args["preprocess_wrapped_phase"]["enabled"]:
                     # Extract preprocessing dictionary and open arrays
                     preproc_cfg = unwrap_args["preprocess_wrapped_phase"]
@@ -281,6 +282,10 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
                     mask_array = open_raster(
                         snaphu_cfg['mask']) if snaphu_cfg['mask'] is not None else None
 
+                    # Combine the snaphu and preprocessing mask
+                    if mask is not None:
+                        mask_array = ~mask if mask_array is None else mask_array & ~mask
+
                     # Get effective number of looks
                     if snaphu_cfg['nlooks'] is not None:
                         nlooks = snaphu_cfg['nlooks']
@@ -325,6 +330,10 @@ def run(cfg: dict, input_hdf5: str, output_hdf5: str):
 
                     mask_array = open_raster(
                         whirlwind_cfg['mask']) if whirlwind_cfg['mask'] is not None else None
+
+                    # Combine the snaphu and preprocessing mask
+                    if mask is not None:
+                        mask_array = ~mask if mask_array is None else mask_array & ~mask
 
                     # Get effective number of looks
                     if whirlwind_cfg['nlooks'] is not None:
