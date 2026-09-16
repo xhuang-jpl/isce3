@@ -489,6 +489,11 @@ class _RSLCInputDataExceptionMask:
         self._block_lines = max(block_lines, self._chunk_lines)
         self._block = np.empty((0, samples), dtype=dataset.dtype)
 
+    @property
+    def dtype(self):
+        """dtype of the underlying dataset (uint8 zeros if there is none)"""
+        return self._block.dtype
+
     def _ensure(self, lo, hi):
         """
         Make lines lo..hi (inclusive) resident.
@@ -730,6 +735,26 @@ def generate_insar_mask(ref_rslc_obj,
                                               sec_rslc_obj,
                                               sec_swath)
 
+    # No RSLC defines per-polarization bits in inputDataExceptionMask
+    # (all are uint8 or absent), so sub-swath validity is used as a
+    # proxy for every polarization. Warn if that ever changes, rather
+    # than guess at an undefined bit convention.
+    warning_channel = journal.warning('utils.generate_insar_mask')
+    if ref_exception_mask.dtype != np.dtype('uint8'):
+        warning_channel.log(
+            f"reference inputDataExceptionMask dtype "
+            f"{ref_exception_mask.dtype} is not uint8; no "
+            f"per-polarization validity convention is defined for a "
+            f"wider inputDataExceptionMask, falling back to sub-swath-"
+            f"derived validity for all polarizations")
+    if sec_exception_mask.dtype != np.dtype('uint8'):
+        warning_channel.log(
+            f"secondary inputDataExceptionMask dtype "
+            f"{sec_exception_mask.dtype} is not uint8; no "
+            f"per-polarization validity convention is defined for a "
+            f"wider inputDataExceptionMask, falling back to sub-swath-"
+            f"derived validity for all polarizations")
+
     # Integer reference indices of the output columns: int() truncates
     # toward zero, as does astype
     rg_idx_int = rg_idx_arr.astype(np.int64)
@@ -773,14 +798,9 @@ def generate_insar_mask(ref_rslc_obj,
         mask_row |= (ref_exception_mask_row
                      .astype(np.uint8).astype(np.uint32) << 16)
 
-        # To accommodate the old RSLC with uint8 inputDataExceptionMask,
-        # and the valid polarization dependent mask will use the
-        # subswath mask.
-        if ref_exception_mask._block.dtype == np.dtype('uint8'):
-            pol_mask_row = (ref_num > 0).astype(np.uint16) << 8
-        else:
-            # polarization dependent mask for the reference RSLC
-            pol_mask_row = ref_exception_mask_row & np.uint16(0xFF00)
+        # Sub-swath validity, broadcast across all 8 reference
+        # polarization bits (see the dtype check above).
+        pol_mask_row = np.where(ref_num > 0, np.uint16(0xFF00), np.uint16(0))
 
         # Secondary RSLC input exception mask bits at the nearest
         # secondary sample (round() of the scalar code, i.e. half to
@@ -794,14 +814,7 @@ def generate_insar_mask(ref_rslc_obj,
         mask_row |= (sec_exception_mask_row
                      .astype(np.uint8).astype(np.uint32) << 8)
 
-        # To accommodate the old RSLC with uint8 inputDataExceptionMask,
-        # and the valid polarization dependent mask will use the
-        # subswath mask
-        if sec_exception_mask._block.dtype == np.dtype('uint8'):
-            pol_mask_row |= (sec_num > 0).astype(np.uint16)
-        else:
-            # polarization dependent mask combing with the secondary RSLC
-            pol_mask_row |= (sec_exception_mask_row & np.uint16(0xFF00)) >> 8
+        pol_mask_row |= np.where(sec_num > 0, np.uint16(0x00FF), np.uint16(0))
 
         mask_row[col_out_of_swath] = 0
         pol_mask_row[col_out_of_swath] = 0
@@ -837,7 +850,9 @@ def extract_pol_valid_mask(pol_valid_mask, pol):
     # Map polarization to bit position (0-7) based on the standard order
     pol_to_bit = {'HH': 0, 'HV': 1, 'VH': 2, 'VV': 3,
                   'LH': 4, 'LV': 5, 'RH': 6, 'RV': 7}
-    bit_pos = pol_to_bit.get(pol, 0)
+    if pol not in pol_to_bit:
+        raise ValueError(f"unrecognized polarization '{pol}'")
+    bit_pos = pol_to_bit[pol]
 
     # Extract reference (high byte) and secondary (low byte) bits
     ref_valid = (pol_valid_mask >> (bit_pos + 8)) & 1
